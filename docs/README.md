@@ -4,10 +4,34 @@ Ce répertoire contient toute la documentation générée automatiquement pour l
 
 ## 📁 Contenu
 
+### 🖼️ COMPARAISON VISUELLE ⭐ NOUVEAU
+
+#### **🎨 comparaison_avant_apres.png** (IMAGE - RECOMMANDÉ)
+**L'image de comparaison complète** montrant visuellement :
+- 📊 Statistiques globales avec gains mesurables (-31% catégories, -63% channels)
+- 🛡️ Comparaison catégorie par catégorie (AVANT vs APRÈS)
+- 🔥 Détails des 2 forums (vitrine + galerie-nsfw) avec tags
+- ✅ Liste des avantages et résultat final
+- 🎨 Design moderne avec couleurs Discord
+
+**Format :** 2400x3805px PNG  
+**Poids :** ~1.5MB  
+**📎 Lien direct :** [Voir l'image](https://github.com/mel805/Bagbot/blob/main/docs/comparaison_avant_apres.png)
+
+---
+
+#### **📝 comparaison_visuelle.md** (Version Markdown)
+Version texte du même contenu, optimisée pour :
+- Carbon.now.sh (création de screenshots de code stylisés)
+- Markdown viewers
+- Copier-coller dans Discord
+
+---
+
 ### 🎨 Optimisation Serveur - Style & Structure
 
-#### **🌟 apercu_complet_avant_apres.txt** (NOUVEAU - RECOMMANDÉ)
-**Le rapport le plus complet** montrant :
+#### **🌟 apercu_complet_avant_apres.txt** (TEXTE DÉTAILLÉ)
+**Le rapport le plus complet en format texte** montrant :
 - ✅ État ACTUEL du serveur (vrais noms de channels tels qu'ils sont)
 - ✅ État OPTIMISÉ avec TOUTES les modifications :
   - Style Dark Sexy appliqué (100% pingable)
@@ -71,10 +95,11 @@ Documentation complète du processus de recréation du dépôt GitHub, incluant 
 
 ## 🎯 Ordre de Lecture Recommandé
 
-1. **apercu_complet_avant_apres.txt** ← COMMENCER ICI (vue d'ensemble complète)
-2. nouveau_style_nommage.txt (comprendre les styles proposés)
-3. detail_regroupement_logs.txt (plan de regroupement des logs)
-4. synthese_finale_optimisation.txt (plan d'action global)
+1. **🖼️ comparaison_avant_apres.png** ← COMMENCER ICI (image visuelle complète)
+2. apercu_complet_avant_apres.txt (version texte détaillée)
+3. nouveau_style_nommage.txt (comprendre les styles proposés)
+4. detail_regroupement_logs.txt (plan de regroupement des logs)
+5. synthese_finale_optimisation.txt (plan d'action global)
 
 ---
 
@@ -90,7 +115,7 @@ Documentation complète du processus de recréation du dépôt GitHub, incluant 
 
 - Repository GitHub: https://github.com/mel805/Bagbot
 - Dashboard: http://82.67.65.98:3002
-- Bot Discord: Bag-bot#1234
+- Bot Discord: Bag-bot
 
 ---
 
