@@ -126,11 +126,11 @@ async function readConfig() {
   }
 }
 
-async function writeConfig(cfg) {
+async function writeConfig(cfg, updateType = "unknown") {
   await ensureStorageExists();
   
   // 🛡️ PROTECTION ANTI-CORRUPTION
-  const validation = validateConfigBeforeWrite(cfg);
+  const validation = validateConfigBeforeWrite(cfg, null, updateType);
   if (!validation.valid) {
     console.error('[Protection] ❌ REFUS D ÉCRITURE: Config invalide -', validation.reason);
     console.error('[Protection] 🔄 Le config actuel reste intact');
@@ -1629,7 +1629,7 @@ async function updateCountingConfig(guildId, partial) {
   ensureCountingShape(cfg.guilds[guildId]);
   const cur = cfg.guilds[guildId].counting;
   cfg.guilds[guildId].counting = { ...cur, ...partial };
-  await writeConfig(cfg);
+  await writeConfig(cfg, "counting");
   return cfg.guilds[guildId].counting;
 }
 
@@ -1638,7 +1638,7 @@ async function setCountingState(guildId, state) {
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   ensureCountingShape(cfg.guilds[guildId]);
   cfg.guilds[guildId].counting.state = { ...(cfg.guilds[guildId].counting.state || {}), ...state };
-  await writeConfig(cfg);
+  await writeConfig(cfg, "counting");
   return cfg.guilds[guildId].counting.state;
 }
 async function getDisboardConfig(guildId) {
