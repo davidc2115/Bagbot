@@ -66,18 +66,51 @@
         
         /* Roles */
         .roles-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1800px; margin: 0 auto; padding: 20px;}
-        .role-column {background: #2f3136; border-radius: 8px; padding: 20px; overflow-y: auto; max-height: calc(100vh - 200px);}
+        .role-column {background: #2f3136; border-radius: 8px; padding: 20px; overflow-y: auto; max-height: calc(100vh - 200px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);}
         .role-column.avant {border: 2px solid #ed4245;}
-        .role-column.apres {border: 2px solid #ff1744; background: #2a2528;}
-        .role-column h2 {color: #fff; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #40444b; font-size: 22px;}
-        .role-item {display: flex; align-items: center; padding: 8px 12px; margin: 4px 0; border-radius: 4px; transition: all 0.15s;}
-        .role-item:hover {background: #393c43;}
-        .apres .role-item:hover {background: #3d2a2e;}
-        .role-color {width: 16px; height: 16px; border-radius: 50%; margin-right: 10px; border: 2px solid #40444b; flex-shrink: 0;}
+        .role-column.apres {border: 2px solid #ff1744; background: linear-gradient(135deg, #2a2528 0%, #2d1f25 100%);}
+        .role-column h2 {color: #fff; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #ff1744; font-size: 22px; text-shadow: 0 2px 10px rgba(255,23,68,0.4);}
+        .role-item {display: flex; align-items: center; padding: 10px 14px; margin: 4px 0; border-radius: 6px; transition: all 0.2s; border-left: 3px solid transparent;}
+        .role-item:hover {background: rgba(255,23,68,0.1); border-left-color: #ff1744; transform: translateX(3px);}
+        .apres .role-item:hover {background: rgba(255,23,68,0.15); box-shadow: 0 2px 10px rgba(255,23,68,0.2);}
+        .role-color {width: 18px; height: 18px; border-radius: 50%; margin-right: 12px; border: 2px solid rgba(255,255,255,0.2); flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.4);}
         .role-name {flex: 1; font-size: 14px; font-weight: 500; color: #dcddde;}
-        .role-arrow {color: #faa61a; margin: 0 10px; font-weight: 700;}
-        .role-new-name {color: #ff9eb5; font-size: 14px; font-weight: 600;}
-        .role-category-header {background: #40444b; color: #faa61a; padding: 8px 12px; margin: 15px 0 5px 0; border-radius: 4px; font-size: 12px; font-weight: 700; text-transform: uppercase;}
+        .role-arrow {color: #ff1744; margin: 0 10px; font-weight: 700; font-size: 16px;}
+        .role-new-name {color: #ff9eb5; font-size: 14px; font-weight: 600; text-shadow: 0 1px 4px rgba(255,158,181,0.3);}
+        
+        /* Catégories de rôles avec dégradés premium */
+        .role-category-header {padding: 10px 14px; margin: 20px 0 8px 0; border-radius: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.4); box-shadow: 0 2px 10px rgba(0,0,0,0.3); position: relative; overflow: hidden;}
+        .role-category-header::before {content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); transition: left 0.5s;}
+        .role-category-header:hover::before {left: 100%;}
+        
+        /* Couleurs par catégorie */
+        .role-category-header.cat-admin {background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);}
+        .role-category-header.cat-identite {background: linear-gradient(135deg, #ff1744 0%, #f50057 100%);}
+        .role-category-header.cat-pronoms {background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);}
+        .role-category-header.cat-statut {background: linear-gradient(135deg, #3f51b5 0%, #2196f3 100%);}
+        .role-category-header.cat-dm {background: linear-gradient(135deg, #00bcd4 0%, #009688 100%);}
+        .role-category-header.cat-nude {background: linear-gradient(135deg, #ff5722 0%, #e91e63 100%);}
+        .role-category-header.cat-orientation {background: linear-gradient(135deg, #4caf50 0%, #8bc34a 100%);}
+        .role-category-header.cat-pratiques {background: linear-gradient(135deg, #9c27b0 0%, #673ab7 100%);}
+        
+        /* Backgrounds colorés pour les rôles */
+        .apres .role-item.cat-admin {background: linear-gradient(90deg, rgba(255,215,0,0.08) 0%, rgba(255,140,0,0.05) 100%);}
+        .apres .role-item.cat-identite {background: linear-gradient(90deg, rgba(255,23,68,0.08) 0%, rgba(245,0,87,0.05) 100%);}
+        .apres .role-item.cat-pronoms {background: linear-gradient(90deg, rgba(233,30,99,0.08) 0%, rgba(156,39,176,0.05) 100%);}
+        .apres .role-item.cat-statut {background: linear-gradient(90deg, rgba(63,81,181,0.08) 0%, rgba(33,150,243,0.05) 100%);}
+        .apres .role-item.cat-dm {background: linear-gradient(90deg, rgba(0,188,212,0.08) 0%, rgba(0,150,136,0.05) 100%);}
+        .apres .role-item.cat-nude {background: linear-gradient(90deg, rgba(255,87,34,0.08) 0%, rgba(233,30,99,0.05) 100%);}
+        .apres .role-item.cat-orientation {background: linear-gradient(90deg, rgba(76,175,80,0.08) 0%, rgba(139,195,74,0.05) 100%);}
+        .apres .role-item.cat-pratiques {background: linear-gradient(90deg, rgba(156,39,176,0.08) 0%, rgba(103,58,183,0.05) 100%);}
+        
+        .apres .role-item.cat-admin:hover {background: linear-gradient(90deg, rgba(255,215,0,0.15) 0%, rgba(255,140,0,0.1) 100%); border-left-color: #ffd700;}
+        .apres .role-item.cat-identite:hover {background: linear-gradient(90deg, rgba(255,23,68,0.15) 0%, rgba(245,0,87,0.1) 100%); border-left-color: #ff1744;}
+        .apres .role-item.cat-pronoms:hover {background: linear-gradient(90deg, rgba(233,30,99,0.15) 0%, rgba(156,39,176,0.1) 100%); border-left-color: #e91e63;}
+        .apres .role-item.cat-statut:hover {background: linear-gradient(90deg, rgba(63,81,181,0.15) 0%, rgba(33,150,243,0.1) 100%); border-left-color: #3f51b5;}
+        .apres .role-item.cat-dm:hover {background: linear-gradient(90deg, rgba(0,188,212,0.15) 0%, rgba(0,150,136,0.1) 100%); border-left-color: #00bcd4;}
+        .apres .role-item.cat-nude:hover {background: linear-gradient(90deg, rgba(255,87,34,0.15) 0%, rgba(233,30,99,0.1) 100%); border-left-color: #ff5722;}
+        .apres .role-item.cat-orientation:hover {background: linear-gradient(90deg, rgba(76,175,80,0.15) 0%, rgba(139,195,74,0.1) 100%); border-left-color: #4caf50;}
+        .apres .role-item.cat-pratiques:hover {background: linear-gradient(90deg, rgba(156,39,176,0.15) 0%, rgba(103,58,183,0.1) 100%); border-left-color: #9c27b0;}
         
         @media (max-width: 1200px) {
             .comparison-wrapper {flex-direction: column; height: auto;}
@@ -348,46 +381,46 @@
             <div class="role-column avant">
                 <h2>📌 AVANT - Rôles Actuels</h2>
                 
-                <div class="role-category-header">👑 ADMIN / STAFF</div>
+                <div class="role-category-header cat-admin">👑 ADMIN / STAFF</div>
                 <div class="role-item"><div class="role-color" style="background: #eaa237;"></div><span class="role-name">Fondateur</span></div>
                 <div class="role-item"><div class="role-color" style="background: #000000;"></div><span class="role-name">Admin</span></div>
                 <div class="role-item"><div class="role-color" style="background: #ff0000;"></div><span class="role-name">BOT SERVEUR</span></div>
                 <div class="role-item"><div class="role-color" style="background: #99aab5;"></div><span class="role-name">Developpeur</span></div>
                 <div class="role-item"><div class="role-color" style="background: #206694;"></div><span class="role-name">Modérateur</span></div>
                 
-                <div class="role-category-header">💕 IDENTITÉ</div>
+                <div class="role-category-header cat-identite">💕 IDENTITÉ</div>
                 <div class="role-item"><div class="role-color" style="background: #ff5dd6;"></div><span class="role-name">Femme</span></div>
                 <div class="role-item"><div class="role-color" style="background: #4cadd0;"></div><span class="role-name">Homme</span></div>
                 <div class="role-item"><div class="role-color" style="background: #826bc2;"></div><span class="role-name">autres</span></div>
                 
-                <div class="role-category-header">💬 PRONOMS</div>
+                <div class="role-category-header cat-pronoms">💬 PRONOMS</div>
                 <div class="role-item"><div class="role-color" style="background: #000000;"></div><span class="role-name">Pronom elle</span></div>
                 <div class="role-item"><div class="role-color" style="background: #000000;"></div><span class="role-name">Pronom il</span></div>
                 
-                <div class="role-category-header">💑 STATUT RELATIONNEL</div>
+                <div class="role-category-header cat-statut">💑 STATUT RELATIONNEL</div>
                 <div class="role-item"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">celibataire</span></div>
                 <div class="role-item"><div class="role-color" style="background: #43586d;"></div><span class="role-name">en couple</span></div>
                 <div class="role-item"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">complique</span></div>
                 <div class="role-item"><div class="role-color" style="background: #40707e;"></div><span class="role-name">en flirt</span></div>
                 
-                <div class="role-category-header">📩 MP / DM</div>
+                <div class="role-category-header cat-dm">📩 MP / DM</div>
                 <div class="role-item"><div class="role-color" style="background: #ad8cab;"></div><span class="role-name">ouvert</span></div>
                 <div class="role-item"><div class="role-color" style="background: #b992b3;"></div><span class="role-name">sur demande</span></div>
                 <div class="role-item"><div class="role-color" style="background: #c395c2;"></div><span class="role-name">fermer</span></div>
                 <div class="role-item"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">Privé</span></div>
                 
-                <div class="role-category-header">🔥 NUDES</div>
+                <div class="role-category-header cat-nude">🔥 NUDES</div>
                 <div class="role-item"><div class="role-color" style="background: #992d22;"></div><span class="role-name">nude</span></div>
                 <div class="role-item"><div class="role-color" style="background: #992d22;"></div><span class="role-name">nude si affinité</span></div>
                 <div class="role-item"><div class="role-color" style="background: #992d22;"></div><span class="role-name">ne nude pas</span></div>
                 
-                <div class="role-category-header">🌈 ORIENTATION</div>
+                <div class="role-category-header cat-orientation">🌈 ORIENTATION</div>
                 <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">hetero</span></div>
                 <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">Homosexuel</span></div>
                 <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">bisexuelle</span></div>
                 <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">pansexuel</span></div>
                 
-                <div class="role-category-header">🔞 PRATIQUES NSFW</div>
+                <div class="role-category-header cat-pratiques">🔞 PRATIQUES NSFW</div>
                 <div class="role-item"><div class="role-color" style="background: #ddd9d9;"></div><span class="role-name">erp</span></div>
                 <div class="role-item"><div class="role-color" style="background: #680709;"></div><span class="role-name">anal</span></div>
                 <div class="role-item"><div class="role-color" style="background: #6e0a0a;"></div><span class="role-name">seins</span></div>
@@ -413,63 +446,63 @@
             <div class="role-column apres">
                 <h2>💎 APRÈS - Rôles Stylés</h2>
                 
-                <div class="role-category-header">👑 ADMIN / STAFF</div>
-                <div class="role-item"><div class="role-color" style="background: #eaa237;"></div><span class="role-name">Fondateur <span class="role-arrow">→</span></span><span class="role-new-name">👑 │ fondateur</span></div>
-                <div class="role-item"><div class="role-color" style="background: #000000;"></div><span class="role-name">Admin <span class="role-arrow">→</span></span><span class="role-new-name">⚜️ │ admin</span></div>
-                <div class="role-item"><div class="role-color" style="background: #ff0000;"></div><span class="role-name">BOT SERVEUR <span class="role-arrow">→</span></span><span class="role-new-name">🤖 │ bot-serveur</span></div>
-                <div class="role-item"><div class="role-color" style="background: #99aab5;"></div><span class="role-name">Developpeur <span class="role-arrow">→</span></span><span class="role-new-name">💻 │ developpeur</span></div>
-                <div class="role-item"><div class="role-color" style="background: #206694;"></div><span class="role-name">Modérateur <span class="role-arrow">→</span></span><span class="role-new-name">🛡️ │ moderateur</span></div>
+                <div class="role-category-header cat-admin">👑 ADMIN / STAFF</div>
+                <div class="role-item cat-admin"><div class="role-color" style="background: #eaa237;"></div><span class="role-name">Fondateur <span class="role-arrow">→</span></span><span class="role-new-name">👑 │ fondateur</span></div>
+                <div class="role-item cat-admin"><div class="role-color" style="background: #000000;"></div><span class="role-name">Admin <span class="role-arrow">→</span></span><span class="role-new-name">⚜️ │ admin</span></div>
+                <div class="role-item cat-admin"><div class="role-color" style="background: #ff0000;"></div><span class="role-name">BOT SERVEUR <span class="role-arrow">→</span></span><span class="role-new-name">🤖 │ bot-serveur</span></div>
+                <div class="role-item cat-admin"><div class="role-color" style="background: #99aab5;"></div><span class="role-name">Developpeur <span class="role-arrow">→</span></span><span class="role-new-name">💻 │ developpeur</span></div>
+                <div class="role-item cat-admin"><div class="role-color" style="background: #206694;"></div><span class="role-name">Modérateur <span class="role-arrow">→</span></span><span class="role-new-name">🛡️ │ moderateur</span></div>
                 
-                <div class="role-category-header">💕 IDENTITÉ</div>
-                <div class="role-item"><div class="role-color" style="background: #ff5dd6;"></div><span class="role-name">Femme <span class="role-arrow">→</span></span><span class="role-new-name">💋 │ femme</span></div>
-                <div class="role-item"><div class="role-color" style="background: #4cadd0;"></div><span class="role-name">Homme <span class="role-arrow">→</span></span><span class="role-new-name">🔥 │ homme</span></div>
-                <div class="role-item"><div class="role-color" style="background: #826bc2;"></div><span class="role-name">autres <span class="role-arrow">→</span></span><span class="role-new-name">✨ │ autre</span></div>
+                <div class="role-category-header cat-identite">💕 IDENTITÉ</div>
+                <div class="role-item cat-identite"><div class="role-color" style="background: #ff5dd6;"></div><span class="role-name">Femme <span class="role-arrow">→</span></span><span class="role-new-name">💋 │ femme</span></div>
+                <div class="role-item cat-identite"><div class="role-color" style="background: #4cadd0;"></div><span class="role-name">Homme <span class="role-arrow">→</span></span><span class="role-new-name">🔥 │ homme</span></div>
+                <div class="role-item cat-identite"><div class="role-color" style="background: #826bc2;"></div><span class="role-name">autres <span class="role-arrow">→</span></span><span class="role-new-name">✨ │ autre</span></div>
                 
-                <div class="role-category-header">💬 PRONOMS</div>
-                <div class="role-item"><div class="role-color" style="background: #ff5dd6;"></div><span class="role-name">Pronom elle <span class="role-arrow">→</span></span><span class="role-new-name">💕 │ elle</span></div>
-                <div class="role-item"><div class="role-color" style="background: #4cadd0;"></div><span class="role-name">Pronom il <span class="role-arrow">→</span></span><span class="role-new-name">💪 │ il</span></div>
+                <div class="role-category-header cat-pronoms">💬 PRONOMS</div>
+                <div class="role-item cat-pronoms"><div class="role-color" style="background: #ff5dd6;"></div><span class="role-name">Pronom elle <span class="role-arrow">→</span></span><span class="role-new-name">💕 │ elle</span></div>
+                <div class="role-item cat-pronoms"><div class="role-color" style="background: #4cadd0;"></div><span class="role-name">Pronom il <span class="role-arrow">→</span></span><span class="role-new-name">💪 │ il</span></div>
                 
-                <div class="role-category-header">💑 STATUT RELATIONNEL</div>
-                <div class="role-item"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">celibataire <span class="role-arrow">→</span></span><span class="role-new-name">💔 │ celibataire</span></div>
-                <div class="role-item"><div class="role-color" style="background: #43586d;"></div><span class="role-name">en couple <span class="role-arrow">→</span></span><span class="role-new-name">💑 │ en-couple</span></div>
-                <div class="role-item"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">complique <span class="role-arrow">→</span></span><span class="role-new-name">💫 │ complique</span></div>
-                <div class="role-item"><div class="role-color" style="background: #40707e;"></div><span class="role-name">en flirt <span class="role-arrow">→</span></span><span class="role-new-name">😏 │ en-flirt</span></div>
+                <div class="role-category-header cat-statut">💑 STATUT RELATIONNEL</div>
+                <div class="role-item cat-statut"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">celibataire <span class="role-arrow">→</span></span><span class="role-new-name">💔 │ celibataire</span></div>
+                <div class="role-item cat-statut"><div class="role-color" style="background: #43586d;"></div><span class="role-name">en couple <span class="role-arrow">→</span></span><span class="role-new-name">💑 │ en-couple</span></div>
+                <div class="role-item cat-statut"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">complique <span class="role-arrow">→</span></span><span class="role-new-name">💫 │ complique</span></div>
+                <div class="role-item cat-statut"><div class="role-color" style="background: #40707e;"></div><span class="role-name">en flirt <span class="role-arrow">→</span></span><span class="role-new-name">😏 │ en-flirt</span></div>
                 
-                <div class="role-category-header">📩 MP / DM</div>
-                <div class="role-item"><div class="role-color" style="background: #ad8cab;"></div><span class="role-name">ouvert <span class="role-arrow">→</span></span><span class="role-new-name">✅ │ mp-ouvert</span></div>
-                <div class="role-item"><div class="role-color" style="background: #b992b3;"></div><span class="role-name">sur demande <span class="role-arrow">→</span></span><span class="role-new-name">💬 │ mp-demande</span></div>
-                <div class="role-item"><div class="role-color" style="background: #c395c2;"></div><span class="role-name">fermer <span class="role-arrow">→</span></span><span class="role-new-name">🚫 │ mp-ferme</span></div>
-                <div class="role-item"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">Privé <span class="role-arrow">→</span></span><span class="role-new-name">🔒 │ mp-prive</span></div>
+                <div class="role-category-header cat-dm">📩 MP / DM</div>
+                <div class="role-item cat-dm"><div class="role-color" style="background: #ad8cab;"></div><span class="role-name">ouvert <span class="role-arrow">→</span></span><span class="role-new-name">✅ │ mp-ouvert</span></div>
+                <div class="role-item cat-dm"><div class="role-color" style="background: #b992b3;"></div><span class="role-name">sur demande <span class="role-arrow">→</span></span><span class="role-new-name">💬 │ mp-demande</span></div>
+                <div class="role-item cat-dm"><div class="role-color" style="background: #c395c2;"></div><span class="role-name">fermer <span class="role-arrow">→</span></span><span class="role-new-name">🚫 │ mp-ferme</span></div>
+                <div class="role-item cat-dm"><div class="role-color" style="background: #3e566e;"></div><span class="role-name">Privé <span class="role-arrow">→</span></span><span class="role-new-name">🔒 │ mp-prive</span></div>
                 
-                <div class="role-category-header">🔥 NUDES</div>
-                <div class="role-item"><div class="role-color" style="background: #992d22;"></div><span class="role-name">nude <span class="role-arrow">→</span></span><span class="role-new-name">🔥 │ nude</span></div>
-                <div class="role-item"><div class="role-color" style="background: #992d22;"></div><span class="role-name">nude si affinité <span class="role-arrow">→</span></span><span class="role-new-name">💕 │ nude-affinite</span></div>
-                <div class="role-item"><div class="role-color" style="background: #992d22;"></div><span class="role-name">ne nude pas <span class="role-arrow">→</span></span><span class="role-new-name">🚫 │ pas-nude</span></div>
+                <div class="role-category-header cat-nude">🔥 NUDES</div>
+                <div class="role-item cat-nude"><div class="role-color" style="background: #992d22;"></div><span class="role-name">nude <span class="role-arrow">→</span></span><span class="role-new-name">🔥 │ nude</span></div>
+                <div class="role-item cat-nude"><div class="role-color" style="background: #992d22;"></div><span class="role-name">nude si affinité <span class="role-arrow">→</span></span><span class="role-new-name">💕 │ nude-affinite</span></div>
+                <div class="role-item cat-nude"><div class="role-color" style="background: #992d22;"></div><span class="role-name">ne nude pas <span class="role-arrow">→</span></span><span class="role-new-name">🚫 │ pas-nude</span></div>
                 
-                <div class="role-category-header">🌈 ORIENTATION</div>
-                <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">hetero <span class="role-arrow">→</span></span><span class="role-new-name">💗 │ hetero</span></div>
-                <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">Homosexuel <span class="role-arrow">→</span></span><span class="role-new-name">🌈 │ homo</span></div>
-                <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">bisexuelle <span class="role-arrow">→</span></span><span class="role-new-name">💜 │ bi</span></div>
-                <div class="role-item"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">pansexuel <span class="role-arrow">→</span></span><span class="role-new-name">🌺 │ pan</span></div>
+                <div class="role-category-header cat-orientation">🌈 ORIENTATION</div>
+                <div class="role-item cat-orientation"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">hetero <span class="role-arrow">→</span></span><span class="role-new-name">💗 │ hetero</span></div>
+                <div class="role-item cat-orientation"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">Homosexuel <span class="role-arrow">→</span></span><span class="role-new-name">🌈 │ homo</span></div>
+                <div class="role-item cat-orientation"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">bisexuelle <span class="role-arrow">→</span></span><span class="role-new-name">💜 │ bi</span></div>
+                <div class="role-item cat-orientation"><div class="role-color" style="background: #1abc9c;"></div><span class="role-name">pansexuel <span class="role-arrow">→</span></span><span class="role-new-name">🌺 │ pan</span></div>
                 
-                <div class="role-category-header">🔞 PRATIQUES NSFW</div>
-                <div class="role-item"><div class="role-color" style="background: #ddd9d9;"></div><span class="role-name">erp <span class="role-arrow">→</span></span><span class="role-new-name">🎭 │ erp</span></div>
-                <div class="role-item"><div class="role-color" style="background: #680709;"></div><span class="role-name">anal <span class="role-arrow">→</span></span><span class="role-new-name">🍑 │ anal</span></div>
-                <div class="role-item"><div class="role-color" style="background: #6e0a0a;"></div><span class="role-name">seins <span class="role-arrow">→</span></span><span class="role-new-name">🍒 │ seins</span></div>
-                <div class="role-item"><div class="role-color" style="background: #640606;"></div><span class="role-name">bondage <span class="role-arrow">→</span></span><span class="role-new-name">⛓️ │ bondage</span></div>
-                <div class="role-item"><div class="role-color" style="background: #580c0c;"></div><span class="role-name">bdsm <span class="role-arrow">→</span></span><span class="role-new-name">🔗 │ bdsm</span></div>
-                <div class="role-item"><div class="role-color" style="background: #660909;"></div><span class="role-name">vanille <span class="role-arrow">→</span></span><span class="role-new-name">🍦 │ vanille</span></div>
-                <div class="role-item"><div class="role-color" style="background: #690a0a;"></div><span class="role-name">actif <span class="role-arrow">→</span></span><span class="role-new-name">🔝 │ actif</span></div>
-                <div class="role-item"><div class="role-color" style="background: #610909;"></div><span class="role-name">passif <span class="role-arrow">→</span></span><span class="role-new-name">🔽 │ passif</span></div>
-                <div class="role-item"><div class="role-color" style="background: #6e0f0f;"></div><span class="role-name">versatile <span class="role-arrow">→</span></span><span class="role-new-name">🔄 │ versatile</span></div>
-                <div class="role-item"><div class="role-color" style="background: #610b0b;"></div><span class="role-name">pet play <span class="role-arrow">→</span></span><span class="role-new-name">🐾 │ pet-play</span></div>
-                <div class="role-item"><div class="role-color" style="background: #6b0e0e;"></div><span class="role-name">public <span class="role-arrow">→</span></span><span class="role-new-name">🌳 │ public</span></div>
-                <div class="role-item"><div class="role-color" style="background: #6b0c0c;"></div><span class="role-name">lingerie <span class="role-arrow">→</span></span><span class="role-new-name">👙 │ lingerie</span></div>
-                <div class="role-item"><div class="role-color" style="background: #6d0a0a;"></div><span class="role-name">voyeurisme <span class="role-arrow">→</span></span><span class="role-new-name">👀 │ voyeur</span></div>
-                <div class="role-item"><div class="role-color" style="background: #631111;"></div><span class="role-name">morsure <span class="role-arrow">→</span></span><span class="role-new-name">🦷 │ morsure</span></div>
-                <div class="role-item"><div class="role-color" style="background: #690b0b;"></div><span class="role-name">douleur legere <span class="role-arrow">→</span></span><span class="role-new-name">⚡ │ douleur-legere</span></div>
-                <div class="role-item"><div class="role-color" style="background: #690e0e;"></div><span class="role-name">brat <span class="role-arrow">→</span></span><span class="role-new-name">😈 │ brat</span></div>
-                <div class="role-item"><div class="role-color" style="background: #720d0d;"></div><span class="role-name">exhibition <span class="role-arrow">→</span></span><span class="role-new-name">📸 │ exhibition</span></div>
+                <div class="role-category-header cat-pratiques">🔞 PRATIQUES NSFW</div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #ddd9d9;"></div><span class="role-name">erp <span class="role-arrow">→</span></span><span class="role-new-name">🎭 │ erp</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #680709;"></div><span class="role-name">anal <span class="role-arrow">→</span></span><span class="role-new-name">🍑 │ anal</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #6e0a0a;"></div><span class="role-name">seins <span class="role-arrow">→</span></span><span class="role-new-name">🍒 │ seins</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #640606;"></div><span class="role-name">bondage <span class="role-arrow">→</span></span><span class="role-new-name">⛓️ │ bondage</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #580c0c;"></div><span class="role-name">bdsm <span class="role-arrow">→</span></span><span class="role-new-name">🔗 │ bdsm</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #660909;"></div><span class="role-name">vanille <span class="role-arrow">→</span></span><span class="role-new-name">🍦 │ vanille</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #690a0a;"></div><span class="role-name">actif <span class="role-arrow">→</span></span><span class="role-new-name">🔝 │ actif</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #610909;"></div><span class="role-name">passif <span class="role-arrow">→</span></span><span class="role-new-name">🔽 │ passif</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #6e0f0f;"></div><span class="role-name">versatile <span class="role-arrow">→</span></span><span class="role-new-name">🔄 │ versatile</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #610b0b;"></div><span class="role-name">pet play <span class="role-arrow">→</span></span><span class="role-new-name">🐾 │ pet-play</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #6b0e0e;"></div><span class="role-name">public <span class="role-arrow">→</span></span><span class="role-new-name">🌳 │ public</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #6b0c0c;"></div><span class="role-name">lingerie <span class="role-arrow">→</span></span><span class="role-new-name">👙 │ lingerie</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #6d0a0a;"></div><span class="role-name">voyeurisme <span class="role-arrow">→</span></span><span class="role-new-name">👀 │ voyeur</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #631111;"></div><span class="role-name">morsure <span class="role-arrow">→</span></span><span class="role-new-name">🦷 │ morsure</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #690b0b;"></div><span class="role-name">douleur legere <span class="role-arrow">→</span></span><span class="role-new-name">⚡ │ douleur-legere</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #690e0e;"></div><span class="role-name">brat <span class="role-arrow">→</span></span><span class="role-new-name">😈 │ brat</span></div>
+                <div class="role-item cat-pratiques"><div class="role-color" style="background: #720d0d;"></div><span class="role-name">exhibition <span class="role-arrow">→</span></span><span class="role-new-name">📸 │ exhibition</span></div>
                 
                 <div class="note success" style="margin-top: 20px;"><strong>✅ AMÉLIORA TIONS:</strong><br>✅ Format cohérent: emoji │ nom<br>✅ Tirets pour espaces<br>✅ Minuscules<br>✅ Emojis sensuels</div>
             </div>
