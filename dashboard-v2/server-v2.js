@@ -1998,7 +1998,7 @@ app.post('/api/upload-gif-from-browser', async (req, res) => {
     // Sauvegarder le fichier
     await gif.mv(uploadPath);
     
-    const localUrl = 'http://82.67.65.98:3002/gifs/' + filename;
+    const localUrl = 'http://88.174.155.230:3002/gifs/' + filename;
     console.log('✅ GIF uploadé depuis navigateur:', filename);
     
     res.json({ success: true, url: localUrl });

@@ -114,7 +114,7 @@ Documentation complète du processus de recréation du dépôt GitHub, incluant 
 ## 🔗 Liens Utiles
 
 - Repository GitHub: https://github.com/mel805/Bagbot
-- Dashboard: http://82.67.65.98:3002
+- Dashboard: http://88.174.155.230:3002
 - Bot Discord: Bag-bot
 
 ---

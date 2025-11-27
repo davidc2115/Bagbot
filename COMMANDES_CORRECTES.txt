@@ -1,0 +1,90 @@
+╔═══════════════════════════════════════════════════════════════╗
+║     ✅ COMMANDES POUR /home/bagbot/bag-bot                   ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Copiez-collez ces commandes dans votre VM:
+
+─────────────────────────────────────────────────────────────────
+⚡ VERSION TOUT-EN-UN (1 seule commande)
+─────────────────────────────────────────────────────────────────
+
+cd /home/bagbot/bag-bot && BACKUP_DATE=$(date +%Y%m%d_%H%M%S) && cp src/commands/dashboard.js src/commands/dashboard.js.backup_$BACKUP_DATE && cp src/utils/discord_gif_downloader.js src/utils/discord_gif_downloader.js.backup_$BACKUP_DATE && cp dashboard-v2/server-v2.js dashboard-v2/server-v2.js.backup_$BACKUP_DATE && cp dashboard-v2/index.html dashboard-v2/index.html.backup_$BACKUP_DATE && cp dashboard-v2/auto_download_discord_gifs.js dashboard-v2/auto_download_discord_gifs.js.backup_$BACKUP_DATE && sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' src/commands/dashboard.js src/utils/discord_gif_downloader.js dashboard-v2/server-v2.js dashboard-v2/index.html dashboard-v2/auto_download_discord_gifs.js && pm2 restart bag-bot dashboard && pm2 status && echo "" && echo "✅ TERMINÉ! Testez /dashboard sur Discord"
+
+─────────────────────────────────────────────────────────────────
+📝 VERSION DÉTAILLÉE (étape par étape)
+─────────────────────────────────────────────────────────────────
+
+# 1. Aller dans le répertoire du bot
+cd /home/bagbot/bag-bot
+
+# 2. Créer les sauvegardes
+echo "💾 Création des sauvegardes..."
+BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+cp src/commands/dashboard.js src/commands/dashboard.js.backup_$BACKUP_DATE
+cp src/utils/discord_gif_downloader.js src/utils/discord_gif_downloader.js.backup_$BACKUP_DATE
+cp dashboard-v2/server-v2.js dashboard-v2/server-v2.js.backup_$BACKUP_DATE
+cp dashboard-v2/index.html dashboard-v2/index.html.backup_$BACKUP_DATE
+cp dashboard-v2/auto_download_discord_gifs.js dashboard-v2/auto_download_discord_gifs.js.backup_$BACKUP_DATE
+echo "✅ Sauvegardes créées: backup_$BACKUP_DATE"
+
+# 3. Modifier les fichiers (remplacer l'ancienne IP)
+echo ""
+echo "🔄 Modification des fichiers..."
+sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' src/commands/dashboard.js
+sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' src/utils/discord_gif_downloader.js
+sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' dashboard-v2/server-v2.js
+sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' dashboard-v2/index.html
+sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' dashboard-v2/auto_download_discord_gifs.js
+echo "✅ Fichiers modifiés"
+
+# 4. Vérifier les modifications
+echo ""
+echo "🔍 Vérification..."
+grep -c "88.174.155.230:3002" src/commands/dashboard.js src/utils/discord_gif_downloader.js dashboard-v2/server-v2.js dashboard-v2/index.html dashboard-v2/auto_download_discord_gifs.js
+
+# 5. Redémarrer les services
+echo ""
+echo "🔄 Redémarrage des services..."
+pm2 restart bag-bot dashboard
+
+# 6. Vérifier l'état
+echo ""
+echo "📊 État des services:"
+pm2 status
+
+# 7. Voir les logs (optionnel)
+echo ""
+echo "📋 Logs récents:"
+pm2 logs bag-bot --lines 10 --nostream
+
+echo ""
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║           ✅ DÉPLOIEMENT TERMINÉ!                     ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo ""
+echo "🎯 TESTEZ MAINTENANT:"
+echo "   1. Allez sur Discord"
+echo "   2. Tapez: /dashboard"
+echo "   3. Vérifiez le lien: http://88.174.155.230:3002"
+echo "   4. Cliquez sur le bouton pour ouvrir le dashboard"
+echo ""
+
+─────────────────────────────────────────────────────────────────
+🔙 RESTAURATION (si problème)
+─────────────────────────────────────────────────────────────────
+
+cd /home/bagbot/bag-bot
+
+# Remplacez YYYYMMDD_HHMMSS par votre timestamp
+BACKUP_DATE="20251127_XXXXXX"
+
+cp src/commands/dashboard.js.backup_$BACKUP_DATE src/commands/dashboard.js
+cp src/utils/discord_gif_downloader.js.backup_$BACKUP_DATE src/utils/discord_gif_downloader.js
+cp dashboard-v2/server-v2.js.backup_$BACKUP_DATE dashboard-v2/server-v2.js
+cp dashboard-v2/index.html.backup_$BACKUP_DATE dashboard-v2/index.html
+cp dashboard-v2/auto_download_discord_gifs.js.backup_$BACKUP_DATE dashboard-v2/auto_download_discord_gifs.js
+
+pm2 restart bag-bot dashboard
+
+─────────────────────────────────────────────────────────────────
+

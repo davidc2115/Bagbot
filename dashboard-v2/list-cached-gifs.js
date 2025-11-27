@@ -39,4 +39,4 @@ for (const action in gifs) {
 
 console.log('\n\n💡 Pour afficher les GIFs en cache sur le dashboard:');
 console.log('   Les 26 GIFs en cache sont accessibles via:');
-console.log('   http://82.67.65.98:3002/gif-cache/[filename].gif');
+console.log('   http://88.174.155.230:3002/gif-cache/[filename].gif');

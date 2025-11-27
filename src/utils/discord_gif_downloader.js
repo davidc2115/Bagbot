@@ -17,7 +17,7 @@ async function downloadDiscordGifForBot(url) {
     const localPath = path.join(__dirname, '../../dashboard-v2/public/gifs', filename);
     
     if (fs.existsSync(localPath)) {
-      resolve('http://82.67.65.98:3002/gifs/' + filename);
+      resolve('http://88.174.155.230:3002/gifs/' + filename);
       return;
     }
 
@@ -53,7 +53,7 @@ async function downloadDiscordGifForBot(url) {
       response.pipe(fileStream);
       fileStream.on('finish', () => {
         fileStream.close();
-        const localUrl = 'http://82.67.65.98:3002/gifs/' + filename;
+        const localUrl = 'http://88.174.155.230:3002/gifs/' + filename;
         console.log('[Bot] ✅ GIF téléchargé: ' + filename);
         resolve(localUrl);
       });

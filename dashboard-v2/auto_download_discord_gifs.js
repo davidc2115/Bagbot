@@ -30,7 +30,7 @@ async function downloadDiscordGif(url) {
     
     // Vérifier si le fichier existe déjà
     if (fs.existsSync(localPath)) {
-      const localUrl = `http://82.67.65.98:3002/gifs/${filename}`;
+      const localUrl = `http://88.174.155.230:3002/gifs/${filename}`;
       console.log(`✅ GIF déjà en cache: ${filename}`);
       resolve(localUrl);
       return;
@@ -81,7 +81,7 @@ async function downloadDiscordGif(url) {
 
       fileStream.on('finish', () => {
         fileStream.close();
-        const localUrl = `http://82.67.65.98:3002/gifs/${filename}`;
+        const localUrl = `http://88.174.155.230:3002/gifs/${filename}`;
         console.log(`✅ GIF téléchargé avec succès: ${filename} (${Math.round(fs.statSync(localPath).size / 1024)}KB)`);
         resolve(localUrl);
       });
