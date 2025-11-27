@@ -24,7 +24,7 @@ module.exports = {
       .addFields(
         {
           name: '🔗 Lien d accès',
-          value: '[Cliquez ici pour ouvrir le dashboard](http://82.67.65.98:3002)',
+          value: '[Cliquez ici pour ouvrir le dashboard](http://88.174.155.230:3002)',
           inline: false
         },
         {
@@ -49,7 +49,7 @@ module.exports = {
       .addComponents(
         new ButtonBuilder()
           .setLabel('🌐 Ouvrir le Dashboard')
-          .setURL('http://82.67.65.98:3002')
+          .setURL('http://88.174.155.230:3002')
           .setStyle(ButtonStyle.Link)
       );
     

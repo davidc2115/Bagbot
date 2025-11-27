@@ -1,0 +1,89 @@
+╔═══════════════════════════════════════════════════════════════╗
+║     RAPPORT DE MODIFICATION - DASHBOARD FREEBOX              ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📅 Date: $(date)
+🔄 Migration IP: 82.67.65.98 → 88.174.155.230
+🌐 Port: 3002 (inchangé)
+
+═══════════════════════════════════════════════════════════════
+FICHIERS MODIFIÉS (avec sauvegardes)
+═══════════════════════════════════════════════════════════════
+
+1️⃣  BOT - Commande Dashboard
+   📄 src/commands/dashboard.js
+   💾 Sauvegarde: src/commands/dashboard.js.backup
+   ✅ 2 URLs mises à jour (embed + bouton)
+
+2️⃣  BOT - Téléchargeur de GIFs Discord
+   📄 src/utils/discord_gif_downloader.js
+   💾 Sauvegarde: src/utils/discord_gif_downloader.js.backup
+   ✅ 2 URLs mises à jour
+
+3️⃣  DASHBOARD - Serveur Backend
+   📄 dashboard-v2/server-v2.js
+   💾 Sauvegarde: dashboard-v2/server-v2.js.backup
+   ✅ 1 URL mise à jour (upload GIF)
+
+4️⃣  DASHBOARD - Interface Web
+   📄 dashboard-v2/index.html
+   💾 Sauvegarde: dashboard-v2/index.html.backup
+   ✅ 1 URL API mise à jour
+
+5️⃣  DASHBOARD - Auto-téléchargement GIFs
+   📄 dashboard-v2/auto_download_discord_gifs.js
+   💾 Sauvegarde: dashboard-v2/auto_download_discord_gifs.js.backup
+   ✅ 2 URLs mises à jour
+
+6️⃣  CONFIGURATION - Script de déploiement
+   📄 deploy-to-freebox.sh
+   💾 Sauvegarde: deploy-to-freebox.sh.backup
+   ✅ IP Freebox mise à jour
+
+7️⃣  DOCUMENTATION
+   📄 docs/README.md
+   💾 Sauvegarde: docs/README.md.backup
+   ✅ Lien dashboard mis à jour
+
+8️⃣  UTILITAIRE - Liste GIFs en cache
+   📄 dashboard-v2/list-cached-gifs.js
+   ✅ URL exemple mise à jour
+
+═══════════════════════════════════════════════════════════════
+RÉSUMÉ DES CHANGEMENTS
+═══════════════════════════════════════════════════════════════
+
+✅ 8 fichiers actifs modifiés
+💾 7 fichiers de sauvegarde créés
+🔍 10+ occurrences d'URL mises à jour
+⚠️  Fichiers de backup anciens non modifiés (normal)
+
+═══════════════════════════════════════════════════════════════
+PROCHAINES ÉTAPES
+═══════════════════════════════════════════════════════════════
+
+1. Redémarrer le bot Discord pour appliquer les changements:
+   pm2 restart bag-bot
+   
+2. Redémarrer le serveur dashboard:
+   pm2 restart dashboard
+   
+3. Tester la commande /dashboard sur Discord
+   → Le lien devrait maintenant pointer vers: http://88.174.155.230:3002
+
+4. Vérifier l'accès au dashboard via navigateur
+
+═══════════════════════════════════════════════════════════════
+RESTAURATION (si nécessaire)
+═══════════════════════════════════════════════════════════════
+
+En cas de problème, restaurer les sauvegardes:
+
+cp src/commands/dashboard.js.backup src/commands/dashboard.js
+cp src/utils/discord_gif_downloader.js.backup src/utils/discord_gif_downloader.js
+cp dashboard-v2/server-v2.js.backup dashboard-v2/server-v2.js
+cp dashboard-v2/index.html.backup dashboard-v2/index.html
+cp dashboard-v2/auto_download_discord_gifs.js.backup dashboard-v2/auto_download_discord_gifs.js
+cp deploy-to-freebox.sh.backup deploy-to-freebox.sh
+cp docs/README.md.backup docs/README.md
+
