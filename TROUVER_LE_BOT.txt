@@ -1,0 +1,75 @@
+╔═══════════════════════════════════════════════════════════════╗
+║         🔍 TROUVER L'EMPLACEMENT DU BOT                      ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Exécutez ces commandes sur votre VM pour trouver le bot:
+
+─────────────────────────────────────────────────────────────────
+1️⃣  VÉRIFIER VOTRE RÉPERTOIRE ACTUEL
+─────────────────────────────────────────────────────────────────
+
+pwd
+ls -la
+
+─────────────────────────────────────────────────────────────────
+2️⃣  TROUVER LE RÉPERTOIRE DU BOT
+─────────────────────────────────────────────────────────────────
+
+# Chercher le fichier bot.js
+find ~ -name "bot.js" -type f 2>/dev/null
+
+# Chercher le dossier avec pm2
+pm2 list
+
+# Voir les processus pm2 et leurs chemins
+pm2 describe bag-bot | grep -i "script path\|exec cwd"
+
+# Chercher le dossier dashboard-v2
+find ~ -name "dashboard-v2" -type d 2>/dev/null
+
+# Chercher dans les endroits courants
+ls -la ~/
+ls -la ~/Bag-bot 2>/dev/null
+ls -la ~/bag-bot 2>/dev/null
+ls -la ~/discord-bot 2>/dev/null
+ls -la /opt/
+ls -la /var/www/
+
+─────────────────────────────────────────────────────────────────
+3️⃣  UNE FOIS TROUVÉ, UTILISEZ CE CHEMIN
+─────────────────────────────────────────────────────────────────
+
+Remplacez [CHEMIN_DU_BOT] par le chemin trouvé:
+
+cd [CHEMIN_DU_BOT]
+ls -la
+
+Puis exécutez:
+
+BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+cp src/commands/dashboard.js src/commands/dashboard.js.backup_$BACKUP_DATE
+cp src/utils/discord_gif_downloader.js src/utils/discord_gif_downloader.js.backup_$BACKUP_DATE
+cp dashboard-v2/server-v2.js dashboard-v2/server-v2.js.backup_$BACKUP_DATE
+cp dashboard-v2/index.html dashboard-v2/index.html.backup_$BACKUP_DATE
+cp dashboard-v2/auto_download_discord_gifs.js dashboard-v2/auto_download_discord_gifs.js.backup_$BACKUP_DATE
+sed -i 's|82\.67\.65\.98:3002|88.174.155.230:3002|g' src/commands/dashboard.js src/utils/discord_gif_downloader.js dashboard-v2/server-v2.js dashboard-v2/index.html dashboard-v2/auto_download_discord_gifs.js
+pm2 restart bag-bot dashboard
+pm2 status
+
+─────────────────────────────────────────────────────────────────
+📋 EXEMPLES DE CHEMINS POSSIBLES
+─────────────────────────────────────────────────────────────────
+
+/home/bagbot/Bag-bot
+/home/bagbot/bag-bot
+/home/bagbot/discord-bot
+/home/bagbot/bot
+~/Bag-bot
+~/bag-bot
+/opt/Bag-bot
+/var/www/Bag-bot
+
+─────────────────────────────────────────────────────────────────
+
+Dites-moi le chemin trouvé et je vous donnerai les commandes exactes!
+
