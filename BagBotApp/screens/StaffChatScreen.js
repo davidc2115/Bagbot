@@ -25,10 +25,34 @@ export default function StaffChatScreen() {
   const loadUsername = async () => {
     let name = await AsyncStorage.getItem('staffUsername');
     if (!name) {
-      name = `Staff${Math.floor(Math.random() * 1000)}`;
-      await AsyncStorage.setItem('staffUsername', name);
+      // Demander le pseudo Discord
+      Alert.prompt(
+        '👤 Pseudo Discord',
+        'Entrez votre pseudo Discord pour le chat staff :',
+        [
+          {
+            text: 'Annuler',
+            style: 'cancel',
+            onPress: () => {
+              const defaultName = `Staff${Math.floor(Math.random() * 1000)}`;
+              AsyncStorage.setItem('staffUsername', defaultName);
+              setUsername(defaultName);
+            }
+          },
+          {
+            text: 'OK',
+            onPress: async (text) => {
+              const discordName = text?.trim() || `Staff${Math.floor(Math.random() * 1000)}`;
+              await AsyncStorage.setItem('staffUsername', discordName);
+              setUsername(discordName);
+            }
+          }
+        ],
+        'plain-text'
+      );
+    } else {
+      setUsername(name);
     }
-    setUsername(name);
   };
 
   const loadMessages = async () => {
@@ -111,12 +135,40 @@ export default function StaffChatScreen() {
             </Text>
           </View>
         </View>
-        <IconButton
-          icon="trash-can"
-          iconColor="#FF0000"
-          size={24}
-          onPress={clearChat}
-        />
+        <View style={styles.headerRight}>
+          <IconButton
+            icon="account-edit"
+            iconColor="#5865F2"
+            size={24}
+            onPress={() => {
+              Alert.prompt(
+                '✏️ Changer de pseudo',
+                'Entrez votre nouveau pseudo Discord :',
+                [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Changer',
+                    onPress: async (text) => {
+                      if (text?.trim()) {
+                        await AsyncStorage.setItem('staffUsername', text.trim());
+                        setUsername(text.trim());
+                        Alert.alert('✅', 'Pseudo mis à jour !');
+                      }
+                    }
+                  }
+                ],
+                'plain-text',
+                username
+              );
+            }}
+          />
+          <IconButton
+            icon="trash-can"
+            iconColor="#FF0000"
+            size={24}
+            onPress={clearChat}
+          />
+        </View>
       </View>
 
       <ScrollView
@@ -225,6 +277,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#FF0000',
   },
   headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
