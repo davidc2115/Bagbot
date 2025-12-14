@@ -1,0 +1,96 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master, cursor/freebox-dashboard-restart-84eb ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: BagBotApp/package-lock.json
+
+    - name: ☕ Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: 📦 Install dependencies
+      working-directory: ./BagBotApp
+      run: |
+        npm install --legacy-peer-deps
+
+    - name: 🔨 Generate Android project
+      working-directory: ./BagBotApp
+      run: |
+        npx expo prebuild --platform android --clean
+
+    - name: 🏗️ Build APK
+      working-directory: ./BagBotApp/android
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleRelease --no-daemon
+
+    - name: 🔍 Find APK
+      id: find-apk
+      working-directory: ./BagBotApp/android/app/build/outputs/apk/release
+      run: |
+        APK_FILE=$(ls *.apk | head -1)
+        echo "apk_file=$APK_FILE" >> $GITHUB_OUTPUT
+        echo "Found APK: $APK_FILE"
+
+    - name: 📤 Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: bag-bot-dashboard-v1.1.0
+        path: BagBotApp/android/app/build/outputs/apk/release/*.apk
+        retention-days: 30
+
+    - name: 🚀 Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: BagBotApp/android/app/build/outputs/apk/release/*.apk
+        generate_release_notes: true
+        body: |
+          ## 🎉 BAG Bot Dashboard Mobile v1.1.0
+          
+          ### ✨ Nouveautés
+          
+          - 👤 **Récupération automatique des pseudos Discord**
+          - ✏️ **Modification du pseudo** à tout moment
+          - 💬 **Chat staff avec vrais pseudos Discord**
+          - 📊 **Monitoring serveur** en temps réel
+          - 🔄 **Gestion à distance** (redémarrage, cache)
+          
+          ### 📱 Installation
+          
+          1. Téléchargez l'APK ci-dessous
+          2. Activez "Sources inconnues" sur Android
+          3. Installez l'APK
+          4. Au premier lancement, entrez votre pseudo Discord
+          5. Connectez-vous au serveur : http://88.174.155.230:3002
+          
+          ### 🔐 Connexion
+          
+          - Login : `admin`
+          - Password : `bagbot2024`
+          
+          **Distribution interne uniquement - Pour les admins du serveur BAG Bot**
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
