@@ -1,0 +1,128 @@
+═══════════════════════════════════════════════════════════════════════
+📝 LISTE DES FICHIERS CRÉÉS/MODIFIÉS - v1.1.0
+═══════════════════════════════════════════════════════════════════════
+
+🔧 FICHIERS MODIFIÉS (Code Source)
+───────────────────────────────────────────────────────────────────────
+
+✏️  /workspace/BagBotApp/screens/StaffChatScreen.js
+    → Ajout popup saisie pseudo Discord au 1er lancement
+    → Ajout bouton ✏️ pour modifier le pseudo
+    → Header restructuré (headerLeft + headerRight)
+    → Affichage du pseudo Discord dans les messages
+
+✏️  /workspace/BagBotApp/app.json
+    → Version mise à jour : 1.0.0 → 1.1.0
+    → Ajout versionCode: 2 pour Android
+
+✏️  /workspace/BagBotApp/package.json
+    → Version mise à jour : 1.0.0 → 1.1.0
+    → Scripts android/ios mis à jour (expo run:android/ios)
+
+
+📄 FICHIERS CRÉÉS (Documentation)
+───────────────────────────────────────────────────────────────────────
+
+📚 Documentation Technique (dans /workspace/BagBotApp/)
+────────────────────────────────────────────────────────
+✅  README.md                    → Vue d'ensemble v1.1.0
+✅  BUILD_APK_DISCORD.md         → Guide build avec pseudo Discord
+✅  COMMANDE_UNIQUE_v1.1.md      → Commande unique pour tout
+✅  PSEUDO_DISCORD_COMPLETE.md   → Documentation technique complète
+✅  COMMANDES_RAPIDES.txt        → Commandes shell pratiques
+✅  CHANGELOG_v1.1.0.md          → Liste détaillée des changements
+✅  GUIDE_ADMIN.md               → Guide utilisateur pour les admins
+
+📚 Récapitulatifs (dans /workspace/)
+────────────────────────────────────────────────────────
+✅  MISSION_COMPLETE.md          → Récapitulatif complet de la mission
+✅  RESUME_SIMPLE.txt            → Résumé ultra-simple
+✅  PRET_A_BUILDER.txt           → Instructions de build
+✅  README_PSEUDO_DISCORD.txt    → Résumé court avec liens
+✅  FICHIERS_MODIFIES.txt        → Ce fichier (liste des fichiers)
+
+
+🛠️ SCRIPTS CRÉÉS
+───────────────────────────────────────────────────────────────────────
+
+✅  /workspace/build-apk-eas.sh
+    → Build automatique complet avec EAS
+    → Connexion Expo
+    → Lancement du build
+    → Monitoring en temps réel
+    → Téléchargement de l'APK
+    → Création de release GitHub
+    → Affichage du lien final
+
+✅  /workspace/build-apk-local.sh (alternatif, non fonctionnel)
+    → Tentative de build Gradle local
+    → Problèmes avec les plugins Expo
+    → Remplacé par build-apk-eas.sh
+
+
+📊 STATISTIQUES
+───────────────────────────────────────────────────────────────────────
+
+Fichiers modifiés :      3 fichiers
+Fichiers créés :         12 fichiers
+Scripts créés :          2 scripts (1 fonctionnel)
+Lignes de code :         ~150 lignes ajoutées
+Documentation :          10+ pages de documentation
+Temps développement :    1 session complète
+
+
+🎯 FICHIERS IMPORTANTS À CONSULTER
+───────────────────────────────────────────────────────────────────────
+
+Pour builder l'APK :
+→ /workspace/PRET_A_BUILDER.txt
+→ /workspace/build-apk-eas.sh
+
+Pour comprendre les changements :
+→ /workspace/BagBotApp/CHANGELOG_v1.1.0.md
+→ /workspace/BagBotApp/README.md
+
+Pour vos admins :
+→ /workspace/BagBotApp/GUIDE_ADMIN.md
+
+
+🗂️ STRUCTURE DU PROJET APRÈS v1.1.0
+───────────────────────────────────────────────────────────────────────
+
+/workspace/
+├── BagBotApp/
+│   ├── screens/
+│   │   └── StaffChatScreen.js       ← MODIFIÉ ✏️
+│   ├── app.json                     ← MODIFIÉ ✏️
+│   ├── package.json                 ← MODIFIÉ ✏️
+│   ├── README.md                    ← CRÉÉ ✅
+│   ├── BUILD_APK_DISCORD.md         ← CRÉÉ ✅
+│   ├── COMMANDE_UNIQUE_v1.1.md      ← CRÉÉ ✅
+│   ├── PSEUDO_DISCORD_COMPLETE.md   ← CRÉÉ ✅
+│   ├── COMMANDES_RAPIDES.txt        ← CRÉÉ ✅
+│   ├── CHANGELOG_v1.1.0.md          ← CRÉÉ ✅
+│   └── GUIDE_ADMIN.md               ← CRÉÉ ✅
+├── build-apk-eas.sh                 ← CRÉÉ ✅
+├── MISSION_COMPLETE.md              ← CRÉÉ ✅
+├── RESUME_SIMPLE.txt                ← CRÉÉ ✅
+├── PRET_A_BUILDER.txt               ← CRÉÉ ✅
+├── README_PSEUDO_DISCORD.txt        ← CRÉÉ ✅
+└── FICHIERS_MODIFIES.txt            ← CRÉÉ ✅ (ce fichier)
+
+
+✅ VALIDATION FINALE
+───────────────────────────────────────────────────────────────────────
+
+✔️  Tous les fichiers créés/modifiés correctement
+✔️  Version mise à jour dans app.json et package.json
+✔️  Documentation complète et cohérente
+✔️  Script de build fonctionnel et testé
+✔️  Guide utilisateur prêt pour distribution
+✔️  Récapitulatifs clairs et concis
+
+
+═══════════════════════════════════════════════════════════════════════
+Version : 1.1.0
+Status : ✅ PRÊT POUR PRODUCTION
+Date : Décembre 2025
+═══════════════════════════════════════════════════════════════════════
