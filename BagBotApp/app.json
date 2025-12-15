@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "BAG Bot Dashboard",
+    "slug": "bagbotapp",
+    "version": "1.3.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0d0d0d",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d0d0d"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bagbot.dashboard"
+    },
+    "android": {
+      "versionCode": 4,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d0d0d"
+      },
+      "package": "com.bagbot.dashboard",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "00221514-87b9-4908-8fc8-bc6e4f004039"
+      }
+    },
+    "owner": "jormungand",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/00221514-87b9-4908-8fc8-bc6e4f004039"
+    }
+  }
+}

@@ -1,0 +1,242 @@
+name: Build Android APK (WebView Alternative)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'webview-v*'
+
+jobs:
+  build:
+    name: Build WebView APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🔧 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 🛠️ Create WebView Android Project
+        run: |
+          mkdir -p webview-app
+          cd webview-app
+          
+          # Créer structure Android
+          mkdir -p app/src/main/{java/com/bagbot/dashboard,res/{layout,values,mipmap-hdpi,mipmap-mdpi,mipmap-xhdpi,mipmap-xxhdpi,mipmap-xxxhdpi},assets}
+          mkdir -p app/src/main/res/xml
+          
+          # MainActivity.kt
+          cat > app/src/main/java/com/bagbot/dashboard/MainActivity.kt << 'EOFKT'
+          package com.bagbot.dashboard
+          
+          import android.os.Bundle
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import android.webkit.WebSettings
+          import androidx.appcompat.app.AppCompatActivity
+          
+          class MainActivity : AppCompatActivity() {
+              private lateinit var webView: WebView
+              
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  
+                  webView = WebView(this)
+                  setContentView(webView)
+                  
+                  webView.webViewClient = WebViewClient()
+                  
+                  val webSettings: WebSettings = webView.settings
+                  webSettings.javaScriptEnabled = true
+                  webSettings.domStorageEnabled = true
+                  webSettings.databaseEnabled = true
+                  webSettings.allowFileAccess = true
+                  webSettings.allowContentAccess = true
+                  
+                  // Charger le dashboard - URL à adapter
+                  webView.loadUrl("https://bagbot-dashboard.onrender.com")
+              }
+              
+              override fun onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack()
+                  } else {
+                      super.onBackPressed()
+                  }
+              }
+          }
+          EOFKT
+          
+          # AndroidManifest.xml
+          cat > app/src/main/AndroidManifest.xml << 'EOFXML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.bagbot.dashboard">
+          
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+          
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="BAG Bot Dashboard"
+                  android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOFXML
+          
+          # build.gradle (app)
+          cat > app/build.gradle << 'EOFGRADLE'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          
+          android {
+              namespace 'com.bagbot.dashboard'
+              compileSdk 34
+              
+              defaultConfig {
+                  applicationId "com.bagbot.dashboard"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 2
+                  versionName "1.1.0"
+              }
+              
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+                  }
+              }
+              
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          }
+          
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+          }
+          EOFGRADLE
+          
+          # build.gradle (root)
+          cat > build.gradle << 'EOFROOT'
+          buildscript {
+              ext.kotlin_version = '1.9.0'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.0'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+              }
+          }
+          
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOFROOT
+          
+          # settings.gradle
+          cat > settings.gradle << 'EOFSETTINGS'
+          pluginManagement {
+              repositories {
+                  google()
+                  gradlePluginPortal()
+                  mavenCentral()
+              }
+          }
+          
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          rootProject.name = "BagBot Dashboard"
+          include ':app'
+          EOFSETTINGS
+          
+          # gradle.properties
+          cat > gradle.properties << 'EOFPROPS'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOFPROPS
+          
+          # Copier l'icône si disponible
+          if [ -f "../BagBotApp/assets/icon.png" ]; then
+            cp ../BagBotApp/assets/icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          fi
+
+      - name: 🏗️ Build WebView APK
+        working-directory: ./webview-app
+        run: |
+          chmod +x gradlew || true
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper
+          fi
+          ./gradlew assembleRelease --no-daemon
+
+      - name: 📤 Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bagbot-dashboard-webview-apk
+          path: ./webview-app/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: 🎉 Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./webview-app/app/build/outputs/apk/release/*.apk
+          body: |
+            ## 🎉 BAG Bot Dashboard Mobile - Version WebView
+            
+            ### 📱 À propos
+            
+            Cette version utilise une WebView pour afficher le dashboard web.
+            Fonctionnalités identiques mais via l'interface web.
+            
+            ### 📥 Installation
+            
+            1. Téléchargez l'APK
+            2. Installez sur Android
+            3. L'app se connectera au dashboard web
+            
+            **Version:** ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

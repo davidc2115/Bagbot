@@ -1,0 +1,99 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        working-directory: ./BagBotApp
+        run: npm install
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Prebuild Android
+        working-directory: ./BagBotApp
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build APK
+        working-directory: ./BagBotApp/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Sign APK
+        working-directory: ./BagBotApp/android/app/build/outputs/apk/release
+        run: |
+          # L'APK non signé sera disponible
+          mv app-release-unsigned.apk bagbot-dashboard-v${{ github.ref_name }}.apk || \
+          mv app-release.apk bagbot-dashboard-v${{ github.ref_name }}.apk || \
+          mv *.apk bagbot-dashboard-v${{ github.ref_name }}.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bagbot-dashboard-apk
+          path: ./BagBotApp/android/app/build/outputs/apk/release/*.apk
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./BagBotApp/android/app/build/outputs/apk/release/*.apk
+          body: |
+            ## 🎉 BAG Bot Dashboard Mobile
+            
+            ### 📱 Installation
+            
+            1. Téléchargez le fichier APK ci-dessous
+            2. Transférez-le sur votre appareil Android
+            3. Activez "Sources inconnues" dans les paramètres
+            4. Installez l'APK
+            5. Lancez l'application et connectez-vous!
+            
+            ### ✨ Fonctionnalités
+            
+            - 👤 Récupération automatique des pseudos Discord
+            - ✏️ Modification du pseudo à tout moment
+            - 💬 Chat staff avec vrais pseudos Discord
+            - 📊 Monitoring serveur en temps réel
+            - 🔄 Gestion à distance (redémarrage, cache, etc.)
+            
+            ### 📋 Configuration Requise
+            
+            - Android 7.0 (API 24) ou supérieur
+            - Connexion Internet
+            - Environ 60 MB d'espace libre
+            
+            ---
+            
+            **Version:** ${{ github.ref_name }}
+            **Taille:** ~50-60 MB
+            **Build:** GitHub Actions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

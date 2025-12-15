@@ -1,0 +1,20 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+
+cd /workspace/BagBotApp
+set env(EXPO_TOKEN) "JKlsDNXifNh8IXoQdRlnxKI3hDjw0IQs522q5S0f"
+
+spawn eas build --platform android --profile production
+
+expect {
+    "Generate a new Android Keystore?" {
+        send "y\r"
+        exp_continue
+    }
+    "Would you like to proceed?" {
+        send "y\r"
+        exp_continue
+    }
+    eof
+}

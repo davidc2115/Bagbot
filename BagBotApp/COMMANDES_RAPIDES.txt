@@ -1,0 +1,169 @@
+==========================================================
+🚀 COMMANDES RAPIDES - BAG Bot Dashboard v1.1.0
+==========================================================
+
+✨ NOUVEAUTÉ : Récupération automatique des pseudos Discord !
+
+
+📦 BUILD APK (RECOMMANDÉ)
+==========================================================
+
+cd /workspace && ./build-apk-eas.sh
+
+→ Build automatique avec EAS (cloud Expo)
+→ APK signé production
+→ Téléchargement automatique
+→ Release GitHub optionnelle
+→ Temps : ~15-20 minutes
+
+
+🔄 TESTER L'APPLICATION
+==========================================================
+
+cd /workspace/BagBotApp && npm start
+
+→ Lance Expo en mode développement
+→ Scannez le QR code avec Expo Go
+→ Test rapide sur votre téléphone
+
+
+📱 GÉNÉRER RELEASE GITHUB (MANUEL)
+==========================================================
+
+cd /workspace
+git add BagBotApp/
+git commit -m "feat(v1.1.0): Discord usernames support"
+git push origin cursor/freebox-dashboard-restart-84eb
+
+git tag -a v1.1.0 -m "BAG Bot Dashboard v1.1.0"
+git push origin v1.1.0
+
+gh release create v1.1.0 \
+    --title "BAG Bot Dashboard Mobile v1.1.0" \
+    --notes "Version avec pseudos Discord" \
+    BagBotApp/bag-bot-dashboard-v1.1.0.apk
+
+
+🔧 DÉPANNAGE
+==========================================================
+
+# Réinstaller les dépendances
+cd /workspace/BagBotApp
+rm -rf node_modules package-lock.json
+npm install --legacy-peer-deps
+
+# Nettoyer le projet Android
+cd /workspace/BagBotApp
+rm -rf android
+npx expo prebuild --platform android --clean
+
+# Vérifier la connexion Expo
+eas whoami
+eas login  # Si pas connecté
+
+
+📊 VÉRIFIER LE BUILD
+==========================================================
+
+# Voir les builds en cours
+eas build:list --platform android
+
+# Voir un build spécifique
+eas build:view BUILD_ID
+
+# Télécharger un APK manuellement
+eas build:view BUILD_ID --json | grep -o '"url":"[^"]*"' | cut -d'"' -f4
+
+
+📚 DOCUMENTATION
+==========================================================
+
+Fichiers créés :
+- README.md                      → Vue d'ensemble
+- BUILD_APK_DISCORD.md           → Guide build complet
+- COMMANDE_UNIQUE_v1.1.md        → Commande unique build
+- GUIDE_ADMIN.md                 → Guide pour les admins
+- PSEUDO_DISCORD_COMPLETE.md     → Détails pseudo Discord
+- COMMANDES_RAPIDES.txt          → Ce fichier
+
+
+🎯 FICHIERS IMPORTANTS
+==========================================================
+
+Code :
+- screens/StaffChatScreen.js     → Chat avec pseudos Discord
+- screens/ServerMonitorScreen.js → Monitoring serveur
+- services/api.js                → Client API
+- App.js                         → Navigation
+
+Config :
+- app.json                       → Config Expo
+- eas.json                       → Config build EAS
+- package.json                   → Dépendances
+
+Scripts :
+- build-apk-eas.sh               → Build automatique EAS
+
+
+✨ FONCTIONNALITÉS v1.1.0
+==========================================================
+
+✅ Pseudo Discord au 1er lancement
+✅ Modification du pseudo (bouton ✏️)
+✅ Chat staff avec vrais pseudos
+✅ Monitoring serveur en temps réel
+✅ Gestion à distance (redémarrage, cache)
+✅ Interface moderne Material Design
+
+
+🔗 LIENS UTILES
+==========================================================
+
+Expo Dashboard :
+https://expo.dev
+
+Builds EAS :
+https://expo.dev/accounts/VOTRE_USERNAME/projects/bagbot-dashboard/builds
+
+GitHub Repo :
+https://github.com/VOTRE_USERNAME/VOTRE_REPO
+
+
+⚡ WORKFLOW COMPLET
+==========================================================
+
+1. Développement :
+   cd /workspace/BagBotApp
+   npm start
+   → Test avec Expo Go
+
+2. Build APK :
+   cd /workspace
+   ./build-apk-eas.sh
+   → Suit les instructions
+
+3. Distribution :
+   → Lien GitHub Release automatique
+   → Ou partage direct de l'APK
+
+4. Installation Admin :
+   → Télécharger APK
+   → Installer (Sources inconnues)
+   → Entrer pseudo Discord
+   → Se connecter
+
+
+🎉 C'EST PRÊT !
+==========================================================
+
+Pour builder l'APK maintenant :
+
+    cd /workspace && ./build-apk-eas.sh
+
+Temps estimé : 15-20 minutes
+Résultat : APK prêt pour vos admins ! 🚀
+
+
+==========================================================
+Version 1.1.0 | Décembre 2025
+==========================================================
