@@ -123,6 +123,52 @@ const COOKIE_NAME = 'dash_sid';
 const COOKIE_TTL_MS = Number(process.env.DASHBOARD_SESSION_TTL_MS || 12 * 60 * 60 * 1000); // 12h
 const SESSIONS = new Map(); // sid -> { userId, username, isAdmin, accessToken, expiresAt }
 
+// ========= Mobile token auth (Bearer) =========
+// The Android app uses a signed Bearer token (HMAC) instead of cookies.
+// Server issues it after Discord OAuth2 check; app sends it in Authorization header.
+const MOBILE_TOKEN_TTL_MS = Number(process.env.DASHBOARD_MOBILE_TOKEN_TTL_MS || 7 * 24 * 60 * 60 * 1000); // 7 days
+
+function base64UrlEncode(buf) {
+  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function base64UrlDecode(str) {
+  const s = String(str || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+  return Buffer.from(s + pad, 'base64');
+}
+function signMobileToken(payloadObj) {
+  const payload = Buffer.from(JSON.stringify(payloadObj), 'utf8');
+  const payloadB64 = base64UrlEncode(payload);
+  const sig = crypto.createHmac('sha256', DASHBOARD_SECRETS.cookieSecret || 'fallback-secret')
+    .update(payloadB64)
+    .digest();
+  const sigB64 = base64UrlEncode(sig);
+  return `${payloadB64}.${sigB64}`;
+}
+function verifyMobileToken(token) {
+  const t = String(token || '');
+  const parts = t.split('.');
+  if (parts.length !== 2) return { ok: false, error: 'Malformed token' };
+  const [payloadB64, sigB64] = parts;
+  const expectedSig = crypto.createHmac('sha256', DASHBOARD_SECRETS.cookieSecret || 'fallback-secret')
+    .update(payloadB64)
+    .digest();
+  const providedSig = base64UrlDecode(sigB64);
+  if (providedSig.length !== expectedSig.length || !crypto.timingSafeEqual(providedSig, expectedSig)) {
+    return { ok: false, error: 'Bad signature' };
+  }
+  let payload;
+  try {
+    payload = JSON.parse(base64UrlDecode(payloadB64).toString('utf8'));
+  } catch {
+    return { ok: false, error: 'Bad payload' };
+  }
+  if (!payload || typeof payload !== 'object') return { ok: false, error: 'Bad payload' };
+  if (payload.exp && Date.now() > Number(payload.exp)) return { ok: false, error: 'Expired' };
+  if (!payload.admin) return { ok: false, error: 'Not admin' };
+  return { ok: true, payload };
+}
+
 function parseCookies(cookieHeader) {
   const out = {};
   const str = String(cookieHeader || '');
@@ -217,6 +263,18 @@ function isDiscordAdminSession(req) {
 function requireAdminAuth(req, res, next) {
   // Allow if Discord session is admin
   if (isDiscordAdminSession(req)) return next();
+
+  // Allow mobile Bearer token
+  const header = String(req.headers.authorization || '');
+  if (header.startsWith('Bearer ')) {
+    const t = header.slice('Bearer '.length).trim();
+    const v = verifyMobileToken(t);
+    if (v.ok) {
+      req.mobileAuth = v.payload;
+      return next();
+    }
+  }
+
   // Allow optional legacy bearer token (automation)
   if (hasBearerAdminToken(req)) return next();
   return res.status(401).json({ error: 'Unauthorized' });
@@ -353,10 +411,101 @@ app.get('/auth/discord/callback', async (req, res) => {
   }
 });
 
+// ========= Mobile OAuth start/callback =========
+// Flow:
+// - App opens:  GET <base>/auth/mobile/start?app_redirect=bagbot://auth
+// - Server redirects to Discord authorize (redirect_uri is server callback)
+// - Callback exchanges code, checks ADMINISTRATOR on GUILD_ID, then redirects to:
+//   bagbot://auth?token=<bearer>&user=<username>
+app.get('/auth/mobile/start', (req, res) => {
+  const appRedirect = String(req.query.app_redirect || 'bagbot://auth');
+  if (!DISCORD_OAUTH_CLIENT_ID || !DISCORD_OAUTH_CLIENT_SECRET) {
+    return res.status(500).send('Discord login is not configured.');
+  }
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http');
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`);
+  const redirectUri = `${proto}://${host}/auth/mobile/callback`;
+
+  const state = crypto.randomBytes(18).toString('hex');
+  SESSIONS.set(`mstate:${state}`, { createdAt: Date.now(), appRedirect });
+  setTimeout(() => SESSIONS.delete(`mstate:${state}`), 10 * 60 * 1000).unref?.();
+
+  const params = new URLSearchParams({
+    client_id: DISCORD_OAUTH_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'identify guilds',
+    state
+  });
+  res.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
+});
+
+app.get('/auth/mobile/callback', async (req, res) => {
+  try {
+    const code = String(req.query.code || '');
+    const state = String(req.query.state || '');
+    const stateKey = `mstate:${state}`;
+    const st = SESSIONS.get(stateKey);
+    SESSIONS.delete(stateKey);
+    if (!code || !st) return res.status(400).send('Invalid OAuth state.');
+
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http');
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`);
+    const redirectUri = `${proto}://${host}/auth/mobile/callback`;
+
+    const tokenBody = new URLSearchParams({
+      client_id: DISCORD_OAUTH_CLIENT_ID,
+      client_secret: DISCORD_OAUTH_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri
+    });
+    const tokenRes = await discordFetch('/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody.toString()
+    });
+    if (!tokenRes.ok) return res.status(502).send('OAuth token exchange failed.');
+    const accessToken = tokenRes.data?.access_token;
+    if (!accessToken) return res.status(502).send('Missing access token.');
+
+    const me = await discordFetch('/users/@me', { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!me.ok) return res.status(502).send('Failed to fetch user profile.');
+
+    const guildId = process.env.GUILD_ID || process.env.FORCE_GUILD_ID || '1360897918504271882';
+    const permCheck = await checkUserIsGuildAdmin(accessToken, guildId);
+    if (!permCheck.ok || !permCheck.isAdmin) return res.status(403).send('Access denied.');
+
+    const mobileToken = signMobileToken({
+      v: 1,
+      admin: true,
+      uid: me.data?.id,
+      u: me.data?.username,
+      gid: guildId,
+      exp: Date.now() + MOBILE_TOKEN_TTL_MS
+    });
+
+    const appRedirect = String(st.appRedirect || 'bagbot://auth');
+    const url = new URL(appRedirect);
+    url.searchParams.set('token', mobileToken);
+    if (me.data?.username) url.searchParams.set('user', me.data.username);
+    res.redirect(url.toString());
+  } catch (err) {
+    console.error('Mobile OAuth callback error:', err);
+    res.status(500).send('Mobile OAuth callback error.');
+  }
+});
+
 app.get('/api/me', (req, res) => {
   const sess = getSession(req);
-  if (!sess) return res.status(401).json({ error: 'Not logged in' });
-  res.json({ userId: sess.userId, username: sess.username, isAdmin: !!sess.isAdmin });
+  if (sess) return res.json({ userId: sess.userId, username: sess.username, isAdmin: !!sess.isAdmin });
+  const header = String(req.headers.authorization || '');
+  if (header.startsWith('Bearer ')) {
+    const t = header.slice('Bearer '.length).trim();
+    const v = verifyMobileToken(t);
+    if (v.ok) return res.json({ userId: v.payload.uid, username: v.payload.u, isAdmin: true, via: 'mobile_token' });
+  }
+  return res.status(401).json({ error: 'Not logged in' });
 });
 
 // ========= Global access guard =========
@@ -369,6 +518,17 @@ app.use((req, res, next) => {
 
   // Allow Discord-admin session
   if (isDiscordAdminSession(req)) return next();
+
+  // Allow mobile Bearer token
+  const header = String(req.headers.authorization || '');
+  if (header.startsWith('Bearer ')) {
+    const t = header.slice('Bearer '.length).trim();
+    const v = verifyMobileToken(t);
+    if (v.ok) {
+      req.mobileAuth = v.payload;
+      return next();
+    }
+  }
 
   // Optional legacy token (automation / headless)
   if (hasBearerAdminToken(req)) return next();
@@ -1007,6 +1167,26 @@ app.get('/api/configs', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/configs:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Replace full guild config (mobile-friendly "edit everything")
+// Body must be the guild config object (not wrapped).
+app.put('/api/configs', requireAdminAuth, (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ error: 'JSON body required' });
+    }
+    const config = readConfig();
+    if (!config.guilds) config.guilds = {};
+    config.guilds[GUILD] = req.body;
+    if (writeConfig(config)) {
+      return res.json({ success: true });
+    }
+    return res.status(500).json({ error: 'Failed to save config' });
+  } catch (err) {
+    console.error('Error in PUT /api/configs:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
