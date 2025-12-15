@@ -2339,7 +2339,21 @@ async saveTickets(){
 async api(u,o={}){
 try{
 console.log('🌐 API Call:',o.method||'GET',u);
-const r=await fetch(`http://82.67.65.98:3002${u}`,{...o,headers:{'Content-Type':'application/json'}});
+const base=(localStorage.getItem('DASHBOARD_BASE_URL')||window.location.origin).replace(/\/$/,'');
+const token=(localStorage.getItem('DASHBOARD_ADMIN_TOKEN')||'').trim();
+const headers={...(o.headers||{}),'Content-Type':'application/json'};
+if(token)headers['Authorization']=`Bearer ${token}`;
+
+let r=await fetch(`${base}${u}`,{...o,headers});
+// If protected, prompt once for token then retry.
+if(r.status===401){
+  const newToken=prompt('🔐 Token admin requis. Collez votre DASHBOARD_ADMIN_TOKEN :','');
+  if(newToken && newToken.trim()){
+    localStorage.setItem('DASHBOARD_ADMIN_TOKEN',newToken.trim());
+    headers['Authorization']=`Bearer ${newToken.trim()}`;
+    r=await fetch(`${base}${u}`,{...o,headers});
+  }
+}
 if(!r.ok){
 console.error(`❌ HTTP ${r.status} ${r.statusText}`);
 return {success:false,error:`HTTP ${r.status}`};

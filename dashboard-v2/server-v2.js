@@ -3,6 +3,7 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 const https = require('https');
 const fileUpload = require('express-fileupload');
@@ -31,10 +32,57 @@ const app = express();
 //   debug: false
 // }));
 
-const PORT = 3002;
+const PORT = Number(process.env.DASHBOARD_PORT || process.env.PORT || 3002);
 
-app.use(express.json({limit: '50mb'}));
-app.use(express.urlencoded({limit: '50mb', extended: true}));
+// Capture raw body for webhook signature validation (HMAC).
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+app.use(express.urlencoded({
+  limit: '50mb',
+  extended: true,
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+// ========= Security: optional admin token auth =========
+// If DASHBOARD_ADMIN_TOKEN is set, protect sensitive routes with Bearer auth.
+// If not set, routes remain open (legacy behavior) but you SHOULD set it in production.
+const DASHBOARD_ADMIN_TOKEN = (process.env.DASHBOARD_ADMIN_TOKEN || '').trim();
+function timingSafeEqualStr(a, b) {
+  const aBuf = Buffer.from(String(a || ''), 'utf8');
+  const bBuf = Buffer.from(String(b || ''), 'utf8');
+  if (aBuf.length !== bBuf.length) return false;
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+function requireAdminAuth(req, res, next) {
+  if (!DASHBOARD_ADMIN_TOKEN) return next();
+  const header = String(req.headers.authorization || '');
+  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+  if (token && timingSafeEqualStr(token, DASHBOARD_ADMIN_TOKEN)) return next();
+  return res.status(401).json({ error: 'Unauthorized' });
+}
+
+// ========= Webhook (signed) =========
+// POST /webhook/<action>
+// Header: X-Signature: sha256=<hex>  (or just <hex>)
+// Body: JSON, signature computed on raw bytes.
+const WEBHOOK_SECRET = (process.env.DASHBOARD_WEBHOOK_SECRET || '').trim();
+function verifyWebhook(req, res, next) {
+  if (!WEBHOOK_SECRET) return res.status(400).json({ error: 'Webhook disabled (missing DASHBOARD_WEBHOOK_SECRET)' });
+  const header = String(req.headers['x-signature'] || req.headers['x-bag-signature'] || '');
+  const provided = header.startsWith('sha256=') ? header.slice('sha256='.length) : header;
+  const raw = Buffer.isBuffer(req.rawBody) ? req.rawBody : Buffer.from('', 'utf8');
+  const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(raw).digest('hex');
+  if (!provided || !timingSafeEqualStr(provided, expected)) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+  return next();
+}
 
 // IMPORTANT: Routes spécifiques AVANT express.static pour éviter le cache
 
@@ -201,26 +249,29 @@ app.post('/restore', (req, res) => {
 });
 
 // Bot control
-app.post('/bot/control', (req, res) => {
+function restartBot(res) {
+  exec('pm2 restart bagbot', (error) => {
+    if (error) console.error('Error restarting bot:', error);
+  });
+  return res.json({ success: true, message: 'Bot restart initiated' });
+}
+function deployCommands(res) {
+  exec('node deploy-commands.js', (error) => {
+    if (error) console.error('Error deploying commands:', error);
+  });
+  return res.json({ success: true, message: 'Command deployment initiated' });
+}
+
+app.post('/bot/control', requireAdminAuth, (req, res) => {
   try {
     const { action } = req.body;
     
     if (action === 'restart') {
       // Restart the bot using PM2
-      exec('pm2 restart bagbot', (error, stdout, stderr) => {
-        if (error) {
-          console.error('Error restarting bot:', error);
-        }
-      });
-      res.json({ success: true, message: 'Bot restart initiated' });
+      return restartBot(res);
     } else if (action === 'deploy') {
       // Deploy commands
-      exec('cd /home/bagbot/Bag-bot && node deploy-commands.js', (error, stdout, stderr) => {
-        if (error) {
-          console.error('Error deploying commands:', error);
-        }
-      });
-      res.json({ success: true, message: 'Command deployment initiated' });
+      return deployCommands(res);
     } else {
       res.status(400).json({ error: 'Unknown action' });
     }
@@ -296,12 +347,17 @@ app.get('/api/bot/status', (req, res) => {
 // Route pour servir les GIFs hébergés localement
 app.use('/gifs', express.static(path.join(__dirname, 'public/gifs')));
 
-app.use(express.static('.'));
+// Serve only dashboard files (avoid exposing project root).
+app.use(express.static(__dirname));
 
 
-const CONFIG = path.join(__dirname, '../data/config.json');
-const GUILD = '1360897918504271882';
-const BACKUP_DIR = '/var/data/backups';
+const CONFIG = process.env.BAGBOT_CONFIG_PATH
+  ? path.resolve(process.env.BAGBOT_CONFIG_PATH)
+  : path.join(__dirname, '../data/config.json');
+const GUILD = process.env.GUILD_ID || process.env.FORCE_GUILD_ID || '1360897918504271882';
+const BACKUP_DIR = process.env.BAGBOT_BACKUP_DIR
+  ? path.resolve(process.env.BAGBOT_BACKUP_DIR)
+  : '/var/data/backups';
 
 // Discord API credentials
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -703,7 +759,7 @@ app.get('/api/inactivity', async (req, res) => {
 });
 
 // Update inactivity config (format bot)
-app.post('/api/inactivity', (req, res) => {
+app.post('/api/inactivity', requireAdminAuth, (req, res) => {
   try {
     const config = readConfig();
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
@@ -734,7 +790,7 @@ app.post('/api/inactivity', (req, res) => {
 });
 
 // Cleanup inactivity tracking - remove members who left
-app.post('/api/inactivity/cleanup', (req, res) => {
+app.post('/api/inactivity/cleanup', requireAdminAuth, (req, res) => {
   try {
     const { removeIds } = req.body;
     if (!Array.isArray(removeIds) || removeIds.length === 0) {
@@ -771,7 +827,7 @@ app.post('/api/inactivity/cleanup', (req, res) => {
 });
 
 // Réinitialiser l inactivité d un membre spécifique
-app.post("/api/inactivity/reset/:userId", (req, res) => {
+app.post("/api/inactivity/reset/:userId", requireAdminAuth, (req, res) => {
   try {
     const { userId } = req.params;
     const config = readConfig();
@@ -798,7 +854,7 @@ app.post("/api/inactivity/reset/:userId", (req, res) => {
 });
 
 // Ajouter automatiquement tous les membres au tracking  
-app.post("/api/inactivity/add-all-members", async (req, res) => {
+app.post("/api/inactivity/add-all-members", requireAdminAuth, async (req, res) => {
   try {
     const config = readConfig();
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
@@ -835,7 +891,7 @@ app.post("/api/inactivity/add-all-members", async (req, res) => {
 
 
 // Update economy settings
-app.post('/api/economy', (req, res) => {
+app.post('/api/economy', requireAdminAuth, (req, res) => {
   try {
     const config = readConfig();
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
@@ -870,7 +926,7 @@ app.post('/api/economy', (req, res) => {
 });
 
 // Update actions (GIFs, messages, config)
-app.post('/api/actions', async (req, res) => {
+app.post('/api/actions', requireAdminAuth, async (req, res) => {
   try {
     const { messages, config: actConfig } = req.body;
     let gifs = req.body.gifs;
@@ -916,7 +972,7 @@ app.post('/api/actions', async (req, res) => {
 });
 
 // Update tickets configuration
-app.post('/api/tickets', (req, res) => {
+app.post('/api/tickets', requireAdminAuth, (req, res) => {
   try {
     console.log('📥 POST /api/tickets - Reçu:', Object.keys(req.body));
     const config = readConfig();
@@ -968,7 +1024,7 @@ app.post('/api/tickets', (req, res) => {
 });
 
 // Reload bot config (arrête bot pendant sauvegarde, puis redémarre)
-app.post('/api/bot/prepare-save', (req, res) => {
+app.post('/api/bot/prepare-save', requireAdminAuth, (req, res) => {
   const { exec } = require('child_process');
   console.log('🛑 Arrêt du bot pour sauvegarde config...');
   exec('pm2 stop bagbot', (err, stdout, stderr) => {
@@ -981,7 +1037,7 @@ app.post('/api/bot/prepare-save', (req, res) => {
   });
 });
 
-app.post('/api/bot/finish-save', (req, res) => {
+app.post('/api/bot/finish-save', requireAdminAuth, (req, res) => {
   const { exec } = require('child_process');
   console.log('▶️ Redémarrage du bot avec nouvelle config...');
   exec('pm2 restart bagbot', (err, stdout, stderr) => {
@@ -995,7 +1051,7 @@ app.post('/api/bot/finish-save', (req, res) => {
 });
 
 // Update confess configuration
-app.post('/api/confess', (req, res) => {
+app.post('/api/confess', requireAdminAuth, (req, res) => {
   try {
     const config = readConfig();
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
@@ -1030,7 +1086,7 @@ require('./welcome-routes')(app, readConfig, writeConfig, GUILD);
 
 // GET /api/music - Récupérer les playlists et uploads
 // POST /api/music/playlist - Créer/modifier une playlist
-app.post('/api/music/playlist', (req, res) => {
+app.post('/api/music/playlist', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name, tracks } = req.body;
     const playlistsPath = path.join(__dirname, '../data/playlists');
@@ -1059,7 +1115,7 @@ app.post('/api/music/playlist', (req, res) => {
 // POST /api/music/upload - Upload un fichier audio
 
 // DELETE /api/music/playlist/:guildId/:name
-app.delete('/api/music/playlist/:guildId/:name', (req, res) => {
+app.delete('/api/music/playlist/:guildId/:name', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name } = req.params;
     const playlistsPath = path.join(__dirname, '../data/playlists');
@@ -1168,7 +1224,7 @@ app.get('/api/music/playlist/:guildId/:name', (req, res) => {
 });
 
 // POST /api/music/upload - Upload fichier audio
-app.post('/api/music/upload', upload.single('audio'), (req, res) => {
+app.post('/api/music/upload', requireAdminAuth, upload.single('audio'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Aucun fichier' });
@@ -1182,7 +1238,7 @@ app.post('/api/music/upload', upload.single('audio'), (req, res) => {
 });
 
 // DELETE /api/music/upload/:filename - Supprimer un fichier uploadé
-app.delete('/api/music/upload/:filename', (req, res) => {
+app.delete('/api/music/upload/:filename', requireAdminAuth, (req, res) => {
   try {
     const { filename } = req.params;
     const uploadsPath = path.join(__dirname, '../data/uploads');
@@ -1202,7 +1258,7 @@ app.delete('/api/music/upload/:filename', (req, res) => {
 });
 
 // PUT /api/music/playlist/:guildId/:name - Renommer une playlist
-app.put('/api/music/playlist/:guildId/:name', (req, res) => {
+app.put('/api/music/playlist/:guildId/:name', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name } = req.params;
     const { newName } = req.body;
@@ -1265,7 +1321,7 @@ app.put('/api/music/playlist/:guildId/:name', (req, res) => {
 });
 
 // DELETE /api/music/playlist/:guildId/:name - Supprimer une playlist
-app.delete('/api/music/playlist/:guildId/:name', (req, res) => {
+app.delete('/api/music/playlist/:guildId/:name', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name } = req.params;
     const playlistsPath = path.join(__dirname, '../data/playlists');
@@ -1294,7 +1350,7 @@ app.delete('/api/music/playlist/:guildId/:name', (req, res) => {
 });
 
 // DELETE /api/music/playlist/:guildId/:name/track/:index - Supprimer une piste
-app.delete('/api/music/playlist/:guildId/:name/track/:index', (req, res) => {
+app.delete('/api/music/playlist/:guildId/:name/track/:index', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name, index } = req.params;
     const playlistsPath = path.join(__dirname, '../data/playlists');
@@ -1334,7 +1390,7 @@ app.delete('/api/music/playlist/:guildId/:name/track/:index', (req, res) => {
 });
 
 // POST /api/music/add-link - Télécharger et ajouter un lien YouTube/Spotify à une playlist
-app.post('/api/music/add-link', async (req, res) => {
+app.post('/api/music/add-link', requireAdminAuth, async (req, res) => {
   try {
     const { link, playlistName, guildId } = req.body;
     
@@ -1470,7 +1526,7 @@ app.post('/api/music/add-link', async (req, res) => {
 
 
 // POST /api/music/playlist/create - Créer une nouvelle playlist
-app.post('/api/music/playlist/create', (req, res) => {
+app.post('/api/music/playlist/create', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name } = req.body;
     
@@ -1519,7 +1575,7 @@ app.post('/api/music/playlist/create', (req, res) => {
 });
 
 // POST /api/music/playlist/:guildId/:name/add - Ajouter une piste à une playlist
-app.post('/api/music/playlist/:guildId/:name/add', (req, res) => {
+app.post('/api/music/playlist/:guildId/:name/add', requireAdminAuth, (req, res) => {
   try {
     const { guildId, name } = req.params;
     const { filename, title, author, duration } = req.body;
@@ -1594,7 +1650,7 @@ app.get('/api/truthdare/:mode', (req, res) => {
 });
 
 // Add a new prompt
-app.post('/api/truthdare/:mode', (req, res) => {
+app.post('/api/truthdare/:mode', requireAdminAuth, (req, res) => {
   try {
     const { mode } = req.params;
     const { type, text } = req.body;
@@ -1629,7 +1685,7 @@ app.post('/api/truthdare/:mode', (req, res) => {
 });
 
 // Edit a prompt
-app.patch('/api/truthdare/:mode/:id', (req, res) => {
+app.patch('/api/truthdare/:mode/:id', requireAdminAuth, (req, res) => {
   try {
     const { mode, id } = req.params;
     const { text } = req.body;
@@ -1661,7 +1717,7 @@ app.patch('/api/truthdare/:mode/:id', (req, res) => {
 });
 
 // Delete a prompt
-app.delete('/api/truthdare/:mode/:id', (req, res) => {
+app.delete('/api/truthdare/:mode/:id', requireAdminAuth, (req, res) => {
   try {
     const { mode, id } = req.params;
     if (!['sfw', 'nsfw'].includes(mode)) {
@@ -1689,7 +1745,7 @@ app.delete('/api/truthdare/:mode/:id', (req, res) => {
 });
 
 // Add a channel
-app.post('/api/truthdare/:mode/channels', (req, res) => {
+app.post('/api/truthdare/:mode/channels', requireAdminAuth, (req, res) => {
   try {
     const { mode } = req.params;
     const { channelId } = req.body;
@@ -1724,7 +1780,7 @@ app.post('/api/truthdare/:mode/channels', (req, res) => {
 });
 
 // Delete a channel
-app.delete('/api/truthdare/:mode/channels/:channelId', (req, res) => {
+app.delete('/api/truthdare/:mode/channels/:channelId', requireAdminAuth, (req, res) => {
   try {
     const { mode, channelId } = req.params;
     if (!['sfw', 'nsfw'].includes(mode)) {
@@ -1766,7 +1822,7 @@ app.get('/api/counting', (req, res) => {
 });
 
 // Update counting configuration
-app.post('/api/counting', (req, res) => {
+app.post('/api/counting', requireAdminAuth, (req, res) => {
   try {
     const { allowFormulas, channels } = req.body;
     const config = readConfig();
@@ -1795,7 +1851,7 @@ app.post('/api/counting', (req, res) => {
 });
 
 // Add counting channel
-app.post('/api/counting/channels', (req, res) => {
+app.post('/api/counting/channels', requireAdminAuth, (req, res) => {
   try {
     const { channelId } = req.body;
     if (!channelId) {
@@ -1828,7 +1884,7 @@ app.post('/api/counting/channels', (req, res) => {
 });
 
 // Delete counting channel
-app.delete('/api/counting/channels/:channelId', (req, res) => {
+app.delete('/api/counting/channels/:channelId', requireAdminAuth, (req, res) => {
   try {
     const { channelId } = req.params;
     const config = readConfig();
@@ -1881,7 +1937,7 @@ app.get('/api/welcome', (req, res) => {
 });
 
 // Update welcome configuration
-app.post('/api/welcome', (req, res) => {
+app.post('/api/welcome', requireAdminAuth, (req, res) => {
   try {
     const { welcome } = req.body;
     const config = readConfig();
@@ -1924,7 +1980,7 @@ app.get('/api/goodbye', (req, res) => {
 });
 
 // Update goodbye configuration
-app.post('/api/goodbye', (req, res) => {
+app.post('/api/goodbye', requireAdminAuth, (req, res) => {
   try {
     const { goodbye } = req.body;
     const config = readConfig();
@@ -2008,10 +2064,74 @@ app.post('/api/upload-gif-from-browser', async (req, res) => {
   }
 });
 
+// ========== Webhook actions (signed) ==========
+app.post('/webhook/restart', verifyWebhook, (req, res) => restartBot(res));
+app.post('/webhook/deploy-commands', verifyWebhook, (req, res) => deployCommands(res));
+app.post('/webhook/backup', verifyWebhook, (req, res) => {
+  // Reuse existing logic via a lightweight inline backup (same as /backup)
+  try {
+    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `backup-${timestamp}.json`;
+    const backupPath = path.join(BACKUP_DIR, filename);
+    const config = readConfig();
+    fs.writeFileSync(backupPath, JSON.stringify(config, null, 2), 'utf8');
+    return res.json({ success: true, filename });
+  } catch (err) {
+    console.error('Error creating backup (webhook):', err);
+    return res.status(500).json({ error: 'Failed to create backup' });
+  }
+});
+
+// Send a Discord message (requires DISCORD_TOKEN)
+app.post('/webhook/message', verifyWebhook, async (req, res) => {
+  try {
+    const { channelId, content } = req.body || {};
+    if (!channelId || !content) return res.status(400).json({ error: 'channelId and content are required' });
+    if (!DISCORD_TOKEN) return res.status(500).json({ error: 'DISCORD_TOKEN missing' });
+
+    const payload = JSON.stringify({ content: String(content).slice(0, 2000) });
+    const options = {
+      hostname: 'discord.com',
+      path: `/api/v10/channels/${channelId}/messages`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${DISCORD_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const req2 = https.request(options, (resp) => {
+      let data = '';
+      resp.on('data', (chunk) => (data += chunk));
+      resp.on('end', () => {
+        if (resp.statusCode && resp.statusCode >= 200 && resp.statusCode < 300) {
+          return res.json({ success: true });
+        }
+        console.error('Discord API message error:', resp.statusCode, data);
+        return res.status(502).json({ error: 'Discord API error', status: resp.statusCode, details: data });
+      });
+    });
+    req2.on('error', (e) => {
+      console.error('Discord API request error:', e);
+      return res.status(502).json({ error: 'Discord API request failed' });
+    });
+    req2.write(payload);
+    req2.end();
+  } catch (err) {
+    console.error('Error in webhook message:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✓ Dashboard V2 Server running on port ${PORT}`);
   console.log(`✓ Guild ID: ${GUILD}`);
   console.log(`✓ Config file: ${CONFIG}`);
   console.log(`✓ Access: http://localhost:${PORT}`);
   console.log(`✓ Discord API integration enabled`);
+  if (!DASHBOARD_ADMIN_TOKEN) {
+    console.log('⚠️ DASHBOARD_ADMIN_TOKEN is not set. Dashboard write endpoints are not protected.');
+  }
 });
