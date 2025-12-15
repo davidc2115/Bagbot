@@ -536,38 +536,19 @@ app.get('/api/configs', async (req, res) => {
     const membersData = await getMembers();
     const currentMemberIds = Object.keys(membersData.names || membersData);
     
-    // Filtrer économie pour ne garder que les membres actuels
+    // NE PAS FILTRER - afficher tous les membres economy (même anciens)
+    // Le filtrage cachait les anciens comptes, ce qui est confus
     if (guildConfig.economy && guildConfig.economy.balances) {
-      const filteredBalances = {};
-      for (const [uid, data] of Object.entries(guildConfig.economy.balances)) {
-        if (currentMemberIds.includes(uid)) {
-          filteredBalances[uid] = data;
-        }
-      }
-      guildConfig.economy.balances = filteredBalances;
-      console.log(`[API] Économie filtrée: ${Object.keys(filteredBalances).length} membres actuels`);
+      console.log(`[API] Économie: ${Object.keys(guildConfig.economy.balances).length} comptes totaux`);
+      console.log(`[API] Membres actuels sur le serveur: ${currentMemberIds.length}`);
     }
     
-    // Filtrer niveaux/levels pour ne garder que les membres actuels
+    // NE PAS FILTRER les niveaux non plus - afficher tous les comptes
     if (guildConfig.levels && guildConfig.levels.users) {
-      const filteredUsers = {};
-      for (const [uid, data] of Object.entries(guildConfig.levels.users)) {
-        if (currentMemberIds.includes(uid)) {
-          filteredUsers[uid] = data;
-        }
-      }
-      guildConfig.levels.users = filteredUsers;
-      console.log(`[API] Niveaux/Levels.users filtrés: ${Object.keys(filteredUsers).length} membres actuels`);
+      console.log(`[API] Levels: ${Object.keys(guildConfig.levels.users).length} comptes totaux`);
     }
     if (guildConfig.niveaux) {
-      const filteredNiveaux = {};
-      for (const [uid, data] of Object.entries(guildConfig.niveaux)) {
-        if (currentMemberIds.includes(uid)) {
-          filteredNiveaux[uid] = data;
-        }
-      }
-      guildConfig.niveaux = filteredNiveaux;
-      console.log(`[API] Niveaux filtrés: ${Object.keys(filteredNiveaux).length} membres actuels`);
+      console.log(`[API] Niveaux: ${Object.keys(guildConfig.niveaux).length} comptes totaux`);
     }
     
     // Filtrer inactivité pour retirer exempts et ayant quitté

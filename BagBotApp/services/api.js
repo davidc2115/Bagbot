@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Configuration de l'API - Peut être modifiée dans les paramètres
-const DEFAULT_API_URL = 'https://paid-cartoon-cyber-symphony.trycloudflare.com';
+const DEFAULT_API_URL = 'http://88.174.155.230:33000';
 
 class ApiService {
   constructor() {
