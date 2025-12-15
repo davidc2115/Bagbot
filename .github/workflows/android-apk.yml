@@ -26,6 +26,9 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          # Pin Gradle to an Android-Gradle-Plugin compatible version.
+          gradle-version: 8.6
 
       - name: Build debug APK (no keystore)
         working-directory: android-app
