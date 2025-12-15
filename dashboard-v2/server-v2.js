@@ -49,21 +49,176 @@ app.use(express.urlencoded({
   }
 }));
 
-// ========= Security: optional admin token auth =========
-// If DASHBOARD_ADMIN_TOKEN is set, protect sensitive routes with Bearer auth.
-// If not set, routes remain open (legacy behavior) but you SHOULD set it in production.
-const DASHBOARD_ADMIN_TOKEN = (process.env.DASHBOARD_ADMIN_TOKEN || '').trim();
+// ========= Secrets (Freebox-friendly): load from file, auto-generate keys =========
+function isBrokenSymlink(p) {
+  try {
+    const st = fs.lstatSync(p);
+    if (!st.isSymbolicLink()) return false;
+    // If it's a symlink, check target exists
+    try {
+      fs.statSync(p);
+      return false;
+    } catch {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+}
+
+function ensureWritableDir(dirPath) {
+  if (!dirPath) return null;
+  try {
+    const p = path.resolve(dirPath);
+    if (isBrokenSymlink(p)) return null;
+    if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+    fs.accessSync(p, fs.constants.W_OK);
+    return p;
+  } catch {
+    return null;
+  }
+}
+
+const DATA_DIR =
+  ensureWritableDir(process.env.DATA_DIR) ||
+  ensureWritableDir(path.join(__dirname, '../data')) ||
+  ensureWritableDir(path.join(__dirname, './data')) ||
+  ensureWritableDir(path.join(process.cwd(), '.data')) ||
+  path.join(__dirname, './data'); // last resort (may fail later)
+
+const DASHBOARD_SECRETS_PATH = process.env.DASHBOARD_SECRETS_PATH
+  ? path.resolve(process.env.DASHBOARD_SECRETS_PATH)
+  : path.join(DATA_DIR, 'dashboard-secrets.json');
+
+function loadOrCreateSecrets() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (fs.existsSync(DASHBOARD_SECRETS_PATH)) {
+      const parsed = JSON.parse(fs.readFileSync(DASHBOARD_SECRETS_PATH, 'utf8'));
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    }
+    const created = {
+      createdAt: new Date().toISOString(),
+      cookieSecret: crypto.randomBytes(48).toString('hex'),
+      webhookSecret: crypto.randomBytes(32).toString('hex')
+    };
+    fs.writeFileSync(DASHBOARD_SECRETS_PATH, JSON.stringify(created, null, 2), 'utf8');
+    return created;
+  } catch (err) {
+    console.error('⚠️ Failed to load/create dashboard secrets:', err);
+    return {};
+  }
+}
+
+const DASHBOARD_SECRETS = loadOrCreateSecrets();
+
+// ========= Discord OAuth2 (login) =========
+// Note: client secret must come from your Discord Developer Portal, but can be stored in dashboard-secrets.json instead of .env
+const DISCORD_OAUTH_CLIENT_ID = (process.env.DISCORD_OAUTH_CLIENT_ID || process.env.CLIENT_ID || '').trim();
+const DISCORD_OAUTH_CLIENT_SECRET = (process.env.DISCORD_OAUTH_CLIENT_SECRET || DASHBOARD_SECRETS.discordOAuthClientSecret || '').trim();
+const DISCORD_OAUTH_REDIRECT_URI = (process.env.DISCORD_OAUTH_REDIRECT_URI || '').trim(); // optional: auto-derived from request if empty
+
+// ========= Session cookie (no .env token required for UI) =========
+const COOKIE_NAME = 'dash_sid';
+const COOKIE_TTL_MS = Number(process.env.DASHBOARD_SESSION_TTL_MS || 12 * 60 * 60 * 1000); // 12h
+const SESSIONS = new Map(); // sid -> { userId, username, isAdmin, accessToken, expiresAt }
+
+function parseCookies(cookieHeader) {
+  const out = {};
+  const str = String(cookieHeader || '');
+  if (!str) return out;
+  for (const part of str.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (k) out[k] = decodeURIComponent(v);
+  }
+  return out;
+}
+
+function setCookie(res, name, value, opts = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  parts.push(`Path=${opts.path || '/'}`);
+  if (opts.httpOnly !== false) parts.push('HttpOnly');
+  parts.push(`SameSite=${opts.sameSite || 'Lax'}`);
+  if (opts.secure) parts.push('Secure');
+  if (typeof opts.maxAge === 'number') parts.push(`Max-Age=${Math.floor(opts.maxAge)}`);
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearCookie(res, name) {
+  setCookie(res, name, '', { maxAge: 0 });
+}
+
+function getSession(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  const sid = cookies[COOKIE_NAME];
+  if (!sid) return null;
+  const sess = SESSIONS.get(sid);
+  if (!sess) return null;
+  if (sess.expiresAt && Date.now() > sess.expiresAt) {
+    SESSIONS.delete(sid);
+    return null;
+  }
+  return { sid, ...sess };
+}
+
+async function discordFetch(pathname, { method = 'GET', headers = {}, body } = {}) {
+  const res = await fetch(`https://discord.com/api/v10${pathname}`, {
+    method,
+    headers,
+    body
+  });
+  const text = await res.text();
+  const data = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function checkUserIsGuildAdmin(accessToken, guildId) {
+  // Use /users/@me/guilds and check ADMINISTRATOR bit (0x8).
+  const guilds = await discordFetch('/users/@me/guilds', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!guilds.ok || !Array.isArray(guilds.data)) return { ok: false, error: 'Failed to fetch user guilds' };
+  const entry = guilds.data.find(g => String(g.id) === String(guildId));
+  if (!entry) return { ok: false, error: 'User is not in this guild' };
+  const perms = BigInt(entry.permissions || 0);
+  const isAdmin = (perms & 0x8n) === 0x8n;
+  return { ok: true, isAdmin };
+}
+
+function wantsHtml(req) {
+  const accept = String(req.headers.accept || '');
+  return accept.includes('text/html');
+}
+
+// ========= Security: Discord-admin-only access (+ optional legacy Bearer token) =========
+const DASHBOARD_ADMIN_TOKEN = (process.env.DASHBOARD_ADMIN_TOKEN || '').trim(); // legacy/automation fallback
 function timingSafeEqualStr(a, b) {
   const aBuf = Buffer.from(String(a || ''), 'utf8');
   const bBuf = Buffer.from(String(b || ''), 'utf8');
   if (aBuf.length !== bBuf.length) return false;
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
-function requireAdminAuth(req, res, next) {
-  if (!DASHBOARD_ADMIN_TOKEN) return next();
+
+function hasBearerAdminToken(req) {
+  if (!DASHBOARD_ADMIN_TOKEN) return false;
   const header = String(req.headers.authorization || '');
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
-  if (token && timingSafeEqualStr(token, DASHBOARD_ADMIN_TOKEN)) return next();
+  return !!(token && timingSafeEqualStr(token, DASHBOARD_ADMIN_TOKEN));
+}
+
+function isDiscordAdminSession(req) {
+  const sess = getSession(req);
+  return !!(sess && sess.isAdmin);
+}
+
+function requireAdminAuth(req, res, next) {
+  // Allow if Discord session is admin
+  if (isDiscordAdminSession(req)) return next();
+  // Allow optional legacy bearer token (automation)
+  if (hasBearerAdminToken(req)) return next();
   return res.status(401).json({ error: 'Unauthorized' });
 }
 
@@ -71,7 +226,7 @@ function requireAdminAuth(req, res, next) {
 // POST /webhook/<action>
 // Header: X-Signature: sha256=<hex>  (or just <hex>)
 // Body: JSON, signature computed on raw bytes.
-const WEBHOOK_SECRET = (process.env.DASHBOARD_WEBHOOK_SECRET || '').trim();
+const WEBHOOK_SECRET = (process.env.DASHBOARD_WEBHOOK_SECRET || DASHBOARD_SECRETS.webhookSecret || '').trim();
 function verifyWebhook(req, res, next) {
   if (!WEBHOOK_SECRET) return res.status(400).json({ error: 'Webhook disabled (missing DASHBOARD_WEBHOOK_SECRET)' });
   const header = String(req.headers['x-signature'] || req.headers['x-bag-signature'] || '');
@@ -83,6 +238,145 @@ function verifyWebhook(req, res, next) {
   }
   return next();
 }
+
+// ========= Public auth routes =========
+app.get('/login', (req, res) => {
+  const sess = getSession(req);
+  if (sess?.isAdmin) return res.redirect('/dash');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion Dashboard</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0d0d0d;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+.card{background:#151515;border:1px solid #333;border-radius:12px;padding:24px;max-width:520px;width:92%}
+a.btn{display:inline-block;background:#5865F2;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700}
+.muted{color:#aaa;font-size:14px;line-height:1.4}
+code{background:#222;padding:2px 6px;border-radius:6px}
+</style></head>
+<body><div class="card">
+<h2>Connexion requise</h2>
+<p class="muted">Accès réservé aux admins du serveur Discord configuré (<code>GUILD_ID</code>).</p>
+<p><a class="btn" href="/auth/discord">Se connecter avec Discord</a></p>
+<p class="muted">Si tu as changé l’URL/port, ouvre le dashboard via l’IP de ta Freebox.</p>
+</div></body></html>`);
+});
+
+app.get('/auth/logout', (req, res) => {
+  const sess = getSession(req);
+  if (sess?.sid) SESSIONS.delete(sess.sid);
+  clearCookie(res, COOKIE_NAME);
+  res.redirect('/login');
+});
+
+app.get('/auth/discord', (req, res) => {
+  if (!DISCORD_OAUTH_CLIENT_ID) {
+    return res.status(500).send('Missing DISCORD_OAUTH_CLIENT_ID (or CLIENT_ID).');
+  }
+  if (!DISCORD_OAUTH_CLIENT_SECRET) {
+    return res.status(500).send('Missing DISCORD_OAUTH_CLIENT_SECRET (set it in .env or dashboard-secrets.json).');
+  }
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http');
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`);
+  const redirectUri = DISCORD_OAUTH_REDIRECT_URI || `${proto}://${host}/auth/discord/callback`;
+
+  const state = crypto.randomBytes(18).toString('hex');
+  // Keep state in-memory for 10 minutes
+  SESSIONS.set(`state:${state}`, { createdAt: Date.now() });
+  setTimeout(() => SESSIONS.delete(`state:${state}`), 10 * 60 * 1000).unref?.();
+
+  const params = new URLSearchParams({
+    client_id: DISCORD_OAUTH_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'identify guilds',
+    state
+  });
+  res.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
+});
+
+app.get('/auth/discord/callback', async (req, res) => {
+  try {
+    const code = String(req.query.code || '');
+    const state = String(req.query.state || '');
+    const stateKey = `state:${state}`;
+    const stateObj = SESSIONS.get(stateKey);
+    SESSIONS.delete(stateKey);
+    if (!code || !stateObj) return res.status(400).send('Invalid OAuth state.');
+
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http');
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`);
+    const redirectUri = DISCORD_OAUTH_REDIRECT_URI || `${proto}://${host}/auth/discord/callback`;
+
+    const tokenBody = new URLSearchParams({
+      client_id: DISCORD_OAUTH_CLIENT_ID,
+      client_secret: DISCORD_OAUTH_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri
+    });
+    const tokenRes = await discordFetch('/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody.toString()
+    });
+    if (!tokenRes.ok) {
+      console.error('OAuth token exchange failed:', tokenRes.status, tokenRes.data);
+      return res.status(502).send('OAuth token exchange failed.');
+    }
+    const accessToken = tokenRes.data?.access_token;
+    if (!accessToken) return res.status(502).send('Missing access token.');
+
+    const me = await discordFetch('/users/@me', { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!me.ok) return res.status(502).send('Failed to fetch user profile.');
+
+    // Determine guild + admin
+    const guildId = process.env.GUILD_ID || process.env.FORCE_GUILD_ID || '1360897918504271882';
+    const permCheck = await checkUserIsGuildAdmin(accessToken, guildId);
+    if (!permCheck.ok) return res.status(403).send(`Access denied: ${permCheck.error}`);
+    if (!permCheck.isAdmin) return res.status(403).send('Access denied: you must be an admin of the Discord server.');
+
+    const sid = crypto.randomBytes(24).toString('hex');
+    SESSIONS.set(sid, {
+      userId: me.data?.id,
+      username: me.data?.username,
+      isAdmin: true,
+      accessToken,
+      expiresAt: Date.now() + COOKIE_TTL_MS
+    });
+    setCookie(res, COOKIE_NAME, sid, { maxAge: COOKIE_TTL_MS / 1000 });
+    return res.redirect('/dash');
+  } catch (err) {
+    console.error('OAuth callback error:', err);
+    return res.status(500).send('OAuth callback error.');
+  }
+});
+
+app.get('/api/me', (req, res) => {
+  const sess = getSession(req);
+  if (!sess) return res.status(401).json({ error: 'Not logged in' });
+  res.json({ userId: sess.userId, username: sess.username, isAdmin: !!sess.isAdmin });
+});
+
+// ========= Global access guard =========
+app.use((req, res, next) => {
+  // Public endpoints
+  if (req.path === '/health') return next();
+  if (req.path === '/login') return next();
+  if (req.path.startsWith('/auth/')) return next();
+  if (req.path.startsWith('/webhook/')) return next(); // webhooks are validated separately
+
+  // Allow Discord-admin session
+  if (isDiscordAdminSession(req)) return next();
+
+  // Optional legacy token (automation / headless)
+  if (hasBearerAdminToken(req)) return next();
+
+  // Block everything else
+  if (wantsHtml(req)) return res.redirect('/login');
+  return res.status(401).json({ error: 'Unauthorized' });
+});
 
 // IMPORTANT: Routes spécifiques AVANT express.static pour éviter le cache
 
@@ -353,7 +647,7 @@ app.use(express.static(__dirname));
 
 const CONFIG = process.env.BAGBOT_CONFIG_PATH
   ? path.resolve(process.env.BAGBOT_CONFIG_PATH)
-  : path.join(__dirname, '../data/config.json');
+  : path.join(DATA_DIR, 'config.json');
 const GUILD = process.env.GUILD_ID || process.env.FORCE_GUILD_ID || '1360897918504271882';
 const BACKUP_DIR = process.env.BAGBOT_BACKUP_DIR
   ? path.resolve(process.env.BAGBOT_BACKUP_DIR)
@@ -2131,7 +2425,9 @@ app.listen(PORT, () => {
   console.log(`✓ Config file: ${CONFIG}`);
   console.log(`✓ Access: http://localhost:${PORT}`);
   console.log(`✓ Discord API integration enabled`);
-  if (!DASHBOARD_ADMIN_TOKEN) {
-    console.log('⚠️ DASHBOARD_ADMIN_TOKEN is not set. Dashboard write endpoints are not protected.');
+  console.log(`✓ Secrets file: ${DASHBOARD_SECRETS_PATH}`);
+  if (!DISCORD_OAUTH_CLIENT_ID || !DISCORD_OAUTH_CLIENT_SECRET) {
+    console.log('⚠️ Discord login is not configured yet (missing DISCORD_OAUTH_CLIENT_ID/SECRET).');
+    console.log('   Add them to .env OR set "discordOAuthClientSecret" in dashboard-secrets.json.');
   }
 });
