@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -86,6 +89,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
   val json = remember { Json { ignoreUnknownKeys = true } }
 
+  fun ensureBaseUrlOrWarn(): Boolean {
+    val b = baseUrl.value.trim().removeSuffix("/")
+    if (b.isBlank()) {
+      scope.launch { snackbar.showSnackbar("Renseigne l'URL du dashboard dans Paramètres") }
+      return false
+    }
+    return true
+  }
+
   fun currentConfigObject(): JsonObject? {
     val s = configJson.value ?: return null
     return try { json.parseToJsonElement(s).jsonObject } catch (_: Exception) { null }
@@ -97,6 +109,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
   fun saveFullConfig(newConfigJson: String) {
     scope.launch {
+      if (!ensureBaseUrlOrWarn()) return@launch
       busy.value = true
       try {
         JsonUtil.parseObject(newConfigJson)
@@ -115,6 +128,16 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
   }
 
   fun openSection(key: String) {
+    if (key == "__full__") {
+      val s = configJson.value
+      if (s.isNullOrBlank()) {
+        scope.launch { snackbar.showSnackbar("Config non chargée") }
+        return
+      }
+      sectionKey.value = key
+      sectionEdit.value = s
+      return
+    }
     val cfg = currentConfigObject() ?: run {
       scope.launch { snackbar.showSnackbar("Config non chargée") }
       return
@@ -127,6 +150,11 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
   fun saveSection(key: String, newSectionJson: String) {
     val cfg = currentConfigObject() ?: run {
       scope.launch { snackbar.showSnackbar("Config non chargée") }
+      return
+    }
+    if (key == "__full__") {
+      saveFullConfig(newSectionJson)
+      sectionKey.value = null
       return
     }
     try {
@@ -143,6 +171,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
   fun refreshAll() {
     scope.launch {
+      if (!ensureBaseUrlOrWarn()) return@launch
       busy.value = true
       try {
         val (st, me, cfg) = withContext(Dispatchers.IO) {
@@ -166,6 +195,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
   fun refreshBackups() {
     scope.launch {
+      if (!ensureBaseUrlOrWarn()) return@launch
       busy.value = true
       try {
         val raw = withContext(Dispatchers.IO) { api.getJson("/backups") }
@@ -218,6 +248,13 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
   LaunchedEffect(token.value, baseUrl.value) {
     if (!token.value.isNullOrBlank() && !baseUrl.value.isNullOrBlank()) {
+      refreshAll()
+    }
+  }
+
+  // Auto-load config when entering "Configurer"
+  LaunchedEffect(tab.value, token.value, baseUrl.value) {
+    if (token.value.isNotBlank() && tab.value == 1 && configJson.value.isNullOrBlank()) {
       refreshAll()
     }
   }
@@ -294,18 +331,37 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
           }
         }
       } else {
-        if (busy.value) {
-          Row(
+        if (baseUrl.value.trim().isBlank()) {
+          Column(
             modifier = Modifier
-              .fillMaxWidth()
-              .padding(12.dp),
-            horizontalArrangement = Arrangement.Center
+              .padding(16.dp)
+              .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
           ) {
-            CircularProgressIndicator()
+            Text("Paramètres requis", style = MaterialTheme.typography.titleLarge)
+            Text("L'URL du dashboard est vide. Renseigne-la dans Paramètres.", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+              Button(onClick = { tab.value = 3 }) { Text("Aller aux paramètres") }
+              OutlinedButton(onClick = {
+                store.setToken("")
+                token.value = ""
+                scope.launch { snackbar.showSnackbar("Déconnecté") }
+              }) { Text("Se déconnecter") }
+            }
           }
-        }
+        } else {
+          if (busy.value) {
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+              horizontalArrangement = Arrangement.Center
+            ) {
+              CircularProgressIndicator()
+            }
+          }
 
-        when (tab.value) {
+          when (tab.value) {
           0 -> {
             Column(
               modifier = Modifier
@@ -366,6 +422,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
           1 -> {
             val key = sectionKey.value
             if (key != null) {
+              val isFull = key == "__full__"
               Column(
                 modifier = Modifier
                   .padding(16.dp)
@@ -374,14 +431,14 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
               ) {
                 Card(Modifier.fillMaxWidth()) {
                   Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Section: $key", style = MaterialTheme.typography.titleMedium)
+                    Text(if (isFull) "Éditeur complet" else "Section: $key", style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(
                       value = sectionEdit.value,
                       onValueChange = { sectionEdit.value = it },
                       modifier = Modifier
                         .fillMaxWidth()
                         .height(320.dp),
-                      label = { Text("JSON") },
+                      label = { Text(if (isFull) "JSON complet" else "JSON") },
                       textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -393,54 +450,57 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
               }
             } else {
               val cfg = currentConfigObject()
-              LazyColumn(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-              ) {
-                item {
+              if (cfg == null) {
+                Column(
+                  modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                  verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                   Text("Configuration", style = MaterialTheme.typography.titleLarge)
-                  Spacer(Modifier.height(6.dp))
-                  Text("Ouvre une section pour la modifier (éditeur JSON par section).", style = MaterialTheme.typography.bodySmall)
-                }
-                items(sectionCards()) { item ->
-                  Card(
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .clickable { openSection(item.key) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                  ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                      Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        Icon(item.icon, contentDescription = null)
-                        Column(Modifier.weight(1f)) {
-                          Text(item.title, style = MaterialTheme.typography.titleMedium)
-                          Text(item.subtitle, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text(">", style = MaterialTheme.typography.titleMedium)
-                      }
-                      val present = cfg?.containsKey(item.key) == true
-                      Text(if (present) "Présent" else "Non configuré", style = MaterialTheme.typography.labelSmall)
-                    }
+                  Text("Config non chargée.", style = MaterialTheme.typography.bodySmall)
+                  Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { refreshAll() }) { Text("Charger") }
+                    OutlinedButton(onClick = { tab.value = 3 }) { Text("Paramètres") }
                   }
                 }
-                item {
-                  Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                      Text("Éditeur complet (fallback)", style = MaterialTheme.typography.titleMedium)
-                      OutlinedTextField(
-                        value = configEdit.value,
-                        onValueChange = { configEdit.value = it },
+              } else {
+                Column(
+                  modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                  verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                  Text("Configuration", style = MaterialTheme.typography.titleLarge)
+                  Text("Sélectionne une section (vignettes).", style = MaterialTheme.typography.bodySmall)
+
+                  LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 170.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                  ) {
+                    items(sectionCards()) { item ->
+                      val present = cfg.containsKey(item.key)
+                      Card(
                         modifier = Modifier
                           .fillMaxWidth()
-                          .height(220.dp),
-                        label = { Text("Guild config JSON") },
-                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
-                      )
-                      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { saveFullConfig(configEdit.value) }) { Text("Sauvegarder") }
-                        OutlinedButton(onClick = { configEdit.value = configJson.value ?: "" }) { Text("Annuler") }
+                          .height(118.dp)
+                          .clickable { openSection(item.key) },
+                        colors = CardDefaults.cardColors(
+                          containerColor = if (present) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                      ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                          Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            Icon(item.icon, contentDescription = null)
+                            Column(Modifier.weight(1f)) {
+                              Text(item.title, style = MaterialTheme.typography.titleMedium)
+                              Text(if (present) "Configuré" else "À configurer", style = MaterialTheme.typography.labelSmall)
+                            }
+                          }
+                          Text(item.subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                        }
                       }
                     }
                   }
@@ -556,6 +616,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
             }
           }
         }
+        }
       }
     }
   }
@@ -586,5 +647,6 @@ fun sectionCards(): List<SectionCard> = listOf(
   SectionCard("truthdare", "Action/Vérité", "Prompts + channels", Icons.Default.Build),
   SectionCard("actions", "Actions", "Gifs/messages/config", Icons.Default.Build),
   SectionCard("logs", "Logs", "Config logs (via config)", Icons.Default.Build),
+  SectionCard("__full__", "Éditeur complet", "Modifier toute la config (fallback)", Icons.Default.List),
 )
 
