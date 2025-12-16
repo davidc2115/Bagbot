@@ -44,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -64,7 +65,8 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
   val scope = rememberCoroutineScope()
   val snackbar = remember { SnackbarHostState() }
 
-  val store = remember { SettingsStore() }
+  val context = LocalContext.current
+  val store = remember(context) { SettingsStore(context) }
   val api = remember { ApiClient(store) }
 
   val baseUrl = remember { mutableStateOf(store.getBaseUrl()) }

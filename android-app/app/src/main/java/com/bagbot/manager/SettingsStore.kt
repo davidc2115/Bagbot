@@ -3,10 +3,9 @@ package com.bagbot.manager
 import android.content.Context
 import android.content.SharedPreferences
 
-class SettingsStore {
+class SettingsStore(private val context: Context) {
   private val prefs: SharedPreferences by lazy {
-    AppContext.get()
-      .getSharedPreferences("bagbot_manager", Context.MODE_PRIVATE)
+    context.getSharedPreferences("bagbot_manager", Context.MODE_PRIVATE)
   }
 
   fun getBaseUrl(): String = prefs.getString("baseUrl", "") ?: ""
