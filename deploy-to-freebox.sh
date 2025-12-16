@@ -15,7 +15,7 @@ NC='\033[0m'
 
 # Configuration Freebox
 FREEBOX_IP="82.67.65.98"
-FREEBOX_PORT="22222"
+FREEBOX_PORT="33000"  # Port modifié pour respecter la limite Freebox (>= 32675)
 FREEBOX_USER="bagbot"
 FREEBOX_PASSWORD="bagbot"
 FREEBOX_ROOT_PASSWORD="bagbot"
