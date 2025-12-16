@@ -149,7 +149,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
   fun login() {
     val url = baseUrl.value.trim().removeSuffix("/")
     if (url.isBlank()) {
-      scope.launch { snackbar.showSnackbar("Renseigne l'URL du dashboard (ex: http://192.168.0.10:45000)") }
+      scope.launch { snackbar.showSnackbar("Renseigne l'URL du dashboard (ex: http://192.168.0.10:46000)") }
       return
     }
     store.setBaseUrl(url)
@@ -234,7 +234,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
             value = baseUrl.value,
             onValueChange = { baseUrl.value = it },
             label = { Text("URL Dashboard") },
-            placeholder = { Text("http://IP_FREEBOX:45000") },
+            placeholder = { Text("http://IP_FREEBOX:46000") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
           )
