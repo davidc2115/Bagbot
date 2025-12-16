@@ -32,7 +32,7 @@ const app = express();
 //   debug: false
 // }));
 
-const PORT = Number(process.env.DASHBOARD_PORT || process.env.PORT || 33002);
+const PORT = Number(process.env.DASHBOARD_PORT || process.env.PORT || 45000);
 
 // Capture raw body for webhook signature validation (HMAC).
 app.use(express.json({
