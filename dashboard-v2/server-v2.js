@@ -31,7 +31,7 @@ const app = express();
 //   debug: false
 // }));
 
-const PORT = 3002;
+const PORT = process.env.DASHBOARD_PORT || 33002; // Port modifié pour respecter la limite Freebox (>= 32675)
 
 app.use(express.json({limit: '50mb'}));
 app.use(express.urlencoded({limit: '50mb', extended: true}));
@@ -1998,7 +1998,7 @@ app.post('/api/upload-gif-from-browser', async (req, res) => {
     // Sauvegarder le fichier
     await gif.mv(uploadPath);
     
-    const localUrl = 'http://82.67.65.98:3002/gifs/' + filename;
+    const localUrl = `http://82.67.65.98:${PORT}/gifs/` + filename;
     console.log('✅ GIF uploadé depuis navigateur:', filename);
     
     res.json({ success: true, url: localUrl });

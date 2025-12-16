@@ -44,7 +44,8 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         DISCORD_TOKEN: process.env.DISCORD_TOKEN || 'YOUR_DISCORD_BOT_TOKEN_HERE',
-        GUILD_ID: '1360897918504271882'
+        GUILD_ID: '1360897918504271882',
+        DASHBOARD_PORT: '33002'
       }
     }
   ]

@@ -2339,7 +2339,8 @@ async saveTickets(){
 async api(u,o={}){
 try{
 console.log('🌐 API Call:',o.method||'GET',u);
-const r=await fetch(`http://82.67.65.98:3002${u}`,{...o,headers:{'Content-Type':'application/json'}});
+const port = window.location.port || '33002';
+const r=await fetch(`http://82.67.65.98:${port}${u}`,{...o,headers:{'Content-Type':'application/json'}});
 if(!r.ok){
 console.error(`❌ HTTP ${r.status} ${r.statusText}`);
 return {success:false,error:`HTTP ${r.status}`};
