@@ -10,28 +10,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
+  private val deepLinkState = mutableStateOf<Uri?>(null)
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
 
     ExternalBrowser.bind { startActivity(it) }
+    deepLinkState.value = intent?.data
 
     setContent {
-      val deepLink = remember { mutableStateOf<Uri?>(null) }
-
-      LaunchedEffect(Unit) {
-        deepLink.value = intent?.data
-      }
-
       Surface(color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
-          App(deepLink.value, onDeepLinkConsumed = { deepLink.value = null })
+          App(deepLinkState.value, onDeepLinkConsumed = { deepLinkState.value = null })
         }
       }
     }
@@ -40,6 +35,7 @@ class MainActivity : ComponentActivity() {
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
+    deepLinkState.value = intent.data
   }
 }
 

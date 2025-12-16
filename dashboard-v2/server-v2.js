@@ -528,7 +528,33 @@ app.get('/auth/mobile/callback', async (req, res) => {
     const url = new URL(appRedirect);
     url.searchParams.set('token', mobileToken);
     if (me.data?.username) url.searchParams.set('user', me.data.username);
-    res.redirect(url.toString());
+    // Some in-app browsers (e.g. Discord) can block direct redirects to custom schemes.
+    // Return an HTML "Open app" page that attempts the redirect via JS + provides a fallback link.
+    const target = url.toString();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.end(`<!doctype html>
+<html lang="fr"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ouvrir l'application</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0d0d0d;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+    .card{background:#151515;border:1px solid #333;border-radius:12px;padding:22px;max-width:560px;width:92%}
+    a.btn{display:inline-block;background:#5865F2;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:800}
+    .muted{color:#aaa;font-size:14px;line-height:1.4}
+    code{background:#222;padding:2px 6px;border-radius:6px;word-break:break-all}
+  </style>
+  <script>
+    // Try auto-open quickly
+    setTimeout(function(){ window.location.href = ${JSON.stringify(target)}; }, 50);
+  </script>
+</head>
+<body><div class="card">
+  <h2>Connexion terminée</h2>
+  <p class="muted">Si l'application ne s'ouvre pas automatiquement, appuie sur le bouton :</p>
+  <p><a class="btn" href="${target}">Ouvrir l'app</a></p>
+  <p class="muted">Lien (debug): <code>${target}</code></p>
+</div></body></html>`);
   } catch (err) {
     console.error('Mobile OAuth callback error:', err);
     res.status(500).send('Mobile OAuth callback error.');
