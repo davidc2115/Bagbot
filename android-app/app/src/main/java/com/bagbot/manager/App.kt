@@ -115,8 +115,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
       val obj = json.parseToJsonElement(jsonBody).jsonObject
       obj.mapNotNull { (k, v) ->
         val p = v as? JsonPrimitive ?: return@mapNotNull null
-        val name = p.contentOrNull ?: return@mapNotNull null
-        k to name
+        k to p.content
       }.toMap()
     } catch (_: Exception) {
       emptyMap()
@@ -130,7 +129,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         val (ch, ro) = withContext(Dispatchers.IO) {
           Pair(
             api.getJson("/api/discord/channels"),
-            api.getJson("/api/discord/roles"),
+            api.getJson("/api/discord/roles")
           )
         }
         discordChannels.value = parseStringMap(ch)

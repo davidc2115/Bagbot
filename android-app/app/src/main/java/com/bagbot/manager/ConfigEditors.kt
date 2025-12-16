@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -38,8 +39,11 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+private fun JsonPrimitive.safeContentOrNull(): String? =
+  if (this is JsonNull) null else this.content
+
 private fun JsonObject.stringOrNull(key: String): String? =
-  (this[key] as? JsonPrimitive)?.contentOrNull
+  (this[key] as? JsonPrimitive)?.safeContentOrNull()
 
 private fun JsonObject.boolOrNull(key: String): Boolean? =
   (this[key] as? JsonPrimitive)?.booleanOrNull
@@ -230,8 +234,8 @@ fun TicketsEditor(
         emoji = o.stringOrNull("emoji") ?: "",
         description = o.stringOrNull("description") ?: "",
         bannerUrl = o.stringOrNull("bannerUrl") ?: "",
-        staffPingRoleIds = o["staffPingRoleIds"]?.asArrayOrEmpty()?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList(),
-        extraViewerRoleIds = o["extraViewerRoleIds"]?.asArrayOrEmpty()?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList(),
+        staffPingRoleIds = o["staffPingRoleIds"]?.asArrayOrEmpty()?.mapNotNull { (it as? JsonPrimitive)?.safeContentOrNull() } ?: emptyList(),
+        extraViewerRoleIds = o["extraViewerRoleIds"]?.asArrayOrEmpty()?.mapNotNull { (it as? JsonPrimitive)?.safeContentOrNull() } ?: emptyList(),
       )
     }.toMutableList()
     mutableStateOf(parsed)
@@ -410,7 +414,7 @@ fun AutoKickEditor(
   val inactivityKick = autokick["inactivityKick"]?.asObjectOrEmpty()
   val inactivityEnabled = remember { mutableStateOf(inactivityKick?.boolOrNull("enabled") ?: false) }
   val inactivityDelayDays = remember { mutableStateOf((inactivityKick?.longOrNull("delayDays") ?: 30L).toString()) }
-  val excludedRoleIds = remember { mutableStateOf(inactivityKick?.get("excludedRoleIds")?.asArrayOrEmpty()?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList()) }
+  val excludedRoleIds = remember { mutableStateOf(inactivityKick?.get("excludedRoleIds")?.asArrayOrEmpty()?.mapNotNull { (it as? JsonPrimitive)?.safeContentOrNull() } ?: emptyList()) }
   val inactiveRoleId = remember { mutableStateOf(inactivityKick?.stringOrNull("inactiveRoleId") ?: "") }
 
   Column(
