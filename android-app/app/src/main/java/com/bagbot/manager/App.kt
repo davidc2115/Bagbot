@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -583,6 +584,18 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     onBack = { sectionKey.value = null }
                   )
                 }
+                "levels" -> {
+                  LevelsEditor(
+                    levels = (cfg?.get("levels") as? JsonObject) ?: JsonObject(emptyMap()),
+                    roles = discordRoles.value,
+                    members = discordMembers.value,
+                    onSave = { obj ->
+                      saveSection("levels", prettyPrint(obj))
+                      sectionKey.value = null
+                    },
+                    onBack = { sectionKey.value = null }
+                  )
+                }
                 "staffChat" -> {
                   StaffChatConfigEditor(
                     staffChat = (cfg?.get("staffChat") as? JsonObject) ?: JsonObject(emptyMap()),
@@ -671,32 +684,54 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall
                   )
 
+                  val groups = sectionGroups(cfg)
+                  val rows = buildList<Pair<String?, SectionCard?>>() {
+                    for (g in groups) {
+                      add(g.title to null)
+                      for (it in g.items) add(null to it)
+                    }
+                  }
                   LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 170.dp),
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                   ) {
-                    items(sectionCards(cfg)) { item ->
-                      val present = item.key == "__full__" || cfg.containsKey(item.key)
-                      Card(
-                        modifier = Modifier
-                          .fillMaxWidth()
-                          .height(118.dp)
-                          .clickable { openSection(item.key) },
-                        colors = CardDefaults.cardColors(
-                          containerColor = if (present) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                      ) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                          Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            Icon(item.icon, contentDescription = null)
-                            Column(Modifier.weight(1f)) {
-                              Text(item.title, style = MaterialTheme.typography.titleMedium)
-                              Text(if (present) "Configuré" else "À configurer", style = MaterialTheme.typography.labelSmall)
-                            }
+                    items(rows, span = { (header, _) ->
+                      if (header != null) GridItemSpan(maxLineSpan) else GridItemSpan(1)
+                    }) { (header, card) ->
+                      if (header != null) {
+                        Card(
+                          modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        ) {
+                          Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(header, style = MaterialTheme.typography.titleMedium)
                           }
-                          Text(item.subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                        }
+                      } else if (card != null) {
+                        val present = card.key == "__full__" || cfg.containsKey(card.key)
+                        Card(
+                          modifier = Modifier
+                            .fillMaxWidth()
+                            .height(118.dp)
+                            .clickable { openSection(card.key) },
+                          colors = CardDefaults.cardColors(
+                            containerColor = if (present) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                          )
+                        ) {
+                          Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                              Icon(card.icon, contentDescription = null)
+                              Column(Modifier.weight(1f)) {
+                                Text(card.title, style = MaterialTheme.typography.titleMedium)
+                                Text(if (present) "Configuré" else "À configurer", style = MaterialTheme.typography.labelSmall)
+                              }
+                            }
+                            Text(card.subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                          }
                         }
                       }
                     }
@@ -896,31 +931,44 @@ data class SectionCard(
   val icon: ImageVector
 )
 
-fun sectionCards(cfg: JsonObject): List<SectionCard> {
-  val presets = linkedMapOf(
-    "tickets" to SectionCard("tickets", "Tickets", "Panel, catégories, staff ping", Icons.Default.Notifications),
-    "autokick" to SectionCard("autokick", "AutoKick / Inactivité", "AutoKick + menu /config inactivité", Icons.Default.Build),
-    "economy" to SectionCard("economy", "Économie", "Balances, récompenses, settings", Icons.Default.Build),
-    "levels" to SectionCard("levels", "Niveaux", "XP, rôles, users", Icons.Default.Build),
-    "geo" to SectionCard("geo", "Géo", "Localisations, options", Icons.Default.Build),
+data class SectionGroup(val title: String, val items: List<SectionCard>)
+
+fun sectionGroups(cfg: JsonObject): List<SectionGroup> {
+  val keys = cfg.keys.filter { !it.startsWith("_") }.toSet()
+
+  // Always show "known" sections even if not yet present in config
+  val moderation = listOf(
+    SectionCard("autokick", "AutoKick / Inactivité", "Kick auto + menu /config", Icons.Default.Build),
+  )
+  val support = listOf(
+    SectionCard("tickets", "Tickets", "Panel, catégories, staff ping", Icons.Default.Notifications),
+  )
+  val progression = listOf(
+    SectionCard("levels", "XP / Levels", "Réglages + classement membres", Icons.Default.Build),
+  )
+  val economy = listOf(
+    SectionCard("economy", "Économie", "Réglages + données", Icons.Default.Build),
+  )
+  val social = listOf(
+    SectionCard("geo", "Géo", "Localisations", Icons.Default.Build),
+    SectionCard("staffChat", "Chat staff", "Configurer le salon du chat staff", Icons.Default.Chat),
   )
 
-  val keys = cfg.keys
-    .filter { !it.startsWith("_") }
-    .sorted()
+  val known = (moderation + support + progression + economy + social).map { it.key }.toSet() + setOf("__full__")
 
-  val out = mutableListOf<SectionCard>()
-  // known first if present
-  for ((k, c) in presets) {
-    if (keys.contains(k)) out.add(c)
-  }
-  // everything else
-  for (k in keys) {
-    if (presets.containsKey(k)) continue
-    out.add(SectionCard(k, k, "Configuration $k", Icons.Default.List))
-  }
-  // always provide full editor
-  out.add(SectionCard("__full__", "Éditeur complet", "Modifier toute la config (avancé)", Icons.Default.List))
-  return out
+  val otherKeys = keys.filter { !known.contains(it) }.sorted()
+  val other = otherKeys.map { k -> SectionCard(k, k, "Configuration $k", Icons.Default.List) }
+
+  val groups = mutableListOf<SectionGroup>()
+  groups.add(SectionGroup("Modération", moderation))
+  groups.add(SectionGroup("Support", support))
+  groups.add(SectionGroup("Progression", progression))
+  groups.add(SectionGroup("Économie", economy))
+  groups.add(SectionGroup("Social", social))
+  if (other.isNotEmpty()) groups.add(SectionGroup("Autres", other))
+  groups.add(SectionGroup("Avancé", listOf(SectionCard("__full__", "Éditeur complet", "Modifier toute la config (avancé)", Icons.Default.List))))
+
+  // Filter out empty groups (but keep Avancé)
+  return groups.filter { it.items.isNotEmpty() }
 }
 

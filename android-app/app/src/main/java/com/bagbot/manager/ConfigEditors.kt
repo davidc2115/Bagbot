@@ -558,3 +558,137 @@ fun StaffChatConfigEditor(
   }
 }
 
+@Composable
+fun LevelsEditor(
+  levels: JsonObject,
+  roles: Map<String, String>,
+  members: Map<String, String>,
+  onSave: (JsonObject) -> Unit,
+  onBack: () -> Unit,
+) {
+  val enabled = remember { mutableStateOf(levels.boolOrNull("enabled") ?: false) }
+  val xpPerMessage = remember { mutableStateOf((levels.longOrNull("xpPerMessage") ?: 10L).toString()) }
+  val xpPerVoiceMinute = remember { mutableStateOf((levels.longOrNull("xpPerVoiceMinute") ?: 5L).toString()) }
+
+  // rewards: { "10": "roleId", ... }
+  val rewardsObj = (levels["rewards"] as? JsonObject) ?: JsonObject(emptyMap())
+  val rewards = remember {
+    mutableStateOf(
+      rewardsObj.entries
+        .mapNotNull { (k, v) ->
+          val roleId = (v as? JsonPrimitive)?.safeContentOrNull() ?: return@mapNotNull null
+          k to roleId
+        }
+        .sortedBy { it.first.toIntOrNull() ?: 0 }
+        .toMutableList()
+    )
+  }
+
+  val usersObj = (levels["users"] as? JsonObject) ?: JsonObject(emptyMap())
+  val leaderboard = remember(levels, members) {
+    val list = usersObj.entries.mapNotNull { (uid, v) ->
+      val o = (v as? JsonObject) ?: return@mapNotNull null
+      val xp = (o["xp"] as? JsonPrimitive)?.longOrNull ?: 0L
+      val lvl = (o["level"] as? JsonPrimitive)?.longOrNull ?: 0L
+      Triple(uid, lvl, xp)
+    }.sortedWith(compareByDescending<Triple<String, Long, Long>> { it.second }.thenByDescending { it.third })
+    list.take(50)
+  }
+
+  Column(
+    modifier = Modifier
+      .padding(16.dp)
+      .verticalScroll(rememberScrollState()),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    Text("XP / Levels", style = MaterialTheme.typography.titleLarge)
+
+    Card(Modifier.fillMaxWidth()) {
+      Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          Text("Activé", modifier = Modifier.weight(1f))
+          Switch(checked = enabled.value, onCheckedChange = { enabled.value = it })
+        }
+        OutlinedTextField(
+          value = xpPerMessage.value,
+          onValueChange = { xpPerMessage.value = it },
+          label = { Text("XP par message") },
+          modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+          value = xpPerVoiceMinute.value,
+          onValueChange = { xpPerVoiceMinute.value = it },
+          label = { Text("XP par minute vocale") },
+          modifier = Modifier.fillMaxWidth()
+        )
+      }
+    }
+
+    Card(Modifier.fillMaxWidth()) {
+      Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Récompenses (rôle par niveau)", style = MaterialTheme.typography.titleMedium)
+        rewards.value.forEachIndexed { idx, (lvl, roleId) ->
+          val roleName = roles[roleId] ?: roleId
+          Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Text("Niv. $lvl", modifier = Modifier.width(80.dp))
+            Text(roleName, modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = {
+              val list = rewards.value.toMutableList()
+              list.removeAt(idx)
+              rewards.value = list
+            }) { Text("Suppr.") }
+          }
+        }
+        OutlinedButton(onClick = {
+          val list = rewards.value.toMutableList()
+          list.add("1" to "")
+          rewards.value = list
+        }) { Text("Ajouter") }
+      }
+    }
+
+    Card(Modifier.fillMaxWidth()) {
+      Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Classement (Top 50)", style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text("#", modifier = Modifier.width(28.dp))
+          Text("Membre", modifier = Modifier.weight(1f))
+          Text("Lvl", modifier = Modifier.width(44.dp))
+          Text("XP", modifier = Modifier.width(70.dp))
+        }
+        leaderboard.forEachIndexed { idx, (uid, lvl, xp) ->
+          val name = members[uid] ?: "User-${uid.takeLast(4)}"
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text((idx + 1).toString(), modifier = Modifier.width(28.dp))
+            Text(name, modifier = Modifier.weight(1f))
+            Text(lvl.toString(), modifier = Modifier.width(44.dp))
+            Text(xp.toString(), modifier = Modifier.width(70.dp))
+          }
+        }
+      }
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+      Button(onClick = {
+        val rewardsJson = JsonObject(
+          rewards.value
+            .filter { it.first.trim().isNotBlank() && it.second.trim().isNotBlank() }
+            .associate { (lvl, rid) -> lvl.trim() to JsonPrimitive(rid.trim()) }
+        )
+        val out = JsonObject(
+          mapOf(
+            "enabled" to JsonPrimitive(enabled.value),
+            "xpPerMessage" to JsonPrimitive(xpPerMessage.value.trim().toLongOrNull() ?: 10L),
+            "xpPerVoiceMinute" to JsonPrimitive(xpPerVoiceMinute.value.trim().toLongOrNull() ?: 5L),
+            "rewards" to rewardsJson,
+            // keep existing users data untouched
+            "users" to (levels["users"] ?: JsonObject(emptyMap()))
+          )
+        )
+        onSave(out)
+      }) { Text("Sauvegarder") }
+      OutlinedButton(onClick = onBack) { Text("Retour") }
+    }
+  }
+}
+
