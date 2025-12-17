@@ -1,0 +1,177 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         APPLICATION ANDROID - PROBLÈME DE CONNEXION            ║
+║                      DIAGNOSTIC COMPLET                          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+🔍 PROBLÈME IDENTIFIÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+L'application Android ne peut PAS se connecter parce que :
+
+❌ L'API mobile (port 3001) n'est PAS démarrée
+❌ Le bot Discord n'est PAS en cours d'exécution
+
+📊 SITUATION ACTUELLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Dashboard Web ......... OPÉRATIONNEL (port 33002)
+❌ API Mobile ............. ARRÊTÉE (port 3001)
+❌ Bot Discord ............ ARRÊTÉ
+✅ App Android ............ PRÊTE (attend connexion)
+
+🏗️  ARCHITECTURE DU SYSTÈME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Vous avez DEUX systèmes différents :
+
+1. Dashboard Web (navigateur)
+   → http://88.174.155.230:33002
+   → Fichier : dashboard-v2/server-v2.js
+   → Status : ✅ FONCTIONNE
+
+2. API Mobile (application Android)
+   → http://88.174.155.230:3001
+   → Fichier : src/api/server.js
+   → Status : ❌ NON DÉMARRÉE
+   → Lancée automatiquement par le bot Discord
+
+🔧 SOLUTION EN 5 ÉTAPES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ÉTAPE 1 : Obtenir le Client Secret Discord
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Aller sur : https://discord.com/developers/applications
+2. Sélectionner votre application bot
+3. Onglet "OAuth2" → "General"
+4. Copier le "Client Secret"
+5. GARDEZ-LE pour l'étape 2
+
+ÉTAPE 2 : Configurer les variables d'environnement
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Éditer le fichier : /workspace/.env
+
+Remplacer :
+   DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
+   DISCORD_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE
+
+Par vos vraies valeurs :
+   DISCORD_TOKEN=votre_vrai_token_bot
+   DISCORD_CLIENT_SECRET=votre_vrai_client_secret
+
+ÉTAPE 3 : Configurer OAuth2 sur Discord
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Retour sur Discord Developer Portal
+2. Onglet "OAuth2" → "Redirects"
+3. Cliquer "Add Redirect"
+4. Ajouter ces 3 URLs :
+
+   http://88.174.155.230:3001/auth/callback
+   http://localhost:3001/auth/callback
+   bagbot://oauth
+
+5. Cliquer "Save Changes"
+
+ÉTAPE 4 : Démarrer le bot Discord
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+cd /workspace
+
+# Avec PM2 (recommandé) :
+pm2 start src/bot.js --name bagbot
+pm2 save
+
+# OU en direct (pour tester) :
+node src/bot.js
+
+Vous devriez voir :
+   Login succeeded
+   [API] ✅ Serveur API démarré sur le port 3001
+   [API] 📱 L'application Android peut maintenant se connecter
+
+ÉTAPE 5 : Tester et utiliser l'app
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Tester l'API :
+   curl http://88.174.155.230:3001/health
+   
+   Doit retourner :
+   {"status":"ok",...}
+
+2. Ouvrir l'application Android
+
+3. Première utilisation :
+   - Entrer l'URL : http://88.174.155.230:3001
+   - Cliquer "Continuer"
+   - Tester la connexion
+
+4. Se connecter avec Discord :
+   - Cliquer "Se connecter avec Discord"
+   - Autoriser l'application
+   - Retour automatique vers l'app
+
+5. Profiter ! 🎉
+
+📱 CONFIGURATION APP ANDROID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+URL à configurer : http://88.174.155.230:3001
+                   └─────────────────────┘  └──┘
+                           IP               Port 3001
+                                           (PAS 33002 !)
+
+⚠️  IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Le Dashboard Web (33002) et l'API Mobile (3001) sont DIFFÉRENTS
+- L'app Android utilise le port 3001, PAS 33002
+- Le bot Discord DOIT être démarré pour que l'API fonctionne
+- Sans DISCORD_CLIENT_SECRET, l'OAuth2 ne fonctionnera pas
+
+🔍 VÉRIFICATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Bot démarre ?
+   ps aux | grep 'node.*bot.js'
+
+✅ API écoute sur port 3001 ?
+   netstat -tuln | grep 3001
+
+✅ API répond ?
+   curl http://88.174.155.230:3001/health
+
+✅ Firewall autorise le port 3001 ?
+   sudo ufw status
+   sudo ufw allow 3001/tcp
+
+🐛 DÉPANNAGE RAPIDE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Problème : Le bot ne démarre pas
+→ Vérifier DISCORD_TOKEN dans .env (pas "YOUR_DISCORD_BOT_TOKEN_HERE")
+
+Problème : API ne démarre pas avec le bot
+→ Vérifier DISCORD_CLIENT_SECRET dans .env
+→ Regarder les logs : pm2 logs bagbot
+
+Problème : App affiche "Network Error"
+→ Vérifier URL : http://88.174.155.230:3001
+→ Tester : curl http://88.174.155.230:3001/health
+→ Vérifier firewall : sudo ufw allow 3001/tcp
+
+Problème : OAuth ne fonctionne pas
+→ Vérifier redirections sur Discord Developer Portal
+→ Vérifier API_REDIRECT_URI dans .env
+
+📚 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Guide complet : ANDROID_APP_GUIDE.md
+Diagnostic détaillé : PROBLEME_APP_ANDROID_DIAGNOSTIQUE.md
+App Android : /workspace/android-app/
+
+✅ RÉCAPITULATIF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Pour que l'app Android fonctionne :
+
+1. ⚠️  Obtenir DISCORD_CLIENT_SECRET
+2. ⚠️  Configurer .env avec les vraies valeurs
+3. ⚠️  Ajouter redirections OAuth2 sur Discord
+4. ⚠️  Démarrer le bot : pm2 start src/bot.js --name bagbot
+5. ✅ Tester : curl http://88.174.155.230:3001/health
+6. ✅ Ouvrir l'app et configurer : http://88.174.155.230:3001
+7. ✅ Se connecter avec Discord
+8. 🎉 Profiter !
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    Une fois le bot démarré, l'app fonctionnera parfaitement ! 🚀
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
