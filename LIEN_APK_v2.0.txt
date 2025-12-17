@@ -1,0 +1,75 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                   📱 APK BAGBOT MANAGER v2.0                      ║
+║                     PORT API : 33001                              ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+✅ LE WORKFLOW EST EN COURS D'EXÉCUTION !
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 LIENS DIRECTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 TÉLÉCHARGER L'APK (disponible dans 5-10 minutes)
+   👉 https://github.com/mel805/Bagbot/releases/tag/android-v2.0
+
+⚙️  SUIVRE LA COMPILATION EN DIRECT
+   👉 https://github.com/mel805/Bagbot/actions
+
+🌿 CODE SOURCE DE LA BRANCHE
+   👉 https://github.com/mel805/Bagbot/tree/android-v2.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 CONFIGURATION DE L'APP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+URL à entrer dans l'application :
+
+    http://88.174.155.230:33001
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️  CONFIGURATION SERVEUR (5 ÉTAPES)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  Éditer /workspace/.env
+    → Ajouter DISCORD_TOKEN
+    → Ajouter DISCORD_CLIENT_SECRET
+    → API_PORT=33001
+
+2️⃣  Discord Developer Portal → OAuth2 → Redirects
+    → http://88.174.155.230:33001/auth/callback
+    → bagbot://oauth
+
+3️⃣  Démarrer le bot
+    → pm2 start src/bot.js --name bagbot
+
+4️⃣  Tester
+    → curl http://88.174.155.230:33001/health
+
+5️⃣  Ouvrir le port (si firewall)
+    → sudo ufw allow 33001/tcp
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION COMPLÈTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• INSTRUCTIONS_FINALES_APK.md ..... Instructions détaillées
+• APK_BUILD_GUIDE.md .............. Guide de compilation
+• ANDROID_v2.0_RESUME.txt ......... Résumé
+• android-app/API_CONFIG.txt ...... Config API
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 STATUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Workflow : EN COURS ⏳
+Version : 2.0
+Port : 33001
+Temps restant : ~5 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 L'APK SERA PRÊT DANS QUELQUES MINUTES !

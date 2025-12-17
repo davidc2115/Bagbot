@@ -1,0 +1,114 @@
+╔══════════════════════════════════════════════════════════════════╗
+║        📱 APK BAGBOT MANAGER v2.0 - PORT 33001 - PRÊT !         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+✅ CONFIGURATION TERMINÉE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ API mise à jour pour écouter sur port 33001
+✅ Version de l'app incrémentée à 2.0
+✅ Workflow GitHub Actions créé pour compilation automatique
+✅ Code commit et poussé vers GitHub
+✅ Tag `android-v2.0` créé et poussé
+
+🚀 COMPILATION EN COURS SUR GITHUB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GitHub Actions est en train de compiler l'APK automatiquement.
+
+📥 TÉLÉCHARGER L'APK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Aller sur : https://github.com/mel805/Bagbot/releases/tag/android-v2.0
+
+2. Attendre que le workflow termine (5-10 minutes)
+
+3. Télécharger l'APK :
+   📱 bagbot-manager-v2.0.apk
+
+📊 STATUT DU WORKFLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Suivre la progression :
+👉 https://github.com/mel805/Bagbot/actions
+
+Branche : android-v2.0
+Tag : android-v2.0
+Workflow : Build Android APK
+
+⏳ Temps estimé : 5-10 minutes
+
+📱 CONFIGURATION DE L'APP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+URL à configurer dans l'app :
+
+    http://88.174.155.230:33001
+    └─────────────────────┘  └───┘
+          Adresse IP          Port 33001
+
+⚙️  CONFIGURATION SERVEUR REQUISE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Éditer /workspace/.env :
+
+API_PORT=33001
+DISCORD_TOKEN=votre_token_bot
+DISCORD_CLIENT_SECRET=votre_client_secret
+API_REDIRECT_URI=http://88.174.155.230:33001/auth/callback
+
+2️⃣ Discord Developer Portal (OAuth2 > Redirects) :
+
+http://88.174.155.230:33001/auth/callback
+http://localhost:33001/auth/callback
+bagbot://oauth
+
+3️⃣ Démarrer le bot :
+
+pm2 start src/bot.js --name bagbot
+pm2 save
+
+4️⃣ Tester l'API :
+
+curl http://88.174.155.230:33001/health
+
+5️⃣ Ouvrir le port (si firewall) :
+
+sudo ufw allow 33001/tcp
+
+🎯 UTILISATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Télécharger l'APK depuis GitHub Releases
+2. Installer sur Android (8.0 minimum)
+3. Ouvrir l'app
+4. Configurer URL : http://88.174.155.230:33001
+5. Se connecter avec Discord
+6. Profiter ! 🎉
+
+📚 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• APK_BUILD_GUIDE.md ............... Guide complet
+• android-app/API_CONFIG.txt ....... Config API
+• ANDROID_APP_GUIDE.md ............. Guide Android
+• .github/workflows/android-build.yml ... Workflow
+
+🔗 LIENS UTILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Releases : https://github.com/mel805/Bagbot/releases
+⚙️  Actions : https://github.com/mel805/Bagbot/actions
+🌿 Branche : https://github.com/mel805/Bagbot/tree/android-v2.0
+🏷️  Tag : https://github.com/mel805/Bagbot/releases/tag/android-v2.0
+
+⚠️  IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Port changé : 3001 → 33001
+Toujours utiliser le port 33001 pour l'app Android !
+
+✅ RÉSUMÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Version APK : 2.0
+Port API : 33001
+Adresse : http://88.174.155.230:33001
+GitHub : mel805/Bagbot
+Branche : android-v2.0
+Tag : android-v2.0
+Compilation : En cours sur GitHub Actions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    L'APK sera disponible dans 5-10 minutes sur GitHub ! 🚀
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
