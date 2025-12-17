@@ -1,0 +1,113 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'android-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number for the release'
+        required: true
+        default: '2.0'
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-app/gradlew
+      
+      - name: Build Release APK
+        run: |
+          cd android-app
+          ./gradlew assembleRelease --no-daemon
+      
+      - name: Sign APK (optional - unsigned for now)
+        run: echo "APK built successfully (unsigned)"
+      
+      - name: Rename APK
+        run: |
+          cd android-app/app/build/outputs/apk/release
+          mv app-release-unsigned.apk bagbot-manager-v${{ github.event.inputs.version || '2.0' }}.apk || mv app-release.apk bagbot-manager-v${{ github.event.inputs.version || '2.0' }}.apk || true
+      
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bagbot-manager-apk
+          path: android-app/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android-app/app/build/outputs/apk/release/*.apk
+          body: |
+            # 📱 BagBot Manager v${{ github.ref_name }}
+            
+            ## ✨ Nouvelle version de l'application Android
+            
+            ### 📥 Installation
+            1. Télécharger l'APK ci-dessous
+            2. Installer sur votre appareil Android
+            3. Configurer l'URL : `http://88.174.155.230:33001`
+            
+            ### 🔧 Configuration requise
+            - Android 8.0 (API 26) ou supérieur
+            - Connexion Internet
+            - API serveur sur port **33001**
+            
+            ### ⚙️ Configuration serveur
+            ```bash
+            # Fichier .env
+            API_PORT=33001
+            DISCORD_TOKEN=votre_token
+            DISCORD_CLIENT_SECRET=votre_client_secret
+            API_REDIRECT_URI=http://88.174.155.230:33001/auth/callback
+            
+            # Démarrer le bot
+            pm2 start src/bot.js --name bagbot
+            ```
+            
+            ### 🔒 OAuth2 Discord
+            Ajouter dans Discord Developer Portal (OAuth2 > Redirects):
+            - `http://88.174.155.230:33001/auth/callback`
+            - `http://localhost:33001/auth/callback`
+            - `bagbot://oauth`
+            
+            ### 📊 Fonctionnalités
+            - ✅ Connexion via Discord OAuth2
+            - ✅ Dashboard en temps réel
+            - ✅ Gestion des serveurs Discord
+            - ✅ Contrôle de la musique
+            - ✅ Actions de modération
+            - ✅ Statistiques détaillées
+            
+            ### 🐛 Dépannage
+            - **Network Error** : Vérifier que l'API écoute sur le port 33001
+            - **OAuth Error** : Vérifier les redirections Discord
+            - **Test API** : `curl http://88.174.155.230:33001/health`
+            
+            ---
+            
+            **Port API** : 33001  
+            **Version APK** : ${{ github.ref_name }}  
+            **Date** : ${{ github.event.repository.updated_at }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

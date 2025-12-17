@@ -11,13 +11,13 @@ class BotAPIServer {
   constructor(client) {
     this.client = client;
     this.app = express();
-    this.port = process.env.API_PORT || 3001;
+    this.port = process.env.API_PORT || 33001;
     this.sessions = new Map(); // sessionToken -> { userId, username, expiresAt }
     
     // Configuration OAuth2 Discord
     this.DISCORD_CLIENT_ID = process.env.CLIENT_ID;
     this.DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-    this.DISCORD_REDIRECT_URI = process.env.API_REDIRECT_URI || 'http://localhost:3001/auth/callback';
+    this.DISCORD_REDIRECT_URI = process.env.API_REDIRECT_URI || 'http://localhost:33001/auth/callback';
     
     this.setupMiddleware();
     this.setupRoutes();

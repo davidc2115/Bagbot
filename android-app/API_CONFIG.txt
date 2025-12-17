@@ -1,0 +1,58 @@
+╔══════════════════════════════════════════════════════════╗
+║       CONFIGURATION API POUR APPLICATION ANDROID         ║
+╚══════════════════════════════════════════════════════════╝
+
+📱 URL DE L'API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   http://88.174.155.230:33001
+   └─────────────────────┘  └───┘
+         Adresse IP          Port
+
+⚙️  CONFIGURATION À ENTRER DANS L'APP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Au premier lancement de l'application :
+
+1. Écran de configuration
+2. Entrer : http://88.174.155.230:33001
+3. Cliquer "Continuer"
+4. L'app teste la connexion
+
+✅ VÉRIFICATION DE L'API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Test depuis le terminal :
+
+curl http://88.174.155.230:33001/health
+
+Réponse attendue :
+{"status":"ok","uptime":...,"timestamp":...}
+
+📋 CONFIGURATION REQUISE CÔTÉ SERVEUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fichier /workspace/.env doit contenir :
+
+API_PORT=33001
+DISCORD_TOKEN=votre_token_bot
+DISCORD_CLIENT_SECRET=votre_client_secret
+API_REDIRECT_URI=http://88.174.155.230:33001/auth/callback
+
+🚀 DÉMARRAGE DU SERVEUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+pm2 start src/bot.js --name bagbot
+pm2 save
+
+Vous devriez voir :
+[API] ✅ Serveur API démarré sur le port 33001
+[API] 📱 L'application Android peut maintenant se connecter
+
+🔒 OAUTH2 DISCORD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ajouter dans Discord Developer Portal (OAuth2 > Redirects) :
+
+http://88.174.155.230:33001/auth/callback
+http://localhost:33001/auth/callback
+bagbot://oauth
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Version : 2.0
+Port API : 33001
+Date : 17 décembre 2025
