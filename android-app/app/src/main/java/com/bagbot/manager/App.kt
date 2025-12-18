@@ -973,6 +973,129 @@ fun ConfigGroupsScreen(
 }
 
 @Composable
+
+// ============================================
+// AFFICHAGE DES VRAIS NOMS (v2.1.5)
+// ============================================
+
+@Composable
+fun renderKeyInfo(
+    sectionKey: String,
+    sectionData: JsonElement,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>
+) {
+    val keyInfos = mutableListOf<Pair<String, String>>()
+    
+    try {
+        when (sectionKey) {
+            "tickets" -> {
+                val obj = sectionData.jsonObject
+                obj["categoryId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📁 Catégorie" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+                obj["panelChannelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📋 Canal panel" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+                obj["staffPingRoleIds"]?.jsonArray?.let { arr ->
+                    val roleNames = arr.mapNotNull { it.jsonPrimitive.contentOrNull }.map { id ->
+                        roles[id] ?: id
+                    }.joinToString(", ")
+                    keyInfos.add("👮 Rôles staff ping" to roleNames)
+                }
+            }
+            "welcome", "goodbye" -> {
+                val obj = sectionData.jsonObject
+                obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+                obj["message"]?.jsonPrimitive?.contentOrNull?.let { msg ->
+                    keyInfos.add("💬 Message" to msg.take(100) + if (msg.length > 100) "..." else "")
+                }
+            }
+            "logs" -> {
+                val obj = sectionData.jsonObject
+                obj["channels"]?.jsonObject?.forEach { (logType, channelIdEl) ->
+                    val channelId = channelIdEl.jsonPrimitive.contentOrNull
+                    if (channelId != null) {
+                        keyInfos.add("📝 $logType" to "${channels[channelId] ?: "Inconnu"} ($channelId)")
+                    }
+                }
+            }
+            "staffRoleIds" -> {
+                val arr = sectionData.jsonArray
+                val roleNames = arr.mapNotNull { it.jsonPrimitive.contentOrNull }.map { id ->
+                    "${roles[id] ?: "Inconnu"} ($id)"
+                }
+                roleNames.forEach { name ->
+                    keyInfos.add("👮 Rôle staff" to name)
+                }
+            }
+            "quarantineRoleId" -> {
+                val roleId = sectionData.jsonPrimitive.contentOrNull
+                if (roleId != null) {
+                    keyInfos.add("🔒 Rôle quarantaine" to "${roles[roleId] ?: "Inconnu"} ($roleId)")
+                }
+            }
+            "inactivity" -> {
+                val obj = sectionData.jsonObject
+                obj["kickAfterDays"]?.jsonPrimitive?.intOrNull?.let { days ->
+                    keyInfos.add("⏰ Kick après" to "$days jours")
+                }
+            }
+            "economy" -> {
+                val obj = sectionData.jsonObject
+                val balanceCount = obj["balances"]?.jsonObject?.size ?: 0
+                keyInfos.add("💰 Nombre de comptes" to "$balanceCount utilisateurs")
+            }
+            "levels" -> {
+                val obj = sectionData.jsonObject
+                val userCount = obj["users"]?.jsonObject?.size ?: 0
+                keyInfos.add("📈 Utilisateurs avec XP" to "$userCount")
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Error rendering key info for $sectionKey: ${e.message}")
+    }
+    
+    if (keyInfos.isNotEmpty()) {
+        Card(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    "📋 Informations clés",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4CAF50)
+                )
+                Spacer(Modifier.height(8.dp))
+                keyInfos.forEach { (label, value) ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.weight(0.4f)
+                        )
+                        Text(
+                            value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            modifier = Modifier.weight(0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 fun ConfigGroupDetailScreen(
     group: ConfigGroup,
     configData: JsonObject?,
@@ -1056,6 +1179,10 @@ fun ConfigGroupDetailScreen(
                         if (isExpanded && sectionData != null) {
                             Divider(color = Color(0xFF2E2E2E))
                             Column(Modifier.padding(16.dp)) {
+                                // Afficher les infos clés avec les vrais noms
+                                renderKeyInfo(sectionKey, sectionData, members, channels, roles)
+                                Spacer(Modifier.height(8.dp))
+
                                 var jsonText by remember { mutableStateOf(sectionData.toString()) }
                                 var isSaving by remember { mutableStateOf(false) }
                                 
