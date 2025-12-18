@@ -80,8 +80,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 // Récupérer membres
                 try {
                     val membersJson = api.getJson("/api/discord/members")
-                    val membersObj = json.parseToJsonElement(membersJson).jsonObject
-                    members.value = membersObj.mapValues { it.value.jsonPrimitive.content }
+                    val membersData = json.parseToJsonElement(membersJson).jsonObject
+                    // L API retourne {"names": {...}, "roles": {...}}
+                    members.value = membersData["names"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
                 } catch (e: Exception) {
                     // Ignorer si pas de membres
                 }
