@@ -5688,8 +5688,19 @@ client.on('messageDeleteBulk', async (messages) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN).then(() => {
+client.login(process.env.DISCORD_TOKEN).then(async () => {
   console.log('Login succeeded');
+  
+  // Démarrage de l'API REST pour l'application Android
+  try {
+    const BotAPIServer = require('./api/server');
+    const apiServer = new BotAPIServer(client);
+    await apiServer.start();
+    global.apiServer = apiServer; // Garde une référence globale
+  } catch (error) {
+    console.error('[API] ⚠️  Erreur lors du démarrage de l\'API:', error.message);
+    console.error('[API] Le bot continuera de fonctionner sans l\'API mobile');
+  }
 }).catch((err) => {
   console.error('Login failed:', err?.message || err);
   process.exit(1);
