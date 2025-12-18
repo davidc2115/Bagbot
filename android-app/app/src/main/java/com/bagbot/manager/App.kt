@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.filled.Extension  
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +39,58 @@ import com.bagbot.manager.ui.components.ChannelSelector
 import com.bagbot.manager.ui.components.RoleSelector
 
 private const val TAG = "BAG_APP"
+
+
+// ============================================
+// CONFIGURATION PAR GROUPES v2.1.3
+// ============================================
+
+data class ConfigGroup(
+    val id: String,
+    val name: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: Color,
+    val sections: List<String>
+)
+
+val configGroups = listOf(
+    ConfigGroup(
+        "messages",
+        "👋 Messages & Bienvenue",
+        Icons.Default.EmojiPeople,
+        Color(0xFF4CAF50),
+        listOf("welcome", "goodbye")
+    ),
+    ConfigGroup(
+        "moderation",
+        "👮 Modération & Sécurité",
+        Icons.Default.Security,
+        Color(0xFFE53935),
+        listOf("logs", "autokick", "inactivity", "staffRoleIds", "quarantineRoleId")
+    ),
+    ConfigGroup(
+        "gamification",
+        "🎮 Gamification & Fun",
+        Icons.Default.Gamepad,
+        Color(0xFF9C27B0),
+        listOf("economy", "levels", "truthdare")
+    ),
+    ConfigGroup(
+        "features",
+        "🛠️ Fonctionnalités",
+        Icons.Default.Extension,
+        Color(0xFF2196F3),
+        listOf("tickets", "confess", "counting", "disboard", "autothread")
+    ),
+    ConfigGroup(
+        "customization",
+        "🎨 Personnalisation",
+        Icons.Default.Palette,
+        Color(0xFFFF9800),
+        listOf("categoryBanners", "footerLogoUrl", "geo")
+    )
+)
+
 
 @Composable
 fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
@@ -71,6 +126,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
     // État pour la navigation dans config
+    var selectedConfigSection by remember { mutableStateOf<String?>(null) }
 
     val json = remember { Json { ignoreUnknownKeys = true; coerceInputValues = true } }
 
@@ -243,13 +299,13 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     TopAppBar(
                         title = { 
                             Text(
-                                if (false /* Navigation désactivée v2.1.3 */) "Configuration" 
+                                if (selectedConfigSection != null) "Configuration" 
                                 else "💎 BAG Bot Manager", 
                                 fontWeight = FontWeight.Bold
                             ) 
                         },
                         navigationIcon = {
-                            if (false /* Navigation désactivée v2.1.3 */) {
+                            if (selectedConfigSection != null) {
                                 IconButton(onClick = { selectedConfigSection = null }) {
                                     Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
                                 }
@@ -301,7 +357,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                         .background(Color(0xFF121212))
                 ) {
                     when {
-                        false /* Navigation désactivée v2.1.3 */ -> {
+                        selectedConfigSection != null -> {
                             // Afficher l'éditeur de configuration
                             ConfigEditorScreen(
                                 sectionKey = selectedConfigSection!!,
@@ -376,18 +432,16 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 2 -> {
-                            ConfigListScreen(
-                                isLoading = isLoading,
+                            ConfigGroupsScreen(
                                 configData = configData,
                                 members = members,
                                 channels = channels,
+                                roles = roles,
                                 api = api,
                                 json = json,
                                 scope = scope,
                                 snackbar = snackbar,
-                                // Navigation désactivée {
-                                    selectedConfigSection = key
-                                },
+                                isLoading = isLoading,
                                 onReloadConfig = {
                                     scope.launch {
                                         isLoading = true
@@ -781,186 +835,290 @@ fun AppConfigScreen(
 }
 
 @Composable
-fun ConfigListScreen(
-    isLoading: Boolean,
+fun ConfigGroupsScreen(
     configData: JsonObject?,
     members: Map<String, String>,
     channels: Map<String, String>,
+    roles: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    // onConfigSectionClick supprimé v2.1.3
+    isLoading: Boolean,
     onReloadConfig: () -> Unit
 ) {
-    var expandedSections by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedGroup by remember { mutableStateOf<ConfigGroup?>(null) }
+    var expandedSection by remember { mutableStateOf<String?>(null) }
     
-    if (isLoading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Color(0xFF9C27B0))
-        }
-    } else if (configData != null) {
-        LazyColumn(
-            Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                ) {
-                    Column(Modifier.padding(20.dp)) {
-                        Text(
-                            "🤖 Configuration du Bot",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text("Serveur: 💎 BAG", color = Color.White)
-                        Text("${members.size} membres", color = Color.Gray)
-                        Text("${channels.size} salons", color = Color.Gray)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "💡 Cliquez sur une section pour voir/modifier son contenu",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFFF1744),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+    if (selectedGroup != null) {
+        // Afficher les sections du groupe sélectionné
+        ConfigGroupDetailScreen(
+            group = selectedGroup!!,
+            configData = configData,
+            members = members,
+            channels = channels,
+            roles = roles,
+            api = api,
+            json = json,
+            scope = scope,
+            snackbar = snackbar,
+            expandedSection = expandedSection,
+            onExpandSection = { expandedSection = if (expandedSection == it) null else it },
+            onBack = { selectedGroup = null }
+        )
+    } else {
+        // Afficher les vignettes de groupes
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF9C27B0))
             }
-            
-            configData.keys.forEach { key ->
-                val isExpanded = expandedSections.contains(key)
-                val sectionData = configData[key]
-                
+        } else if (configData != null) {
+            LazyColumn(
+                Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 item {
                     Card(
                         Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                     ) {
-                        Column(Modifier.fillMaxWidth()) {
-                            // Header cliquable
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        expandedSections = if (isExpanded) {
-                                            expandedSections - key
-                                        } else {
-                                            expandedSections + key
-                                        }
-                                    }
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.padding(20.dp)) {
+                            Text(
+                                "🤖 Configuration du Bot",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text("Serveur: 💎 BAG", color = Color.White)
+                            Text("${members.size} membres • ${channels.size} salons", color = Color.Gray)
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "💡 Sélectionnez un groupe pour configurer",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFFF1744),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                
+                items(configGroups) { group ->
+                    val sectionsInConfig = group.sections.count { configData.containsKey(it) }
+                    
+                    Card(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedGroup = group },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier
+                                        .size(48.dp)
+                                        .background(group.color.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
-                                        when (key) {
-                                            "economy" -> Icons.Default.AttachMoney
-                                            "tickets" -> Icons.Default.ConfirmationNumber
-                                            "welcome", "goodbye" -> Icons.Default.EmojiPeople
-                                            "inactivity" -> Icons.Default.Snooze
-                                            "levels" -> Icons.Default.TrendingUp
-                                            "logs" -> Icons.Default.Article
-                                            else -> Icons.Default.Settings
-                                        },
+                                        group.icon,
                                         null,
-                                        tint = Color(0xFFFF1744),
-                                        modifier = Modifier.size(24.dp)
+                                        tint = group.color,
+                                        modifier = Modifier.size(28.dp)
                                     )
-                                    Spacer(Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            getSectionDisplayName(key),
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            if (isExpanded) "Cliquez pour réduire" else "Cliquez pour développer",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.Gray
-                                        )
-                                    }
                                 }
-                                Icon(
-                                    if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    null,
-                                    tint = Color.Gray
-                                )
-                            }
-                            
-                            // Contenu expandable
-                            if (isExpanded && sectionData != null) {
-                                Divider(color = Color(0xFF2E2E2E))
-                                Column(Modifier.padding(16.dp)) {
-                                    var jsonText by remember { mutableStateOf(sectionData.toString()) }
-                                    var isSaving by remember { mutableStateOf(false) }
-                                    
+                                Spacer(Modifier.width(16.dp))
+                                Column {
                                     Text(
-                                        "Contenu JSON (modifiable):",
+                                        group.name,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        "$sectionsInConfig/${group.sections.size} sections configurées",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color.Gray
                                     )
-                                    Spacer(Modifier.height(8.dp))
-                                    
-                                    OutlinedTextField(
-                                        value = jsonText,
-                                        onValueChange = { jsonText = it },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 200.dp, max = 400.dp),
-                                        textStyle = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                        ),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.LightGray
-                                        )
+                                }
+                            }
+                            Icon(Icons.Default.ChevronRight, null, tint = group.color)
+                        }
+                    }
+                }
+            }
+        } else {
+            Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                    Spacer(Modifier.height(16.dp))
+                    Text("⚠️ Configuration non chargée", color = Color.White)
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = { onReloadConfig() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Recharger")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfigGroupDetailScreen(
+    group: ConfigGroup,
+    configData: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    expandedSection: String?,
+    onExpandSection: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = group.color)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Icon(group.icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        group.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        
+        items(group.sections) { sectionKey ->
+            if (configData?.containsKey(sectionKey) == true) {
+                val sectionData = configData[sectionKey]
+                val isExpanded = expandedSection == sectionKey
+                
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onExpandSection(sectionKey) }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    getSectionDisplayName(sectionKey),
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    if (isExpanded) "Cliquez pour masquer" else "Cliquez pour afficher",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            Icon(
+                                if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                null,
+                                tint = group.color
+                            )
+                        }
+                        
+                        if (isExpanded && sectionData != null) {
+                            Divider(color = Color(0xFF2E2E2E))
+                            Column(Modifier.padding(16.dp)) {
+                                var jsonText by remember { mutableStateOf(sectionData.toString()) }
+                                var isSaving by remember { mutableStateOf(false) }
+                                
+                                Text(
+                                    "Contenu JSON (modifiable):",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                
+                                OutlinedTextField(
+                                    value = jsonText,
+                                    onValueChange = { jsonText = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 150.dp, max = 300.dp),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    ),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.LightGray
                                     )
-                                    
-                                    Spacer(Modifier.height(12.dp))
-                                    
-                                    Button(
-                                        onClick = {
-                                            scope.launch {
-                                                isSaving = true
-                                                withContext(Dispatchers.IO) {
-                                                    try {
-                                                        // Parser et sauvegarder le JSON
-                                                        val updates = json.parseToJsonElement(jsonText).jsonObject
-                                                        api.putJson("/api/configs/$key", updates.toString())
-                                                        withContext(Dispatchers.Main) {
-                                                            snackbar.showSnackbar("✅ $key sauvegardé")
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        withContext(Dispatchers.Main) {
-                                                            snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                                        }
-                                                    } finally {
-                                                        withContext(Dispatchers.Main) {
-                                                            isSaving = false
-                                                        }
+                                )
+                                
+                                Spacer(Modifier.height(12.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            isSaving = true
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    val updates = json.parseToJsonElement(jsonText).jsonObject
+                                                    api.putJson("/api/configs/$sectionKey", updates.toString())
+                                                    withContext(Dispatchers.Main) {
+                                                        snackbar.showSnackbar("✅ $sectionKey sauvegardé")
+                                                    }
+                                                } catch (e: Exception) {
+                                                    withContext(Dispatchers.Main) {
+                                                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                                    }
+                                                } finally {
+                                                    withContext(Dispatchers.Main) {
+                                                        isSaving = false
                                                     }
                                                 }
                                             }
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                                        enabled = !isSaving
-                                    ) {
-                                        if (isSaving) {
-                                            CircularProgressIndicator(
-                                                color = Color.White,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        } else {
-                                            Icon(Icons.Default.Save, null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Sauvegarder $key")
                                         }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = group.color),
+                                    enabled = !isSaving
+                                ) {
+                                    if (isSaving) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Save, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Sauvegarder")
                                     }
                                 }
                             }
@@ -969,27 +1127,9 @@ fun ConfigListScreen(
                 }
             }
         }
-    } else {
-        Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Settings, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
-                Spacer(Modifier.height(16.dp))
-                Text("⚠️ Configuration non chargée", color = Color.White)
-                Spacer(Modifier.height(16.dp))
-                Button(
-                    onClick = { onReloadConfig() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-                ) {
-                    Icon(Icons.Default.Refresh, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Recharger")
-                }
-            }
-        }
     }
 }
 
-// Fonction helper pour les noms d'affichage
 fun getSectionDisplayName(key: String): String {
     return when (key) {
         "economy" -> "💰 Économie"
@@ -1012,7 +1152,7 @@ fun getSectionDisplayName(key: String): String {
         "truthdare" -> "🎲 Action ou vérité"
         else -> "⚙️ $key"
     }
-
+}
 
 // Partie 3 - AdminScreenWithAccess et ConfigEditorScreen
 
