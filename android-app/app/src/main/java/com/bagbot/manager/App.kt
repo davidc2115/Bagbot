@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +28,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import com.bagbot.manager.ui.theme.BagBotTheme
 import com.bagbot.manager.ui.screens.SplashScreen
-import com.bagbot.manager.ui.screens.AdminScreen
 
 private const val TAG = "BAG_APP"
 
@@ -63,6 +63,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var loadingMessage by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // État pour la navigation dans config
+    var selectedConfigSection by remember { mutableStateOf<String?>(null) }
 
     val json = remember { Json { ignoreUnknownKeys = true; coerceInputValues = true } }
 
@@ -235,9 +238,17 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     TopAppBar(
                         title = { 
                             Text(
-                                "💎 BAG Bot Manager", 
+                                if (selectedConfigSection != null) "Configuration" 
+                                else "💎 BAG Bot Manager", 
                                 fontWeight = FontWeight.Bold
                             ) 
+                        },
+                        navigationIcon = {
+                            if (selectedConfigSection != null) {
+                                IconButton(onClick = { selectedConfigSection = null }) {
+                                    Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                                }
+                            }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = Color(0xFFFF1744),
@@ -246,7 +257,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     )
                 },
                 bottomBar = {
-                    if (token?.isNotBlank() == true) {
+                    if (token?.isNotBlank() == true && selectedConfigSection == null) {
                         NavigationBar {
                             NavigationBarItem(
                                 selected = tab == 0,
@@ -285,8 +296,16 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                         .background(Color(0xFF121212))
                 ) {
                     when {
+                        selectedConfigSection != null -> {
+                            // Afficher les détails de la section de config
+                            ConfigDetailScreen(
+                                sectionKey = selectedConfigSection!!,
+                                configData = configData,
+                                onBack = { selectedConfigSection = null }
+                            )
+                        }
                         token.isNullOrBlank() -> {
-                            // Écran de connexion
+                            // Écran de connexion (inchangé)
                             Column(
                                 Modifier
                                     .fillMaxSize()
@@ -348,482 +367,84 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                         tab == 0 -> {
-                            // Onglet Accueil
-                            if (isLoading) {
-                                Box(
-                                    Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        CircularProgressIndicator(
-                                            color = Color(0xFFFF1744)
-                                        )
-                                        Spacer(Modifier.height(16.dp))
-                                        Text(
-                                            loadingMessage.ifBlank { "Chargement..." },
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            } else {
-                                LazyColumn(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    // Card Statut Bot
-                                    item {
-                                        Card(
-                                            Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = Color(0xFF1E1E1E)
-                                            )
-                                        ) {
-                                            Column(Modifier.padding(20.dp)) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(
-                                                        if (botOnline) Icons.Default.CheckCircle 
-                                                        else Icons.Default.Error,
-                                                        null,
-                                                        tint = if (botOnline) Color(0xFF4CAF50) 
-                                                               else Color(0xFFE53935),
-                                                        modifier = Modifier.size(32.dp)
-                                                    )
-                                                    Spacer(Modifier.width(12.dp))
-                                                    Column {
-                                                        Text(
-                                                            "Statut du Bot",
-                                                            style = MaterialTheme.typography.titleLarge,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color.White
-                                                        )
-                                                        Text(
-                                                            if (botOnline) "✅ En ligne" 
-                                                            else "❌ Hors ligne",
-                                                            color = if (botOnline) Color(0xFF4CAF50) 
-                                                                   else Color(0xFFE53935)
-                                                        )
-                                                    }
-                                                }
-                                                
-                                                Spacer(Modifier.height(16.dp))
-                                                Divider(color = Color(0xFF2E2E2E))
-                                                Spacer(Modifier.height(16.dp))
-                                                
-                                                Row(
-                                                    Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceAround
-                                                ) {
-                                                    Column(
-                                                        horizontalAlignment = Alignment.CenterHorizontally
-                                                    ) {
-                                                        Text(
-                                                            "${members.size}",
-                                                            style = MaterialTheme.typography.headlineMedium,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFFFF1744)
-                                                        )
-                                                        Text("Membres", color = Color.Gray)
-                                                    }
-                                                    Column(
-                                                        horizontalAlignment = Alignment.CenterHorizontally
-                                                    ) {
-                                                        Text(
-                                                            "${channels.size}",
-                                                            style = MaterialTheme.typography.headlineMedium,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF9C27B0)
-                                                        )
-                                                        Text("Salons", color = Color.Gray)
-                                                    }
-                                                    Column(
-                                                        horizontalAlignment = Alignment.CenterHorizontally
-                                                    ) {
-                                                        Text(
-                                                            "${roles.size}",
-                                                            style = MaterialTheme.typography.headlineMedium,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFFFFD700)
-                                                        )
-                                                        Text("Rôles", color = Color.Gray)
-                                                    }
-                                                }
-                                                
-                                                botStats?.let { stats ->
-                                                    Spacer(Modifier.height(16.dp))
-                                                    Divider(color = Color(0xFF2E2E2E))
-                                                    Spacer(Modifier.height(16.dp))
-                                                    
-                                                    stats["commandCount"]?.jsonPrimitive?.intOrNull?.let {
-                                                        Text(
-                                                            "⚡ $it commandes disponibles",
-                                                            color = Color.White
-                                                        )
-                                                    }
-                                                    stats["version"]?.jsonPrimitive?.contentOrNull?.let {
-                                                        Text(
-                                                            "📦 Version: $it",
-                                                            color = Color.Gray
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Card Profil
-                                    item {
-                                        Card(
-                                            Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = Color(0xFF1E1E1E)
-                                            )
-                                        ) {
-                                            Column(Modifier.padding(20.dp)) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.Person,
-                                                        null,
-                                                        tint = Color(0xFF9C27B0),
-                                                        modifier = Modifier.size(32.dp)
-                                                    )
-                                                    Spacer(Modifier.width(12.dp))
-                                                    Text(
-                                                        "Votre Profil",
-                                                        style = MaterialTheme.typography.titleLarge,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White
-                                                    )
-                                                }
-                                                
-                                                Spacer(Modifier.height(16.dp))
-                                                
-                                                if (userName.isNotBlank()) {
-                                                    Text(
-                                                        "👤 $userName",
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        color = Color.White
-                                                    )
-                                                    Spacer(Modifier.height(8.dp))
-                                                }
-                                                
-                                                if (isFounder) {
-                                                    Text(
-                                                        "👑 Fondateur du serveur",
-                                                        color = Color(0xFFFFD700)
-                                                    )
-                                                    Text(
-                                                        "Accès complet",
-                                                        color = Color.Gray
-                                                    )
-                                                } else {
-                                                    Text(
-                                                        "✅ Membre autorisé",
-                                                        color = Color(0xFF4CAF50)
-                                                    )
-                                                }
-                                                
-                                                // Afficher les rôles
-                                                if (userId.isNotBlank() && memberRoles.containsKey(userId)) {
-                                                    val userRoleIds = memberRoles[userId] ?: emptyList()
-                                                    val userRoleNames = userRoleIds.mapNotNull { roleId -> 
-                                                        roles[roleId] 
-                                                    }
-                                                    
-                                                    if (userRoleNames.isNotEmpty()) {
-                                                        Spacer(Modifier.height(12.dp))
-                                                        Text(
-                                                            "Vos rôles:",
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFFFF1744)
-                                                        )
-                                                        Spacer(Modifier.height(4.dp))
-                                                        Text(
-                                                            userRoleNames.take(5).joinToString(" • "),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = Color.LightGray
-                                                        )
-                                                        if (userRoleNames.size > 5) {
-                                                            Text(
-                                                                "... et ${userRoleNames.size - 5} autres",
-                                                                style = MaterialTheme.typography.bodySmall,
-                                                                color = Color.Gray
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Afficher les erreurs si présentes
-                                    errorMessage?.let { error ->
-                                        item {
-                                            Card(
-                                                Modifier.fillMaxWidth(),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = Color(0xFF3E2723)
-                                                )
-                                            ) {
-                                                Column(Modifier.padding(16.dp)) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Default.Warning,
-                                                            null,
-                                                            tint = Color(0xFFFF9800)
-                                                        )
-                                                        Spacer(Modifier.width(8.dp))
-                                                        Text(
-                                                            "⚠️ Information",
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFFFF9800)
-                                                        )
-                                                    }
-                                                    Spacer(Modifier.height(8.dp))
-                                                    Text(
-                                                        error,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = Color.LightGray
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            // Onglet Accueil (code existant inchangé...)
+                            HomeScreen(
+                                isLoading = isLoading,
+                                loadingMessage = loadingMessage,
+                                botOnline = botOnline,
+                                botStats = botStats,
+                                members = members,
+                                channels = channels,
+                                roles = roles,
+                                userName = userName,
+                                userId = userId,
+                                isFounder = isFounder,
+                                memberRoles = memberRoles,
+                                errorMessage = errorMessage
+                            )
                         }
                         tab == 1 -> {
-                            // Onglet App
-                            LazyColumn(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                item {
-                                    Card(
-                                        Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = Color(0xFF1E1E1E)
-                                        )
-                                    ) {
-                                        Column(Modifier.padding(20.dp)) {
-                                            Text(
-                                                "📱 Configuration de l'Application",
-                                                style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                            Spacer(Modifier.height(16.dp))
-                                            Text("URL Dashboard: $baseUrl", color = Color.White)
-                                            Text("Version: 2.1.0", color = Color.Gray)
-                                            Text(
-                                                "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
-                                                color = if (token.isNullOrBlank()) Color(0xFFE53935) 
-                                                       else Color(0xFF4CAF50)
-                                            )
-                                            if (userName.isNotBlank()) {
-                                                Text("Utilisateur: $userName", color = Color.White)
-                                            }
-                                        }
-                                    }
+                            // Onglet App (code existant...)
+                            AppConfigScreen(
+                                baseUrl = baseUrl,
+                                token = token,
+                                userName = userName,
+                                store = store,
+                                scope = scope,
+                                snackbar = snackbar,
+                                onDisconnect = {
+                                    token = null
+                                    userName = ""
+                                    userId = ""
+                                    isFounder = false
+                                    members = emptyMap()
+                                    channels = emptyMap()
+                                    roles = emptyMap()
+                                    configData = null
                                 }
-                                
-                                item {
-                                    Card(
-                                        Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = Color(0xFF1E1E1E)
-                                        )
-                                    ) {
-                                        Column(Modifier.padding(20.dp)) {
-                                            Text(
-                                                "⚙️ Paramètres",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                            Spacer(Modifier.height(16.dp))
-                                            Button(
-                                                onClick = {
-                                                    scope.launch {
-                                                        store.clear()
-                                                        token = null
-                                                        userName = ""
-                                                        userId = ""
-                                                        isFounder = false
-                                                        members = emptyMap()
-                                                        channels = emptyMap()
-                                                        roles = emptyMap()
-                                                        configData = null
-                                                        snackbar.showSnackbar("✅ Déconnecté")
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = Color(0xFFE53935)
-                                                )
-                                            ) {
-                                                Icon(Icons.Default.Logout, null)
-                                                Spacer(Modifier.width(8.dp))
-                                                Text("Se déconnecter")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            )
                         }
                         tab == 2 -> {
-                            // Onglet Configuration
-                            if (isLoading) {
-                                Box(
-                                    Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(color = Color(0xFF9C27B0))
-                                }
-                            } else if (configData != null) {
-                                LazyColumn(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    item {
-                                        Card(
-                                            Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = Color(0xFF1E1E1E)
-                                            )
-                                        ) {
-                                            Column(Modifier.padding(20.dp)) {
-                                                Text(
-                                                    "🤖 Configuration du Bot",
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                                Spacer(Modifier.height(12.dp))
-                                                Text("Serveur: 💎 BAG", color = Color.White)
-                                                Text("${members.size} membres", color = Color.Gray)
-                                                Text("${channels.size} salons", color = Color.Gray)
-                                            }
-                                        }
-                                    }
-                                    
-                                    configData?.keys?.forEach { key ->
-                                        item {
-                                            Card(
-                                                Modifier.fillMaxWidth(),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = Color(0xFF1E1E1E)
-                                                )
-                                            ) {
-                                                Row(
-                                                    Modifier
-                                                        .padding(16.dp)
-                                                        .fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column {
-                                                        Text(
-                                                            when (key) {
-                                                                "economy" -> "💰 Économie"
-                                                                "tickets" -> "🎫 Tickets"
-                                                                "welcome" -> "👋 Bienvenue"
-                                                                "goodbye" -> "👋 Au revoir"
-                                                                "inactivity" -> "💤 Inactivité"
-                                                                else -> key
-                                                            },
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color.White
-                                                        )
-                                                        Text(
-                                                            "Configuration disponible",
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = Color.Gray
-                                                        )
-                                                    }
-                                                    Icon(
-                                                        Icons.Default.ChevronRight,
-                                                        null,
-                                                        tint = Color.Gray
-                                                    )
+                            // Onglet Configuration avec navigation
+                            ConfigListScreen(
+                                isLoading = isLoading,
+                                configData = configData,
+                                members = members,
+                                channels = channels,
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbar,
+                                onConfigSectionClick = { key ->
+                                    selectedConfigSection = key
+                                },
+                                onReloadConfig = {
+                                    scope.launch {
+                                        isLoading = true
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                val configJson = api.getJson("/api/configs")
+                                                withContext(Dispatchers.Main) {
+                                                    configData = json.parseToJsonElement(configJson).jsonObject
+                                                    snackbar.showSnackbar("✅ Configuration rechargée")
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                                }
+                                            } finally {
+                                                withContext(Dispatchers.Main) {
+                                                    isLoading = false
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            } else {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Settings,
-                                            null,
-                                            modifier = Modifier.size(64.dp),
-                                            tint = Color.Gray
-                                        )
-                                        Spacer(Modifier.height(16.dp))
-                                        Text(
-                                            "⚠️ Configuration non chargée",
-                                            color = Color.White
-                                        )
-                                        Spacer(Modifier.height(16.dp))
-                                        Button(
-                                            onClick = {
-                                                scope.launch {
-                                                    isLoading = true
-                                                    withContext(Dispatchers.IO) {
-                                                        try {
-                                                            val configJson = api.getJson("/api/configs")
-                                                            withContext(Dispatchers.Main) {
-                                                                configData = json.parseToJsonElement(configJson).jsonObject
-                                                                snackbar.showSnackbar("✅ Configuration rechargée")
-                                                            }
-                                                        } catch (e: Exception) {
-                                                            withContext(Dispatchers.Main) {
-                                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                                            }
-                                                        } finally {
-                                                            withContext(Dispatchers.Main) {
-                                                                isLoading = false
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF9C27B0)
-                                            )
-                                        ) {
-                                            Icon(Icons.Default.Refresh, null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Recharger")
-                                        }
-                                    }
-                                }
-                            }
+                            )
                         }
                         tab == 3 && isFounder -> {
-                            AdminScreen(
-                                api = api,
+                            // Onglet Admin simplifié
+                            AdminScreenSimple(
                                 members = members,
                                 onShowSnackbar = { 
                                     scope.launch { snackbar.showSnackbar(it) } 
@@ -831,6 +452,575 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeScreen(
+    isLoading: Boolean,
+    loadingMessage: String,
+    botOnline: Boolean,
+    botStats: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    userName: String,
+    userId: String,
+    isFounder: Boolean,
+    memberRoles: Map<String, List<String>>,
+    errorMessage: String?
+) {
+    if (isLoading) {
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(color = Color(0xFFFF1744))
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    loadingMessage.ifBlank { "Chargement..." },
+                    color = Color.White
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Card Statut Bot
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF1E1E1E)
+                    )
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (botOnline) Icons.Default.CheckCircle else Icons.Default.Error,
+                                null,
+                                tint = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Statut du Bot",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    if (botOnline) "✅ En ligne" else "❌ Hors ligne",
+                                    color = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935)
+                                )
+                            }
+                        }
+                        
+                        Spacer(Modifier.height(16.dp))
+                        Divider(color = Color(0xFF2E2E2E))
+                        Spacer(Modifier.height(16.dp))
+                        
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "${members.size}",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFF1744)
+                                )
+                                Text("Membres", color = Color.Gray)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "${channels.size}",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF9C27B0)
+                                )
+                                Text("Salons", color = Color.Gray)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "${roles.size}",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFFD700)
+                                )
+                                Text("Rôles", color = Color.Gray)
+                            }
+                        }
+                        
+                        botStats?.let { stats ->
+                            Spacer(Modifier.height(16.dp))
+                            Divider(color = Color(0xFF2E2E2E))
+                            Spacer(Modifier.height(16.dp))
+                            
+                            stats["commandCount"]?.jsonPrimitive?.intOrNull?.let {
+                                Text("⚡ $it commandes disponibles", color = Color.White)
+                            }
+                            stats["version"]?.jsonPrimitive?.contentOrNull?.let {
+                                Text("📦 Version: $it", color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Card Profil
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Person,
+                                null,
+                                tint = Color(0xFF9C27B0),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Votre Profil",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(16.dp))
+                        
+                        if (userName.isNotBlank()) {
+                            Text(
+                                "👤 $userName",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        
+                        if (isFounder) {
+                            Text("👑 Fondateur du serveur", color = Color(0xFFFFD700))
+                            Text("Accès complet", color = Color.Gray)
+                        } else {
+                            Text("✅ Membre autorisé", color = Color(0xFF4CAF50))
+                        }
+                        
+                        if (userId.isNotBlank() && memberRoles.containsKey(userId)) {
+                            val userRoleIds = memberRoles[userId] ?: emptyList()
+                            val userRoleNames = userRoleIds.mapNotNull { roleId -> 
+                                roles[roleId] 
+                            }
+                            
+                            if (userRoleNames.isNotEmpty()) {
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "Vos rôles:",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFF1744)
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    userRoleNames.take(5).joinToString(" • "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.LightGray
+                                )
+                                if (userRoleNames.size > 5) {
+                                    Text(
+                                        "... et ${userRoleNames.size - 5} autres",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            errorMessage?.let { error ->
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF3E2723))
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, null, tint = Color(0xFFFF9800))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "⚠️ Information",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFF9800)
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                error,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.LightGray
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AppConfigScreen(
+    baseUrl: String,
+    token: String?,
+    userName: String,
+    store: SettingsStore,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    onDisconnect: () -> Unit
+) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "📱 Configuration de l'Application",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("URL Dashboard: $baseUrl", color = Color.White)
+                    Text("Version: 2.1.1", color = Color.Gray)
+                    Text(
+                        "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
+                        color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
+                    )
+                    if (userName.isNotBlank()) {
+                        Text("Utilisateur: $userName", color = Color.White)
+                    }
+                }
+            }
+        }
+        
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "⚙️ Paramètres",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                store.clear()
+                                onDisconnect()
+                                snackbar.showSnackbar("✅ Déconnecté")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                    ) {
+                        Icon(Icons.Default.Logout, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Se déconnecter")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfigListScreen(
+    isLoading: Boolean,
+    configData: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    onConfigSectionClick: (String) -> Unit,
+    onReloadConfig: () -> Unit
+) {
+    if (isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color(0xFF9C27B0))
+        }
+    } else if (configData != null) {
+        LazyColumn(
+            Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Text(
+                            "🤖 Configuration du Bot",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text("Serveur: 💎 BAG", color = Color.White)
+                        Text("${members.size} membres", color = Color.Gray)
+                        Text("${channels.size} salons", color = Color.Gray)
+                    }
+                }
+            }
+            
+            configData.keys.forEach { key ->
+                item {
+                    Card(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onConfigSectionClick(key) },
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    ) {
+                        Row(
+                            Modifier.padding(16.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    when (key) {
+                                        "economy" -> "💰 Économie"
+                                        "tickets" -> "🎫 Tickets"
+                                        "welcome" -> "👋 Bienvenue"
+                                        "goodbye" -> "👋 Au revoir"
+                                        "inactivity" -> "💤 Inactivité"
+                                        else -> key
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Cliquez pour configurer",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            Icon(Icons.Default.ChevronRight, null, tint = Color.Gray)
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Settings, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                Spacer(Modifier.height(16.dp))
+                Text("⚠️ Configuration non chargée", color = Color.White)
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { onReloadConfig() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Recharger")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfigDetailScreen(
+    sectionKey: String,
+    configData: JsonObject?,
+    onBack: () -> Unit
+) {
+    val sectionData = configData?.get(sectionKey)?.jsonObject
+    
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        when (sectionKey) {
+                            "economy" -> "💰 Configuration Économie"
+                            "tickets" -> "🎫 Configuration Tickets"
+                            "welcome" -> "👋 Configuration Bienvenue"
+                            "goodbye" -> "👋 Configuration Au revoir"
+                            "inactivity" -> "💤 Configuration Inactivité"
+                            else -> "Configuration: $sectionKey"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        
+        if (sectionData != null) {
+            sectionData.keys.take(20).forEach { key ->
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(
+                                key,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFF1744)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                sectionData[key].toString().take(200),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.LightGray
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF3E2723))
+                ) {
+                    Text(
+                        "⚠️ Aucune donnée disponible pour cette section",
+                        modifier = Modifier.padding(16.dp),
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminScreenSimple(
+    members: Map<String, String>,
+    onShowSnackbar: suspend (String) -> Unit
+) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF9C27B0))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Security,
+                        null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            "👑 Administration",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Accès fondateur uniquement",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFE1BEE7)
+                        )
+                    }
+                }
+            }
+        }
+        
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "📊 Statistiques",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("Membres du serveur: ${members.size}", color = Color.White)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "💡 Conseil: Gérez les accès depuis le dashboard web pour plus de fonctionnalités",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+        
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "🔗 Dashboard Web",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Pour une gestion complète, rendez-vous sur:",
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "http://88.174.155.230:33002",
+                        color = Color(0xFFFF1744),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
