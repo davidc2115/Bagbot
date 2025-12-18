@@ -467,12 +467,13 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 3 && isFounder -> {
-                            AdminScreenWithAccess(
-                                members = members,
+                            StaffMainScreen(
                                 api = api,
                                 json = json,
                                 scope = scope,
-                                snackbar = snackbar
+                                snackbar = snackbar,
+                                members = members,
+                                userInfo = userInfo
                             )
                         }
                     }
@@ -1941,4 +1942,205 @@ fun ConfigEditorScreen(
             }
         }
     }
+// ============================================
+// CHAT STAFF v2.1.6 - À ajouter avant la fin du fichier
+// ============================================
+
+data class StaffMessage(
+    val id: String,
+    val userId: String,
+    val username: String,
+    val message: String,
+    val timestamp: String
+)
+
+@Composable
+fun StaffChatScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    members: Map<String, String>,
+    userInfo: JsonObject?
+) {
+    var messages by remember { mutableStateOf<List<StaffMessage>>(emptyList()) }
+    var newMessage by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var isSending by remember { mutableStateOf(false) }
+    
+    fun loadMessages() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/staff/chat/messages")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        messages = data["messages"]?.jsonArray?.map {
+                            val msg = it.jsonObject
+                            StaffMessage(
+                                id = msg["id"]?.jsonPrimitive?.content ?: "",
+                                userId = msg["userId"]?.jsonPrimitive?.content ?: "",
+                                username = msg["username"]?.jsonPrimitive?.content ?: "Inconnu",
+                                message = msg["message"]?.jsonPrimitive?.content ?: "",
+                                timestamp = msg["timestamp"]?.jsonPrimitive?.content ?: ""
+                            )
+                        } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Load messages error: ${e.message}")
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    fun sendMessage() {
+        if (newMessage.isBlank()) return
+        scope.launch {
+            isSending = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val userId = userInfo?.get("id")?.jsonPrimitive?.content ?: "unknown"
+                    val username = userInfo?.get("username")?.jsonPrimitive?.content ?: "Inconnu"
+                    val body = buildJsonObject {
+                        put("userId", userId)
+                        put("username", username)
+                        put("message", newMessage)
+                    }
+                    api.postJson("/api/staff/chat/send", body.toString())
+                    withContext(Dispatchers.Main) {
+                        newMessage = ""
+                        loadMessages()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Send error: ${e.message}")
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isSending = false
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) {
+        loadMessages()
+        while (true) {
+            kotlinx.coroutines.delay(5000)
+            loadMessages()
+        }
+    }
+    
+    Column(Modifier.fillMaxSize()) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
+        ) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Chat, null, tint = Color.White)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("💬 Chat Staff", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("${messages.size} messages", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { loadMessages() }) {
+                    Icon(Icons.Default.Refresh, "Actualiser", tint = Color.White)
+                }
+            }
+        }
+        
+        LazyColumn(Modifier.weight(1f).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (messages.isEmpty()) {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                        Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                            Spacer(Modifier.height(16.dp))
+                            Text("Aucun message staff", style = MaterialTheme.typography.titleMedium, color = Color.Gray)
+                        }
+                    }
+                }
+            } else {
+                items(messages) { msg ->
+                    val memberName = members[msg.userId] ?: msg.username
+                    val isCurrentUser = userInfo?.get("id")?.jsonPrimitive?.content == msg.userId
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (isCurrentUser) Color(0xFF5865F2).copy(alpha = 0.2f) else Color(0xFF2A2A2A))) {
+                        Column(Modifier.padding(12.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Person, null, tint = if (isCurrentUser) Color(0xFF5865F2) else Color(0xFFED4245), modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(memberName, fontWeight = FontWeight.Bold, color = if (isCurrentUser) Color(0xFF5865F2) else Color.White)
+                                }
+                                Text(msg.timestamp.take(16).replace("T", " "), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(msg.message, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+        
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newMessage,
+                    onValueChange = { newMessage = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Écrivez un message...") },
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
+                    maxLines = 3
+                )
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = { sendMessage() }, enabled = newMessage.isNotBlank() && !isSending) {
+                    if (isSending) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                    } else {
+                        Icon(Icons.Default.Send, "Envoyer", tint = if (newMessage.isNotBlank()) Color(0xFF5865F2) else Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StaffMainScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    members: Map<String, String>,
+    userInfo: JsonObject?
+) {
+    var selectedStaffTab by remember { mutableStateOf(0) }
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Chat Staff")
+                }
+            })
+            Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Admin")
+                }
+            })
+        }
+        when (selectedStaffTab) {
+            0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
+            1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
+        }
+    }
+}
 }
