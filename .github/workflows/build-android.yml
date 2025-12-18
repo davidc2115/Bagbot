@@ -35,12 +35,12 @@ jobs:
       
     - name: Build APK
       working-directory: android-app
-      run: ./gradlew assembleDebug --stacktrace
+      run: ./gradlew assembleRelease --stacktrace
         
     - name: Rename APK
       run: |
         mkdir -p release
-        cp android-app/app/build/outputs/apk/debug/app-debug.apk release/BagBot-Manager-${{ github.ref_name }}.apk
+        cp android-app/app/build/outputs/apk/debug/app-release.apk release/BagBot-Manager-${{ github.ref_name }}.apk
         
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
