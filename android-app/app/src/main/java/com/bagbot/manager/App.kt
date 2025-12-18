@@ -1103,9 +1103,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 scope = scope,
                                 snackbar = snackbar,
                                 members = members,
-                                userInfo = userInfo
-,
-                                isFounder = isFounder
+                                userInfo = userInfo,
+                                isFounder = isFounder,
+                                isAdmin = isAdmin
                             )
                         }
                     }
