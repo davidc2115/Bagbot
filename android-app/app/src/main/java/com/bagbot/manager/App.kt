@@ -71,7 +71,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
     // État pour la navigation dans config
-    var selectedConfigSection by remember { mutableStateOf<String?>(null) }
 
     val json = remember { Json { ignoreUnknownKeys = true; coerceInputValues = true } }
 
@@ -244,13 +243,13 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     TopAppBar(
                         title = { 
                             Text(
-                                if (selectedConfigSection != null) "Configuration" 
+                                if (false /* Navigation désactivée v2.1.3 */) "Configuration" 
                                 else "💎 BAG Bot Manager", 
                                 fontWeight = FontWeight.Bold
                             ) 
                         },
                         navigationIcon = {
-                            if (selectedConfigSection != null) {
+                            if (false /* Navigation désactivée v2.1.3 */) {
                                 IconButton(onClick = { selectedConfigSection = null }) {
                                     Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
                                 }
@@ -302,7 +301,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                         .background(Color(0xFF121212))
                 ) {
                     when {
-                        selectedConfigSection != null -> {
+                        false /* Navigation désactivée v2.1.3 */ -> {
                             // Afficher l'éditeur de configuration
                             ConfigEditorScreen(
                                 sectionKey = selectedConfigSection!!,
@@ -386,7 +385,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 json = json,
                                 scope = scope,
                                 snackbar = snackbar,
-                                onConfigSectionClick = { key ->
+                                // Navigation désactivée {
                                     selectedConfigSection = key
                                 },
                                 onReloadConfig = {
@@ -791,9 +790,11 @@ fun ConfigListScreen(
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    onConfigSectionClick: (String) -> Unit,
+    // onConfigSectionClick supprimé v2.1.3
     onReloadConfig: () -> Unit
 ) {
+    var expandedSections by remember { mutableStateOf<Set<String>>(emptySet()) }
+    
     if (isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Color(0xFF9C27B0))
@@ -821,7 +822,7 @@ fun ConfigListScreen(
                         Text("${channels.size} salons", color = Color.Gray)
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "💡 Cliquez sur une section pour modifier",
+                            "💡 Cliquez sur une section pour voir/modifier son contenu",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFFF1744),
                             fontWeight = FontWeight.Bold
@@ -831,54 +832,138 @@ fun ConfigListScreen(
             }
             
             configData.keys.forEach { key ->
+                val isExpanded = expandedSections.contains(key)
+                val sectionData = configData[key]
+                
                 item {
                     Card(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { onConfigSectionClick(key) },
+                        Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                     ) {
-                        Row(
-                            Modifier.padding(16.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    when (key) {
-                                        "economy" -> Icons.Default.AttachMoney
-                                        "tickets" -> Icons.Default.ConfirmationNumber
-                                        "welcome" -> Icons.Default.EmojiPeople
-                                        "goodbye" -> Icons.Default.EmojiPeople
-                                        "inactivity" -> Icons.Default.Snooze
-                                        else -> Icons.Default.Settings
-                                    },
-                                    null,
-                                    tint = Color(0xFFFF1744),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
+                        Column(Modifier.fillMaxWidth()) {
+                            // Header cliquable
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        expandedSections = if (isExpanded) {
+                                            expandedSections - key
+                                        } else {
+                                            expandedSections + key
+                                        }
+                                    }
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
                                         when (key) {
-                                            "economy" -> "💰 Économie"
-                                            "tickets" -> "🎫 Tickets"
-                                            "welcome" -> "👋 Bienvenue"
-                                            "goodbye" -> "👋 Au revoir"
-                                            "inactivity" -> "💤 Inactivité"
-                                            else -> key
+                                            "economy" -> Icons.Default.AttachMoney
+                                            "tickets" -> Icons.Default.ConfirmationNumber
+                                            "welcome", "goodbye" -> Icons.Default.EmojiPeople
+                                            "inactivity" -> Icons.Default.Snooze
+                                            "levels" -> Icons.Default.TrendingUp
+                                            "logs" -> Icons.Default.Article
+                                            else -> Icons.Default.Settings
                                         },
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        null,
+                                        tint = Color(0xFFFF1744),
+                                        modifier = Modifier.size(24.dp)
                                     )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            getSectionDisplayName(key),
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            if (isExpanded) "Cliquez pour réduire" else "Cliquez pour développer",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    null,
+                                    tint = Color.Gray
+                                )
+                            }
+                            
+                            // Contenu expandable
+                            if (isExpanded && sectionData != null) {
+                                Divider(color = Color(0xFF2E2E2E))
+                                Column(Modifier.padding(16.dp)) {
+                                    var jsonText by remember { mutableStateOf(sectionData.toString()) }
+                                    var isSaving by remember { mutableStateOf(false) }
+                                    
                                     Text(
-                                        "Cliquez pour configurer",
+                                        "Contenu JSON (modifiable):",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color.Gray
                                     )
+                                    Spacer(Modifier.height(8.dp))
+                                    
+                                    OutlinedTextField(
+                                        value = jsonText,
+                                        onValueChange = { jsonText = it },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 200.dp, max = 400.dp),
+                                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        ),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.LightGray
+                                        )
+                                    )
+                                    
+                                    Spacer(Modifier.height(12.dp))
+                                    
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                isSaving = true
+                                                withContext(Dispatchers.IO) {
+                                                    try {
+                                                        // Parser et sauvegarder le JSON
+                                                        val updates = json.parseToJsonElement(jsonText).jsonObject
+                                                        api.putJson("/api/configs/$key", updates.toString())
+                                                        withContext(Dispatchers.Main) {
+                                                            snackbar.showSnackbar("✅ $key sauvegardé")
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        withContext(Dispatchers.Main) {
+                                                            snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                                        }
+                                                    } finally {
+                                                        withContext(Dispatchers.Main) {
+                                                            isSaving = false
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                                        enabled = !isSaving
+                                    ) {
+                                        if (isSaving) {
+                                            CircularProgressIndicator(
+                                                color = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        } else {
+                                            Icon(Icons.Default.Save, null)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Sauvegarder $key")
+                                        }
+                                    }
                                 }
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = Color.Gray)
                         }
                     }
                 }
@@ -903,6 +988,31 @@ fun ConfigListScreen(
         }
     }
 }
+
+// Fonction helper pour les noms d'affichage
+fun getSectionDisplayName(key: String): String {
+    return when (key) {
+        "economy" -> "💰 Économie"
+        "tickets" -> "🎫 Tickets"
+        "welcome" -> "👋 Bienvenue"
+        "goodbye" -> "👋 Au revoir"
+        "inactivity" -> "💤 Inactivité"
+        "levels" -> "📈 Niveaux/XP"
+        "logs" -> "📝 Logs"
+        "autokick" -> "🦶 Auto-kick"
+        "autothread" -> "🧵 Auto-thread"
+        "categoryBanners" -> "🎨 Bannières catégories"
+        "confess" -> "🤫 Confessions"
+        "counting" -> "🔢 Comptage"
+        "disboard" -> "📢 Disboard"
+        "footerLogoUrl" -> "🖼️ Logo footer"
+        "geo" -> "🌍 Géolocalisation"
+        "quarantineRoleId" -> "🔒 Rôle quarantaine"
+        "staffRoleIds" -> "👮 Rôles staff"
+        "truthdare" -> "🎲 Action ou vérité"
+        else -> "⚙️ $key"
+    }
+
 
 // Partie 3 - AdminScreenWithAccess et ConfigEditorScreen
 
