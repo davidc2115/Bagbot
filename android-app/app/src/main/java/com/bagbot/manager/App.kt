@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
@@ -96,6 +98,370 @@ val configGroups = listOf(
 // ============================================
 // CHAT STAFF v2.1.6 - À ajouter avant la fin du fichier
 // ============================================
+
+// ============================================
+// NOUVELLES SECTIONS v2.1.7
+// ============================================
+
+// ---------------- ÉCONOMIE COMPLÈTE ----------------
+data class UserBalance(val userId: String, val amount: Int)
+
+@Composable
+fun EconomyFullScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    members: Map<String, String>
+) {
+    var balances by remember { mutableStateOf<List<UserBalance>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editingUser by remember { mutableStateOf<String?>(null) }
+    
+    fun loadBalances() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/economy/balances")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        balances = data["balances"]?.jsonArray?.map {
+                            val obj = it.jsonObject
+                            UserBalance(
+                                userId = obj["userId"]?.jsonPrimitive?.content ?: "",
+                                amount = obj["amount"]?.jsonPrimitive?.int ?: 0
+                            )
+                        }?.sortedByDescending { it.amount } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadBalances() }
+    
+    val filteredBalances = balances.filter {
+        val memberName = members[it.userId] ?: it.userId
+        memberName.contains(searchQuery, ignoreCase = true) || it.userId.contains(searchQuery)
+    }
+    
+    Column(Modifier.fillMaxSize()) {
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFA726))) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AttachMoney, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("💰 Économie", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("${balances.size} utilisateurs", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { loadBalances() }) {
+                        Icon(Icons.Default.Refresh, "Actualiser", tint = Color.White)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Rechercher un utilisateur...") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+            }
+        }
+        
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(filteredBalances) { index, balance ->
+                    val memberName = members[balance.userId] ?: balance.userId
+                    Card(
+                        Modifier.fillMaxWidth().clickable { editingUser = balance.userId; showEditDialog = true },
+                        colors = CardDefaults.cardColors(containerColor = when {
+                            index == 0 -> Color(0xFFFFD700)
+                            index == 1 -> Color(0xFFC0C0C0)
+                            index == 2 -> Color(0xFFCD7F32)
+                            else -> Color(0xFF2A2A2A)
+                        })
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("#${index + 1}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = if (index < 3) Color.Black else Color.White)
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(memberName, fontWeight = FontWeight.Bold, color = if (index < 3) Color.Black else Color.White)
+                                    Text(balance.userId.take(8) + "...", style = MaterialTheme.typography.bodySmall, color = if (index < 3) Color.Black.copy(alpha = 0.6f) else Color.Gray)
+                                }
+                            }
+                            Text("${balance.amount} 💰", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = if (index < 3) Color.Black else Color(0xFFFFA726))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- NIVEAUX COMPLET ----------------
+data class UserLevel(val userId: String, val xp: Int, val level: Int, val messages: Int)
+
+@Composable
+fun LevelsFullScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    members: Map<String, String>
+) {
+    var leaderboard by remember { mutableStateOf<List<UserLevel>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    
+    fun loadLeaderboard() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/levels/leaderboard")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        leaderboard = data["leaderboard"]?.jsonArray?.map {
+                            val obj = it.jsonObject
+                            UserLevel(
+                                userId = obj["userId"]?.jsonPrimitive?.content ?: "",
+                                xp = obj["xp"]?.jsonPrimitive?.int ?: 0,
+                                level = obj["level"]?.jsonPrimitive?.int ?: 0,
+                                messages = obj["messages"]?.jsonPrimitive?.int ?: 0
+                            )
+                        } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadLeaderboard() }
+    
+    val filteredLeaderboard = leaderboard.filter {
+        val memberName = members[it.userId] ?: it.userId
+        memberName.contains(searchQuery, ignoreCase = true) || it.userId.contains(searchQuery)
+    }
+    
+    Column(Modifier.fillMaxSize()) {
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF9C27B0))) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.TrendingUp, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("📈 Classement XP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("${leaderboard.size} utilisateurs", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { loadLeaderboard() }) {
+                        Icon(Icons.Default.Refresh, "Actualiser", tint = Color.White)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Rechercher un utilisateur...") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+            }
+        }
+        
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(filteredLeaderboard) { index, user ->
+                    val memberName = members[user.userId] ?: user.userId
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = when {
+                            index == 0 -> Color(0xFFFFD700)
+                            index == 1 -> Color(0xFFC0C0C0)
+                            index == 2 -> Color(0xFFCD7F32)
+                            else -> Color(0xFF2A2A2A)
+                        })
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("#${index + 1}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = if (index < 3) Color.Black else Color.White)
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(memberName, fontWeight = FontWeight.Bold, color = if (index < 3) Color.Black else Color.White)
+                                    Text("${user.messages} messages", style = MaterialTheme.typography.bodySmall, color = if (index < 3) Color.Black.copy(alpha = 0.6f) else Color.Gray)
+                                }
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Niveau ${user.level}", fontWeight = FontWeight.Bold, color = if (index < 3) Color.Black else Color(0xFF9C27B0))
+                                Text("${user.xp} XP", style = MaterialTheme.typography.bodySmall, color = if (index < 3) Color.Black.copy(alpha = 0.6f) else Color.Gray)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- FUN SCREEN (GIFs + Prompts) ----------------
+@Composable
+fun FunFullScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    var truthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var darePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var newPrompt by remember { mutableStateOf("") }
+    var selectedMode by remember { mutableStateOf("truth") }
+    
+    fun loadPrompts() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/truthdare/prompts")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    val prompts = data["prompts"]?.jsonObject
+                    withContext(Dispatchers.Main) {
+                        truthPrompts = prompts?.get("truth")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        darePrompts = prompts?.get("dare")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    fun addPrompt() {
+        if (newPrompt.isBlank()) return
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject {
+                        put("mode", selectedMode)
+                        put("text", newPrompt)
+                    }
+                    api.postJson("/api/truthdare/prompt", body.toString())
+                    withContext(Dispatchers.Main) {
+                        newPrompt = ""
+                        loadPrompts()
+                        snackbar.showSnackbar("✅ Prompt ajouté")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadPrompts() }
+    
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("🎲 Prompts AouV") })
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("🎬 GIFs") })
+        }
+        
+        when (selectedTab) {
+            0 -> {
+                Column(Modifier.fillMaxSize()) {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("🎲 Action ou Vérité", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth()) {
+                                FilterChip(selected = selectedMode == "truth", onClick = { selectedMode = "truth" }, label = { Text("💭 Vérités (${truthPrompts.size})") })
+                                Spacer(Modifier.width(8.dp))
+                                FilterChip(selected = selectedMode == "dare", onClick = { selectedMode = "dare" }, label = { Text("🎯 Actions (${darePrompts.size})") })
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = newPrompt,
+                                    onValueChange = { newPrompt = it },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = { Text("Nouveau prompt...") },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                IconButton(onClick = { addPrompt() }, enabled = newPrompt.isNotBlank()) {
+                                    Icon(Icons.Default.Add, "Ajouter", tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                    LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(if (selectedMode == "truth") truthPrompts else darePrompts) { prompt ->
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(prompt, modifier = Modifier.weight(1f), color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            1 -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Image, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                        Spacer(Modifier.height(16.dp))
+                        Text("🎬 GIFs", style = MaterialTheme.typography.titleLarge, color = Color.Gray)
+                        Text("Fonctionnalité en développement", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 
 data class StaffMessage(
     val id: String,
@@ -261,6 +627,10 @@ fun StaffChatScreen(
     }
 }
 
+// Amélioration StaffChatScreen v2.1.7 - Admin uniquement
+
+// Remplacer le StaffMainScreen existant par celui-ci:
+
 @Composable
 fun StaffMainScreen(
     api: ApiClient,
@@ -268,9 +638,49 @@ fun StaffMainScreen(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
     members: Map<String, String>,
-    userInfo: JsonObject?
+    userInfo: JsonObject?,
+    isFounder: Boolean  // NOUVEAU paramètre
 ) {
     var selectedStaffTab by remember { mutableStateOf(0) }
+    
+    // Vérifier si l'utilisateur est admin/founder
+    if (!isFounder) {
+        // Afficher message si pas admin
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                Icon(
+                    Icons.Default.Lock,
+                    null,
+                    modifier = Modifier.size(64.dp),
+                    tint = Color(0xFFED4245)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "🔒 Accès Restreint",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Le chat staff est réservé aux administrateurs.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Contactez un admin pour obtenir l'accès.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        return
+    }
+    
+    // Si admin: afficher l'interface normale
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
             Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
@@ -294,6 +704,9 @@ fun StaffMainScreen(
         }
     }
 }
+
+
+
 
 @Composable
 fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
@@ -687,6 +1100,8 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 snackbar = snackbar,
                                 members = members,
                                 userInfo = userInfo
+,
+                                isFounder = isFounder
                             )
                         }
                     }
