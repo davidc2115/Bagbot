@@ -14,10 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import android.util.Log
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import com.bagbot.manager.ui.theme.BagBotTheme
 import com.bagbot.manager.ui.screens.SplashScreen
@@ -62,11 +59,8 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         if (!token.value.isNullOrBlank() && !baseUrl.value.isNullOrBlank()) {
             isLoading.value = true
             errorMessage.value = null
-            
-            withContext(Dispatchers.IO) {
-                try {
+            try {
                 // Récupérer infos utilisateur
-                Log.d("BAG_APP", "Fetching /api/me...")
                 try {
                     val meJson = api.getJson("/api/me")
                     val me = json.parseToJsonElement(meJson).jsonObject
@@ -86,9 +80,8 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 // Récupérer membres
                 try {
                     val membersJson = api.getJson("/api/discord/members")
-                    val membersData = json.parseToJsonElement(membersJson).jsonObject
-                    // L API retourne {"names": {...}, "roles": {...}}
-                    members.value = membersData["names"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
+                    val membersObj = json.parseToJsonElement(membersJson).jsonObject
+                    members.value = membersObj.mapValues { it.value.jsonPrimitive.content }
                 } catch (e: Exception) {
                     // Ignorer si pas de membres
                 }
