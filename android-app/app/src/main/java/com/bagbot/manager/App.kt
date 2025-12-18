@@ -9,7 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +31,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import com.bagbot.manager.ui.theme.BagBotTheme
 import com.bagbot.manager.ui.screens.SplashScreen
+import com.bagbot.manager.ui.components.MemberSelector
+import com.bagbot.manager.ui.components.ChannelSelector
+import com.bagbot.manager.ui.components.RoleSelector
 
 private const val TAG = "BAG_APP"
 
@@ -297,77 +303,44 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 ) {
                     when {
                         selectedConfigSection != null -> {
-                            // Afficher les détails de la section de config
-                            ConfigDetailScreen(
+                            // Afficher l'éditeur de configuration
+                            ConfigEditorScreen(
                                 sectionKey = selectedConfigSection!!,
                                 configData = configData,
-                                onBack = { selectedConfigSection = null }
+                                members = members,
+                                channels = channels,
+                                roles = roles,
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbar,
+                                onBack = { selectedConfigSection = null },
+                                onConfigUpdated = { updatedSection ->
+                                    // Recharger la config
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                val configJson = api.getJson("/api/configs")
+                                                withContext(Dispatchers.Main) {
+                                                    configData = json.parseToJsonElement(configJson).jsonObject
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "Error reloading config: ${e.message}")
+                                            }
+                                        }
+                                    }
+                                }
                             )
                         }
                         token.isNullOrBlank() -> {
                             // Écran de connexion (inchangé)
-                            Column(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Image(
-                                    painter = rememberAsyncImagePainter(
-                                        "https://cdn.discordapp.com/attachments/1408458115283812484/1451165138769150002/1760963220294.jpg"
-                                    ),
-                                    contentDescription = "Logo BAG",
-                                    modifier = Modifier
-                                        .size(120.dp)
-                                        .clip(RoundedCornerShape(60.dp))
-                                )
-                                
-                                Spacer(Modifier.height(32.dp))
-                                
-                                Text(
-                                    "💎 BAG Bot Manager",
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFF1744)
-                                )
-                                
-                                Text(
-                                    "Gestion complète de votre serveur",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = Color.Gray
-                                )
-                                
-                                Spacer(Modifier.height(48.dp))
-                                
-                                OutlinedTextField(
-                                    value = baseUrl,
-                                    onValueChange = { baseUrl = it },
-                                    label = { Text("URL Dashboard") },
-                                    placeholder = { Text("http://88.174.155.230:33002") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
-                                )
-                                
-                                Spacer(Modifier.height(16.dp))
-                                
-                                Button(
-                                    onClick = { login() },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFFF1744)
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Login, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Se connecter via Discord")
-                                }
-                            }
+                            LoginScreen(
+                                baseUrl = baseUrl,
+                                onBaseUrlChange = { baseUrl = it },
+                                onLogin = { login() }
+                            )
                         }
                         tab == 0 -> {
-                            // Onglet Accueil (code existant inchangé...)
                             HomeScreen(
                                 isLoading = isLoading,
                                 loadingMessage = loadingMessage,
@@ -384,7 +357,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 1 -> {
-                            // Onglet App (code existant...)
                             AppConfigScreen(
                                 baseUrl = baseUrl,
                                 token = token,
@@ -405,7 +377,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 2 -> {
-                            // Onglet Configuration avec navigation
                             ConfigListScreen(
                                 isLoading = isLoading,
                                 configData = configData,
@@ -443,17 +414,86 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 3 && isFounder -> {
-                            // Onglet Admin simplifié
-                            AdminScreenSimple(
+                            AdminScreenWithAccess(
                                 members = members,
-                                onShowSnackbar = { 
-                                    scope.launch { snackbar.showSnackbar(it) } 
-                                }
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbar
                             )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+// Partie 2 - Composables principaux
+
+@Composable
+fun LoginScreen(
+    baseUrl: String,
+    onBaseUrlChange: (String) -> Unit,
+    onLogin: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = rememberAsyncImagePainter(
+                "https://cdn.discordapp.com/attachments/1408458115283812484/1451165138769150002/1760963220294.jpg"
+            ),
+            contentDescription = "Logo BAG",
+            modifier = Modifier
+                .size(120.dp)
+                .clip(RoundedCornerShape(60.dp))
+        )
+        
+        Spacer(Modifier.height(32.dp))
+        
+        Text(
+            "💎 BAG Bot Manager",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFFF1744)
+        )
+        
+        Text(
+            "Gestion complète de votre serveur",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.Gray
+        )
+        
+        Spacer(Modifier.height(48.dp))
+        
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = onBaseUrlChange,
+            label = { Text("URL Dashboard") },
+            placeholder = { Text("http://88.174.155.230:33002") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        Button(
+            onClick = onLogin,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFFF1744)
+            )
+        ) {
+            Icon(Icons.Default.Login, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Se connecter via Discord")
         }
     }
 }
@@ -474,35 +514,22 @@ fun HomeScreen(
     errorMessage: String?
 ) {
     if (isLoading) {
-        Box(
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(color = Color(0xFFFF1744))
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    loadingMessage.ifBlank { "Chargement..." },
-                    color = Color.White
-                )
+                Text(loadingMessage.ifBlank { "Chargement..." }, color = Color.White)
             }
         }
     } else {
         LazyColumn(
-            Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+            Modifier.fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Card Statut Bot
             item {
                 Card(
                     Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF1E1E1E)
-                    )
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                 ) {
                     Column(Modifier.padding(20.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -580,7 +607,6 @@ fun HomeScreen(
                 }
             }
             
-            // Card Profil
             item {
                 Card(
                     Modifier.fillMaxWidth(),
@@ -623,9 +649,7 @@ fun HomeScreen(
                         
                         if (userId.isNotBlank() && memberRoles.containsKey(userId)) {
                             val userRoleIds = memberRoles[userId] ?: emptyList()
-                            val userRoleNames = userRoleIds.mapNotNull { roleId -> 
-                                roles[roleId] 
-                            }
+                            val userRoleNames = userRoleIds.mapNotNull { roleId -> roles[roleId] }
                             
                             if (userRoleNames.isNotEmpty()) {
                                 Spacer(Modifier.height(12.dp))
@@ -711,7 +735,7 @@ fun AppConfigScreen(
                     )
                     Spacer(Modifier.height(16.dp))
                     Text("URL Dashboard: $baseUrl", color = Color.White)
-                    Text("Version: 2.1.1", color = Color.Gray)
+                    Text("Version: 2.1.2", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
@@ -795,6 +819,13 @@ fun ConfigListScreen(
                         Text("Serveur: 💎 BAG", color = Color.White)
                         Text("${members.size} membres", color = Color.Gray)
                         Text("${channels.size} salons", color = Color.Gray)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "💡 Cliquez sur une section pour modifier",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFF1744),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -812,24 +843,40 @@ fun ConfigListScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
                                     when (key) {
-                                        "economy" -> "💰 Économie"
-                                        "tickets" -> "🎫 Tickets"
-                                        "welcome" -> "👋 Bienvenue"
-                                        "goodbye" -> "👋 Au revoir"
-                                        "inactivity" -> "💤 Inactivité"
-                                        else -> key
+                                        "economy" -> Icons.Default.AttachMoney
+                                        "tickets" -> Icons.Default.ConfirmationNumber
+                                        "welcome" -> Icons.Default.Waving
+                                        "goodbye" -> Icons.Default.Waving
+                                        "inactivity" -> Icons.Default.Snooze
+                                        else -> Icons.Default.Settings
                                     },
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    null,
+                                    tint = Color(0xFFFF1744),
+                                    modifier = Modifier.size(24.dp)
                                 )
-                                Text(
-                                    "Cliquez pour configurer",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        when (key) {
+                                            "economy" -> "💰 Économie"
+                                            "tickets" -> "🎫 Tickets"
+                                            "welcome" -> "👋 Bienvenue"
+                                            "goodbye" -> "👋 Au revoir"
+                                            "inactivity" -> "💤 Inactivité"
+                                            else -> key
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "Cliquez pour configurer",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                             Icon(Icons.Default.ChevronRight, null, tint = Color.Gray)
                         }
@@ -857,86 +904,122 @@ fun ConfigListScreen(
     }
 }
 
+// Partie 3 - AdminScreenWithAccess et ConfigEditorScreen
+
 @Composable
-fun ConfigDetailScreen(
-    sectionKey: String,
-    configData: JsonObject?,
-    onBack: () -> Unit
+fun AdminScreenWithAccess(
+    members: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
 ) {
-    val sectionData = configData?.get(sectionKey)?.jsonObject
+    var allowedUsers by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var selectedMember by remember { mutableStateOf<String?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
     
-    LazyColumn(
-        Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Text(
-                        when (sectionKey) {
-                            "economy" -> "💰 Configuration Économie"
-                            "tickets" -> "🎫 Configuration Tickets"
-                            "welcome" -> "👋 Configuration Bienvenue"
-                            "goodbye" -> "👋 Configuration Au revoir"
-                            "inactivity" -> "💤 Configuration Inactivité"
-                            else -> "Configuration: $sectionKey"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+    // Charger la liste des utilisateurs autorisés
+    LaunchedEffect(Unit) {
+        isLoading = true
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.getJson("/api/admin/allowed-users")
+                val data = json.parseToJsonElement(response).jsonObject
+                withContext(Dispatchers.Main) {
+                    allowedUsers = data["allowedUsers"]?.jsonArray?.map {
+                        it.jsonPrimitive.content
+                    } ?: emptyList()
                 }
-            }
-        }
-        
-        if (sectionData != null) {
-            sectionData.keys.take(20).forEach { key ->
-                item {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
-                    ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(
-                                key,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFF1744)
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                sectionData[key].toString().take(200),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.LightGray
-                            )
-                        }
-                    }
+                Log.d(TAG, "Allowed users loaded: ${allowedUsers.size}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading allowed users: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
                 }
-            }
-        } else {
-            item {
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF3E2723))
-                ) {
-                    Text(
-                        "⚠️ Aucune donnée disponible pour cette section",
-                        modifier = Modifier.padding(16.dp),
-                        color = Color.White
-                    )
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isLoading = false
                 }
             }
         }
     }
-}
-
-@Composable
-fun AdminScreenSimple(
-    members: Map<String, String>,
-    onShowSnackbar: suspend (String) -> Unit
-) {
+    
+    fun removeUser(userId: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    api.deleteJson("/api/admin/allowed-users/$userId")
+                    withContext(Dispatchers.Main) {
+                        allowedUsers = allowedUsers.filter { it != userId }
+                        snackbar.showSnackbar("✅ Utilisateur retiré")
+                    }
+                    Log.d(TAG, "User removed: $userId")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error removing user: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    fun addUser(userId: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject { put("userId", userId) }
+                    api.postJson("/api/admin/allowed-users", body.toString())
+                    withContext(Dispatchers.Main) {
+                        allowedUsers = allowedUsers + userId
+                        snackbar.showSnackbar("✅ Utilisateur ajouté")
+                        showAddDialog = false
+                        selectedMember = null
+                    }
+                    Log.d(TAG, "User added: $userId")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error adding user: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Ajouter un utilisateur") },
+            text = {
+                Column {
+                    Text("Sélectionnez un membre à autoriser")
+                    Spacer(Modifier.height(16.dp))
+                    MemberSelector(
+                        members = members.filterKeys { !allowedUsers.contains(it) },
+                        selectedMemberId = selectedMember,
+                        onMemberSelected = { selectedMember = it },
+                        label = "Membre"
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { selectedMember?.let { addUser(it) } },
+                    enabled = selectedMember != null
+                ) {
+                    Text("Ajouter")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -959,16 +1042,96 @@ fun AdminScreenSimple(
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text(
-                            "👑 Administration",
+                            "👑 Gestion des Accès",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Text(
-                            "Accès fondateur uniquement",
+                            "${allowedUsers.size} utilisateur(s) autorisé(s)",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFFE1BEE7)
                         )
+                    }
+                }
+            }
+        }
+        
+        item {
+            Button(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Icon(Icons.Default.PersonAdd, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Ajouter un utilisateur")
+            }
+        }
+        
+        if (isLoading) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF9C27B0))
+                }
+            }
+        } else {
+            items(allowedUsers) { userId ->
+                val memberName = members[userId] ?: "Utilisateur $userId"
+                val isFounder = userId == "943487722738311219"
+                
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isFounder) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
+                    )
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (isFounder) Icons.Default.Star else Icons.Default.Person,
+                                null,
+                                tint = if (isFounder) Color(0xFFFFD700) else Color(0xFF9C27B0),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    memberName,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                if (isFounder) {
+                                    Text(
+                                        "👑 Fondateur (non supprimable)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFFFD700)
+                                    )
+                                } else {
+                                    Text(
+                                        "ID: $userId",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        }
+                        
+                        if (!isFounder) {
+                            IconButton(
+                                onClick = { removeUser(userId) }
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    "Retirer l'accès",
+                                    tint = Color(0xFFE53935)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -981,23 +1144,165 @@ fun AdminScreenSimple(
             ) {
                 Column(Modifier.padding(20.dp)) {
                     Text(
-                        "📊 Statistiques",
-                        style = MaterialTheme.typography.titleLarge,
+                        "💡 Conseil",
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color(0xFFFF9800)
                     )
-                    Spacer(Modifier.height(16.dp))
-                    Text("Membres du serveur: ${members.size}", color = Color.White)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "💡 Conseil: Gérez les accès depuis le dashboard web pour plus de fonctionnalités",
+                        "Les utilisateurs autorisés peuvent se connecter à l'application mobile et consulter les configurations du bot.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
                 }
             }
         }
-        
+    }
+}
+
+@Composable
+fun ConfigEditorScreen(
+    sectionKey: String,
+    configData: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    onBack: () -> Unit,
+    onConfigUpdated: (String) -> Unit
+) {
+    val sectionData = configData?.get(sectionKey)?.jsonObject
+    var isSaving by remember { mutableStateOf(false) }
+    
+    // États pour économie
+    var ecoStartAmount by remember { mutableStateOf("") }
+    var ecoDailyAmount by remember { mutableStateOf("") }
+    var ecoWeeklyAmount by remember { mutableStateOf("") }
+    var ecoWorkMin by remember { mutableStateOf("") }
+    var ecoWorkMax by remember { mutableStateOf("") }
+    
+    // États pour tickets
+    var ticketsEnabled by remember { mutableStateOf(false) }
+    var ticketsChannel by remember { mutableStateOf<String?>(null) }
+    var ticketsCategory by remember { mutableStateOf<String?>(null) }
+    var ticketsStaffRole by remember { mutableStateOf<String?>(null) }
+    
+    // États pour welcome/goodbye
+    var welcomeEnabled by remember { mutableStateOf(false) }
+    var welcomeChannel by remember { mutableStateOf<String?>(null) }
+    var welcomeMessage by remember { mutableStateOf("") }
+    var goodbyeEnabled by remember { mutableStateOf(false) }
+    var goodbyeChannel by remember { mutableStateOf<String?>(null) }
+    var goodbyeMessage by remember { mutableStateOf("") }
+    
+    // États pour inactivity
+    var inactivityThresholdDays by remember { mutableStateOf("") }
+    var inactivityExemptRoles by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    // Charger les données initiales
+    LaunchedEffect(sectionData) {
+        sectionData?.let { data ->
+            when (sectionKey) {
+                "economy" -> {
+                    ecoStartAmount = data["startAmount"]?.jsonPrimitive?.contentOrNull ?: ""
+                    ecoDailyAmount = data["dailyAmount"]?.jsonPrimitive?.contentOrNull ?: ""
+                    ecoWeeklyAmount = data["weeklyAmount"]?.jsonPrimitive?.contentOrNull ?: ""
+                    ecoWorkMin = data["workMin"]?.jsonPrimitive?.contentOrNull ?: ""
+                    ecoWorkMax = data["workMax"]?.jsonPrimitive?.contentOrNull ?: ""
+                }
+                "tickets" -> {
+                    ticketsEnabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    ticketsChannel = data["channelId"]?.jsonPrimitive?.contentOrNull
+                    ticketsCategory = data["categoryId"]?.jsonPrimitive?.contentOrNull
+                    ticketsStaffRole = data["staffRoleId"]?.jsonPrimitive?.contentOrNull
+                }
+                "welcome" -> {
+                    welcomeEnabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    welcomeChannel = data["channelId"]?.jsonPrimitive?.contentOrNull
+                    welcomeMessage = data["message"]?.jsonPrimitive?.contentOrNull ?: ""
+                }
+                "goodbye" -> {
+                    goodbyeEnabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    goodbyeChannel = data["channelId"]?.jsonPrimitive?.contentOrNull
+                    goodbyeMessage = data["message"]?.jsonPrimitive?.contentOrNull ?: ""
+                }
+                "inactivity" -> {
+                    inactivityThresholdDays = data["thresholdDays"]?.jsonPrimitive?.contentOrNull ?: ""
+                    inactivityExemptRoles = data["exemptRoles"]?.jsonArray?.map {
+                        it.jsonPrimitive.content
+                    } ?: emptyList()
+                }
+            }
+        }
+    }
+    
+    fun saveConfig() {
+        scope.launch {
+            isSaving = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val updates = buildJsonObject {
+                        when (sectionKey) {
+                            "economy" -> {
+                                if (ecoStartAmount.isNotBlank()) put("startAmount", ecoStartAmount.toIntOrNull() ?: 0)
+                                if (ecoDailyAmount.isNotBlank()) put("dailyAmount", ecoDailyAmount.toIntOrNull() ?: 0)
+                                if (ecoWeeklyAmount.isNotBlank()) put("weeklyAmount", ecoWeeklyAmount.toIntOrNull() ?: 0)
+                                if (ecoWorkMin.isNotBlank()) put("workMin", ecoWorkMin.toIntOrNull() ?: 0)
+                                if (ecoWorkMax.isNotBlank()) put("workMax", ecoWorkMax.toIntOrNull() ?: 0)
+                            }
+                            "tickets" -> {
+                                put("enabled", ticketsEnabled)
+                                ticketsChannel?.let { put("channelId", it) }
+                                ticketsCategory?.let { put("categoryId", it) }
+                                ticketsStaffRole?.let { put("staffRoleId", it) }
+                            }
+                            "welcome" -> {
+                                put("enabled", welcomeEnabled)
+                                welcomeChannel?.let { put("channelId", it) }
+                                if (welcomeMessage.isNotBlank()) put("message", welcomeMessage)
+                            }
+                            "goodbye" -> {
+                                put("enabled", goodbyeEnabled)
+                                goodbyeChannel?.let { put("channelId", it) }
+                                if (goodbyeMessage.isNotBlank()) put("message", goodbyeMessage)
+                            }
+                            "inactivity" -> {
+                                if (inactivityThresholdDays.isNotBlank()) {
+                                    put("thresholdDays", inactivityThresholdDays.toIntOrNull() ?: 30)
+                                }
+                                put("exemptRoles", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
+                            }
+                        }
+                    }
+                    
+                    api.putJson("/api/configs/$sectionKey", updates.toString())
+                    
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("✅ Configuration sauvegardée")
+                        onConfigUpdated(sectionKey)
+                    }
+                    Log.d(TAG, "Config saved: $sectionKey")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error saving config: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isSaving = false
+                    }
+                }
+            }
+        }
+    }
+    
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
             Card(
                 Modifier.fillMaxWidth(),
@@ -1005,22 +1310,257 @@ fun AdminScreenSimple(
             ) {
                 Column(Modifier.padding(20.dp)) {
                     Text(
-                        "🔗 Dashboard Web",
-                        style = MaterialTheme.typography.titleMedium,
+                        when (sectionKey) {
+                            "economy" -> "💰 Configuration Économie"
+                            "tickets" -> "🎫 Configuration Tickets"
+                            "welcome" -> "👋 Configuration Bienvenue"
+                            "goodbye" -> "👋 Configuration Au revoir"
+                            "inactivity" -> "💤 Configuration Inactivité"
+                            else -> "Configuration: $sectionKey"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Pour une gestion complète, rendez-vous sur:",
-                        color = Color.Gray
-                    )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "http://88.174.155.230:33002",
-                        color = Color(0xFFFF1744),
-                        fontWeight = FontWeight.Bold
+                        "Modifiez les paramètres ci-dessous",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
                     )
+                }
+            }
+        }
+        
+        // Formulaires spécifiques à chaque section
+        when (sectionKey) {
+            "economy" -> {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("Montants de départ et gains", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            
+                            OutlinedTextField(
+                                value = ecoStartAmount,
+                                onValueChange = { ecoStartAmount = it },
+                                label = { Text("Montant de départ") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            
+                            OutlinedTextField(
+                                value = ecoDailyAmount,
+                                onValueChange = { ecoDailyAmount = it },
+                                label = { Text("Gain journalier") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            
+                            OutlinedTextField(
+                                value = ecoWeeklyAmount,
+                                onValueChange = { ecoWeeklyAmount = it },
+                                label = { Text("Gain hebdomadaire") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            
+                            OutlinedTextField(
+                                value = ecoWorkMin,
+                                onValueChange = { ecoWorkMin = it },
+                                label = { Text("Gain travail (min)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            
+                            OutlinedTextField(
+                                value = ecoWorkMax,
+                                onValueChange = { ecoWorkMax = it },
+                                label = { Text("Gain travail (max)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+            
+            "tickets" -> {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Système activé", fontWeight = FontWeight.Bold, color = Color.White)
+                                Switch(
+                                    checked = ticketsEnabled,
+                                    onCheckedChange = { ticketsEnabled = it }
+                                )
+                            }
+                            
+                            Spacer(Modifier.height(16.dp))
+                            
+                            ChannelSelector(
+                                channels = channels,
+                                selectedChannelId = ticketsChannel,
+                                onChannelSelected = { ticketsChannel = it },
+                                label = "Salon des tickets"
+                            )
+                            
+                            Spacer(Modifier.height(12.dp))
+                            
+                            ChannelSelector(
+                                channels = channels,
+                                selectedChannelId = ticketsCategory,
+                                onChannelSelected = { ticketsCategory = it },
+                                label = "Catégorie des tickets"
+                            )
+                            
+                            Spacer(Modifier.height(12.dp))
+                            
+                            RoleSelector(
+                                roles = roles,
+                                selectedRoleId = ticketsStaffRole,
+                                onRoleSelected = { ticketsStaffRole = it },
+                                label = "Rôle staff"
+                            )
+                        }
+                    }
+                }
+            }
+            
+            "welcome" -> {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Messages de bienvenue", fontWeight = FontWeight.Bold, color = Color.White)
+                                Switch(
+                                    checked = welcomeEnabled,
+                                    onCheckedChange = { welcomeEnabled = it }
+                                )
+                            }
+                            
+                            Spacer(Modifier.height(16.dp))
+                            
+                            ChannelSelector(
+                                channels = channels,
+                                selectedChannelId = welcomeChannel,
+                                onChannelSelected = { welcomeChannel = it },
+                                label = "Salon de bienvenue"
+                            )
+                            
+                            Spacer(Modifier.height(12.dp))
+                            
+                            OutlinedTextField(
+                                value = welcomeMessage,
+                                onValueChange = { welcomeMessage = it },
+                                label = { Text("Message de bienvenue") },
+                                placeholder = { Text("Bienvenue {user} !") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3
+                            )
+                        }
+                    }
+                }
+            }
+            
+            "goodbye" -> {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Messages au revoir", fontWeight = FontWeight.Bold, color = Color.White)
+                                Switch(
+                                    checked = goodbyeEnabled,
+                                    onCheckedChange = { goodbyeEnabled = it }
+                                )
+                            }
+                            
+                            Spacer(Modifier.height(16.dp))
+                            
+                            ChannelSelector(
+                                channels = channels,
+                                selectedChannelId = goodbyeChannel,
+                                onChannelSelected = { goodbyeChannel = it },
+                                label = "Salon au revoir"
+                            )
+                            
+                            Spacer(Modifier.height(12.dp))
+                            
+                            OutlinedTextField(
+                                value = goodbyeMessage,
+                                onValueChange = { goodbyeMessage = it },
+                                label = { Text("Message au revoir") },
+                                placeholder = { Text("Au revoir {user}...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3
+                            )
+                        }
+                    }
+                }
+            }
+            
+            "inactivity" -> {
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("Seuil d'inactivité", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            
+                            OutlinedTextField(
+                                value = inactivityThresholdDays,
+                                onValueChange = { inactivityThresholdDays = it },
+                                label = { Text("Nombre de jours") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            Spacer(Modifier.height(16.dp))
+                            Text("Rôles exempts (${inactivityExemptRoles.size})", color = Color.Gray)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Fonctionnalité de sélection multiple à venir",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFFF9800)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        item {
+            Button(
+                onClick = { saveConfig() },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder les modifications")
                 }
             }
         }
