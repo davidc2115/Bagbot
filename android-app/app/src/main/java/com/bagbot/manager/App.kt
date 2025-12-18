@@ -2,10 +2,10 @@
 
 package com.bagbot.manager
 
-import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,14 +28,18 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
-    val statusJson = remember { mutableStateOf<String?>(null) }
-    val configJson = remember { mutableStateOf<String?>(null) }
     val baseUrl = remember { mutableStateOf(store.getBaseUrl()) }
     val token = remember { mutableStateOf(store.getToken()) }
     val tab = remember { mutableStateOf(0) }
     val isFounder = remember { mutableStateOf(false) }
     val showSplash = remember { mutableStateOf(true) }
     val members = remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    
+    // États pour les données formatées
+    val botStatus = remember { mutableStateOf<String?>(null) }
+    val configData = remember { mutableStateOf<Map<String, Any>?>(null) }
+    val isLoading = remember { mutableStateOf(false) }
+    val errorMessage = remember { mutableStateOf<String?>(null) }
 
     val json = remember { Json { ignoreUnknownKeys = true } }
 
@@ -52,20 +56,34 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
     LaunchedEffect(token.value, baseUrl.value) {
         if (!token.value.isNullOrBlank() && !baseUrl.value.isNullOrBlank()) {
+            isLoading.value = true
+            errorMessage.value = null
             try {
+                // Récupérer infos utilisateur
                 val meJson = api.getJson("/api/me")
                 val me = json.parseToJsonElement(meJson).jsonObject
                 isFounder.value = me["userId"]?.jsonPrimitive?.content == "943487722738311219"
                 
-                statusJson.value = api.getJson("/api/bot/status")
-                configJson.value = api.getJson("/api/configs")
+                // Récupérer statut du bot
+                val statusJson = api.getJson("/api/bot/status")
+                botStatus.value = statusJson
                 
+                // Récupérer membres
                 val membersJson = api.getJson("/api/discord/members")
                 members.value = json.parseToJsonElement(membersJson).jsonObject.mapValues {
                     it.value.jsonPrimitive.content
                 }
+                
+                // Récupérer config
+                val configJson = api.getJson("/api/configs")
+                val configObj = json.parseToJsonElement(configJson).jsonObject
+                configData.value = configObj.mapValues { it.value }
+                
             } catch (e: Exception) {
-                snackbar.showSnackbar("Erreur: ${e.message}")
+                errorMessage.value = "Erreur: ${e.message}"
+                snackbar.showSnackbar("❌ ${e.message}")
+            } finally {
+                isLoading.value = false
             }
         }
     }
@@ -146,28 +164,75 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                         tab.value == 0 -> {
-                            LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
-                                item {
-                                    Card(Modifier.fillMaxWidth()) {
-                                        Column(Modifier.padding(16.dp)) {
-                                            Text("Statut du Bot", style = MaterialTheme.typography.titleLarge)
-                                            Spacer(Modifier.height(8.dp))
-                                            Text(statusJson.value ?: "Chargement...")
+                            // Onglet Accueil avec affichage formaté
+                            if (isLoading.value) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator()
+                                }
+                            } else if (errorMessage.value != null) {
+                                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text(errorMessage.value!!, color = MaterialTheme.colorScheme.error)
+                                }
+                            } else {
+                                LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    item {
+                                        Card(Modifier.fillMaxWidth()) {
+                                            Column(Modifier.padding(16.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("Statut du Bot", style = MaterialTheme.typography.titleLarge)
+                                                }
+                                                Spacer(Modifier.height(12.dp))
+                                                Text("✅ Bot en ligne", style = MaterialTheme.typography.bodyLarge)
+                                                Text("${members.value.size} membres", style = MaterialTheme.typography.bodyMedium)
+                                            }
+                                        }
+                                    }
+                                    
+                                    item {
+                                        Card(Modifier.fillMaxWidth()) {
+                                            Column(Modifier.padding(16.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.secondary)
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("Votre Profil", style = MaterialTheme.typography.titleLarge)
+                                                }
+                                                Spacer(Modifier.height(12.dp))
+                                                if (isFounder.value) {
+                                                    Text("🔒 Fondateur du serveur", style = MaterialTheme.typography.bodyLarge)
+                                                    Text("Accès administrateur activé", style = MaterialTheme.typography.bodyMedium)
+                                                } else {
+                                                    Text("👤 Membre autorisé", style = MaterialTheme.typography.bodyLarge)
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                         tab.value == 1 -> {
-                            LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
-                                item {
-                                    Card(Modifier.fillMaxWidth()) {
-                                        Column(Modifier.padding(16.dp)) {
-                                            Text("Configuration", style = MaterialTheme.typography.titleLarge)
-                                            Spacer(Modifier.height(8.dp))
-                                            Text(configJson.value ?: "Chargement...")
+                            // Onglet Configuration avec affichage formaté
+                            if (isLoading.value) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator()
+                                }
+                            } else if (configData.value != null) {
+                                LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    item {
+                                        Card(Modifier.fillMaxWidth()) {
+                                            Column(Modifier.padding(16.dp)) {
+                                                Text("Configuration du Serveur", style = MaterialTheme.typography.titleLarge)
+                                                Spacer(Modifier.height(12.dp))
+                                                Text("✅ Système configuré", style = MaterialTheme.typography.bodyLarge)
+                                                Text("${members.value.size} membres Discord", style = MaterialTheme.typography.bodyMedium)
+                                            }
                                         }
                                     }
+                                }
+                            } else {
+                                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Aucune configuration disponible")
                                 }
                             }
                         }
