@@ -34,8 +34,12 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     val isFounder = remember { mutableStateOf(false) }
     val showSplash = remember { mutableStateOf(true) }
     val members = remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    val memberRoles = remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    val userName = remember { mutableStateOf("") }
+    val userId = remember { mutableStateOf("") }
     
     val botOnline = remember { mutableStateOf(false) }
+    val botStats = remember { mutableStateOf<JsonObject?>(null) }
     val configData = remember { mutableStateOf<JsonObject?>(null) }
     val isLoading = remember { mutableStateOf(false) }
     val errorMessage = remember { mutableStateOf<String?>(null) }
@@ -50,7 +54,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         if (!t.isNullOrBlank()) {
             store.setToken(t.trim())
             token.value = t.trim()
-            snackbar.showSnackbar("✅ Connecté")
+            snackbar.showSnackbar("✅ Connecté avec succès")
             onDeepLinkConsumed()
         }
     }
@@ -64,26 +68,42 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 try {
                     val meJson = api.getJson("/api/me")
                     val me = json.parseToJsonElement(meJson).jsonObject
-                    isFounder.value = me["userId"]?.jsonPrimitive?.content == "943487722738311219"
+                    userId.value = me["userId"]?.jsonPrimitive?.content ?: ""
+                    userName.value = me["username"]?.jsonPrimitive?.content ?: ""
+                    isFounder.value = userId.value == "943487722738311219"
                 } catch (e: Exception) {
-                    errorMessage.value = "Auth: ${e.message}"
+                    errorMessage.value = "Authentification échouée: ${e.message}"
                 }
                 
                 // Récupérer statut du bot
                 try {
                     val statusJson = api.getJson("/api/bot/status")
-                    botOnline.value = statusJson.contains("online") || statusJson.contains("true")
+                    val status = json.parseToJsonElement(statusJson).jsonObject
+                    botStats.value = status
+                    botOnline.value = status["status"]?.jsonPrimitive?.content == "online"
                 } catch (e: Exception) {
+                    errorMessage.value = "Bot status: ${e.message}"
                     botOnline.value = false
                 }
                 
-                // Récupérer membres
+                // Récupérer membres avec rôles
                 try {
                     val membersJson = api.getJson("/api/discord/members")
-                    val membersObj = json.parseToJsonElement(membersJson).jsonObject
-                    members.value = membersObj.mapValues { it.value.jsonPrimitive.content }
+                    val membersData = json.parseToJsonElement(membersJson).jsonObject
+                    
+                    if (membersData.containsKey("names")) {
+                        val namesObj = membersData["names"]?.jsonObject
+                        members.value = namesObj?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
+                    }
+                    
+                    if (membersData.containsKey("roles")) {
+                        val rolesObj = membersData["roles"]?.jsonObject
+                        memberRoles.value = rolesObj?.mapValues { (_, v) -> 
+                            v.jsonArray.map { it.jsonPrimitive.content }
+                        } ?: emptyMap()
+                    }
                 } catch (e: Exception) {
-                    // Ignorer si pas de membres
+                    errorMessage.value = "Membres: ${e.message}"
                 }
                 
                 // Récupérer channels
@@ -92,7 +112,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     val channelsObj = json.parseToJsonElement(channelsJson).jsonObject
                     channels.value = channelsObj.mapValues { it.value.jsonPrimitive.content }
                 } catch (e: Exception) {
-                    // Ignorer
+                    errorMessage.value = "Channels: ${e.message}"
                 }
                 
                 // Récupérer roles
@@ -101,7 +121,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     val rolesObj = json.parseToJsonElement(rolesJson).jsonObject
                     roles.value = rolesObj.mapValues { it.value.jsonPrimitive.content }
                 } catch (e: Exception) {
-                    // Ignorer
+                    errorMessage.value = "Rôles: ${e.message}"
                 }
                 
                 // Récupérer config
@@ -113,7 +133,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 }
                 
             } catch (e: Exception) {
-                errorMessage.value = "Erreur: ${e.message}"
+                errorMessage.value = "Erreur générale: ${e.message}"
             } finally {
                 isLoading.value = false
             }
@@ -150,35 +170,30 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 bottomBar = {
                     if (token.value?.isNotBlank() == true) {
                         NavigationBar {
-                            // Onglet Accueil
                             NavigationBarItem(
                                 selected = tab.value == 0,
                                 onClick = { tab.value = 0 },
                                 icon = { Icon(Icons.Default.Home, null) },
                                 label = { Text("Accueil") }
                             )
-                            // Onglet Config App
                             NavigationBarItem(
                                 selected = tab.value == 1,
                                 onClick = { tab.value = 1 },
                                 icon = { Icon(Icons.Default.PhoneAndroid, null) },
                                 label = { Text("App") }
                             )
-                            // Onglet Config Bot
                             NavigationBarItem(
                                 selected = tab.value == 2,
                                 onClick = { tab.value = 2 },
                                 icon = { Icon(Icons.Default.Settings, null) },
                                 label = { Text("Bot") }
                             )
-                            // Onglet Chat Staff
                             NavigationBarItem(
                                 selected = tab.value == 3,
                                 onClick = { tab.value = 3 },
                                 icon = { Icon(Icons.Default.Chat, null) },
                                 label = { Text("Staff") }
                             )
-                            // Onglet Admin (si fondateur)
                             if (isFounder.value) {
                                 NavigationBarItem(
                                     selected = tab.value == 4,
@@ -194,7 +209,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 Box(Modifier.padding(padding).fillMaxSize()) {
                     when {
                         token.value.isNullOrBlank() -> {
-                            // Écran de connexion
                             Column(
                                 Modifier.fillMaxSize().padding(16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -214,13 +228,12 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                         tab.value == 0 -> {
-                            // Onglet Accueil
                             if (isLoading.value) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         CircularProgressIndicator()
                                         Spacer(Modifier.height(16.dp))
-                                        Text("Chargement...")
+                                        Text("Chargement des données...")
                                     }
                                 }
                             } else {
@@ -242,8 +255,18 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                                     if (botOnline.value) "✅ Bot en ligne" else "❌ Bot hors ligne",
                                                     style = MaterialTheme.typography.bodyLarge
                                                 )
+                                                
+                                                botStats.value?.let { stats ->
+                                                    stats["commandCount"]?.jsonPrimitive?.intOrNull?.let {
+                                                        Text("Commandes : $it", style = MaterialTheme.typography.bodyMedium)
+                                                    }
+                                                    stats["version"]?.jsonPrimitive?.contentOrNull?.let {
+                                                        Text("Version bot : $it", style = MaterialTheme.typography.bodyMedium)
+                                                    }
+                                                }
+                                                
                                                 Text("${members.value.size} membres", style = MaterialTheme.typography.bodyMedium)
-                                                Text("${channels.value.size} channels", style = MaterialTheme.typography.bodyMedium)
+                                                Text("${channels.value.size} salons", style = MaterialTheme.typography.bodyMedium)
                                                 Text("${roles.value.size} rôles", style = MaterialTheme.typography.bodyMedium)
                                             }
                                         }
@@ -258,11 +281,31 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                                     Text("Votre Profil", style = MaterialTheme.typography.titleLarge)
                                                 }
                                                 Spacer(Modifier.height(12.dp))
+                                                
+                                                if (userName.value.isNotBlank()) {
+                                                    Text("👤 ${userName.value}", style = MaterialTheme.typography.bodyLarge)
+                                                }
+                                                
                                                 if (isFounder.value) {
                                                     Text("🔒 Fondateur du serveur", style = MaterialTheme.typography.bodyLarge)
-                                                    Text("Accès complet", style = MaterialTheme.typography.bodyMedium)
+                                                    Text("Accès complet à la gestion", style = MaterialTheme.typography.bodyMedium)
                                                 } else {
-                                                    Text("👤 Membre autorisé", style = MaterialTheme.typography.bodyLarge)
+                                                    Text("✅ Membre autorisé", style = MaterialTheme.typography.bodyLarge)
+                                                }
+                                                
+                                                // Afficher les rôles de l'utilisateur
+                                                if (userId.value.isNotBlank() && memberRoles.value.containsKey(userId.value)) {
+                                                    Spacer(Modifier.height(8.dp))
+                                                    Text("Vos rôles:", style = MaterialTheme.typography.titleSmall)
+                                                    val userRoleIds = memberRoles.value[userId.value] ?: emptyList()
+                                                    val userRoleNames = userRoleIds.mapNotNull { roleId -> roles.value[roleId] }
+                                                    Text(
+                                                        userRoleNames.take(5).joinToString(", "),
+                                                        style = MaterialTheme.typography.bodySmall
+                                                    )
+                                                    if (userRoleNames.size > 5) {
+                                                        Text("... et ${userRoleNames.size - 5} autres", style = MaterialTheme.typography.bodySmall)
+                                                    }
                                                 }
                                             }
                                         }
@@ -272,7 +315,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                         item {
                                             Card(Modifier.fillMaxWidth()) {
                                                 Column(Modifier.padding(16.dp)) {
-                                                    Text("⚠️ Informations", style = MaterialTheme.typography.titleMedium)
+                                                    Text("⚠️ Informations de débogage", style = MaterialTheme.typography.titleMedium)
                                                     Spacer(Modifier.height(8.dp))
                                                     Text(errorMessage.value!!, style = MaterialTheme.typography.bodySmall)
                                                 }
@@ -283,7 +326,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                         tab.value == 1 -> {
-                            // Onglet Config App
                             LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 item {
                                     Card(Modifier.fillMaxWidth()) {
@@ -291,8 +333,11 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                             Text("📱 Configuration de l'Application", style = MaterialTheme.typography.titleLarge)
                                             Spacer(Modifier.height(12.dp))
                                             Text("URL Dashboard : ${baseUrl.value}", style = MaterialTheme.typography.bodyMedium)
-                                            Text("Version : 2.0.3", style = MaterialTheme.typography.bodyMedium)
-                                            Text("Connecté : Oui", style = MaterialTheme.typography.bodyMedium)
+                                            Text("Version : 2.0.4", style = MaterialTheme.typography.bodyMedium)
+                                            Text("Connecté : ${if (token.value.isNullOrBlank()) "Non" else "Oui"}", style = MaterialTheme.typography.bodyMedium)
+                                            if (userName.value.isNotBlank()) {
+                                                Text("Utilisateur : ${userName.value}", style = MaterialTheme.typography.bodyMedium)
+                                            }
                                         }
                                     }
                                 }
@@ -307,6 +352,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                                     scope.launch {
                                                         store.clear()
                                                         token.value = null
+                                                        userName.value = ""
+                                                        userId.value = ""
+                                                        isFounder.value = false
                                                         snackbar.showSnackbar("Déconnecté")
                                                     }
                                                 },
@@ -320,7 +368,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                         tab.value == 2 -> {
-                            // Onglet Config Bot
                             if (isLoading.value) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     CircularProgressIndicator()
@@ -334,16 +381,26 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                                 Spacer(Modifier.height(12.dp))
                                                 Text("Serveur : BAG", style = MaterialTheme.typography.bodyLarge)
                                                 Text("${members.value.size} membres actifs", style = MaterialTheme.typography.bodyMedium)
+                                                Text("${channels.value.size} salons", style = MaterialTheme.typography.bodyMedium)
                                             }
                                         }
                                     }
                                     
-                                    // Afficher les sections de configuration
                                     configData.value?.keys?.forEach { key ->
                                         item {
                                             Card(Modifier.fillMaxWidth()) {
                                                 Column(Modifier.padding(16.dp)) {
-                                                    Text(key, style = MaterialTheme.typography.titleMedium)
+                                                    Text(
+                                                        when(key) {
+                                                            "economy" -> "💰 Économie"
+                                                            "tickets" -> "🎫 Tickets"
+                                                            "welcome" -> "👋 Bienvenue"
+                                                            "goodbye" -> "👋 Au revoir"
+                                                            "inactivity" -> "💤 Inactivité"
+                                                            else -> key
+                                                        },
+                                                        style = MaterialTheme.typography.titleMedium
+                                                    )
                                                     Spacer(Modifier.height(8.dp))
                                                     Text("Configuration disponible", style = MaterialTheme.typography.bodySmall)
                                                 }
@@ -354,7 +411,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             } else {
                                 Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Configuration en cours de chargement...", style = MaterialTheme.typography.bodyLarge)
+                                        Text("⚠️ Aucune configuration chargée", style = MaterialTheme.typography.bodyLarge)
                                         Spacer(Modifier.height(16.dp))
                                         Button(onClick = {
                                             scope.launch {
@@ -362,21 +419,21 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                                 try {
                                                     val configJson = api.getJson("/api/configs")
                                                     configData.value = json.parseToJsonElement(configJson).jsonObject
+                                                    snackbar.showSnackbar("✅ Configuration rechargée")
                                                 } catch (e: Exception) {
-                                                    snackbar.showSnackbar("Erreur: ${e.message}")
+                                                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
                                                 } finally {
                                                     isLoading.value = false
                                                 }
                                             }
                                         }) {
-                                            Text("Recharger")
+                                            Text("Recharger la configuration")
                                         }
                                     }
                                 }
                             }
                         }
                         tab.value == 3 -> {
-                            // Onglet Chat Staff
                             Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(Icons.Default.Chat, null, modifier = Modifier.size(64.dp))
@@ -394,7 +451,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                         tab.value == 4 && isFounder.value -> {
-                            // Onglet Admin
                             AdminScreen(
                                 api = api,
                                 members = members.value,
