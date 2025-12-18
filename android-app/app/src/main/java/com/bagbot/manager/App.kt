@@ -848,8 +848,8 @@ fun ConfigListScreen(
                                     when (key) {
                                         "economy" -> Icons.Default.AttachMoney
                                         "tickets" -> Icons.Default.ConfirmationNumber
-                                        "welcome" -> Icons.Default.Waving
-                                        "goodbye" -> Icons.Default.Waving
+                                        "welcome" -> Icons.Default.EmojiPeople
+                                        "goodbye" -> Icons.Default.EmojiPeople
                                         "inactivity" -> Icons.Default.Snooze
                                         else -> Icons.Default.Settings
                                     },
