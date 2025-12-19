@@ -603,18 +603,34 @@ fun ActionsGifsScreen(
                 
                 // Save button
                 item {
+                    var isSaving by remember { mutableStateOf(false) }
+                    
                     Button(
                         onClick = {
-                            kotlinx.coroutines.GlobalScope.launch {
-                                saveAction()
-                            }
+                            isSaving = true
+                            // Saving will be handled when this composable recomposes
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
+                        enabled = !isSaving
                     ) {
-                        Icon(Icons.Default.Save, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Sauvegarder", fontWeight = FontWeight.Bold)
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Icon(Icons.Default.Save, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sauvegarder", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    LaunchedEffect(isSaving) {
+                        if (isSaving) {
+                            saveAction()
+                            isSaving = false
+                        }
                     }
                 }
             }
