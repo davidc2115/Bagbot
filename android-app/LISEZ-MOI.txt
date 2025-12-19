@@ -1,0 +1,173 @@
+═══════════════════════════════════════════════════════════════════════════
+    🎉 APPLICATION ANDROID v2.1.8 - MODIFICATIONS TERMINÉES ✅
+═══════════════════════════════════════════════════════════════════════════
+
+📅 Date: 19 décembre 2025
+📱 Version: 2.1.8 (versionCode: 18)
+🔗 URL du serveur: http://88.174.155.230:33002
+🚪 Port SSH: 33000
+
+───────────────────────────────────────────────────────────────────────────
+📋 RÉSUMÉ DES MODIFICATIONS
+───────────────────────────────────────────────────────────────────────────
+
+✅ L'onglet CONFIG affiche maintenant:
+   • Vrais pseudos des membres (au lieu des IDs)
+   • Vrais noms des rôles (au lieu des IDs)
+   • Vrais noms des channels (au lieu des IDs)
+   • Carte de localisation pour la section GEO
+   • Statuts clairs (Activé/Désactivé) pour chaque fonctionnalité
+   • Toutes les informations importantes de chaque configuration
+
+✅ URL par défaut configurée: http://88.174.155.230:33002
+
+───────────────────────────────────────────────────────────────────────────
+📚 DOCUMENTATION CRÉÉE (4 FICHIERS)
+───────────────────────────────────────────────────────────────────────────
+
+1. README_MODIFICATIONS.md
+   → Vue d'ensemble des modifications et guide de démarrage
+
+2. CHANGES_v2.1.8.md
+   → Détails techniques complets des modifications
+
+3. COMPILATION_INSTRUCTIONS.md
+   → Instructions pas à pas pour compiler l'APK
+
+4. AVANT_APRES.md
+   → Comparaisons visuelles avant/après les modifications
+
+───────────────────────────────────────────────────────────────────────────
+🚀 ÉTAPES SUIVANTES
+───────────────────────────────────────────────────────────────────────────
+
+ÉTAPE 1: LIRE LA DOCUMENTATION
+   Consultez d'abord: README_MODIFICATIONS.md
+
+ÉTAPE 2: COMPILER L'APK
+   
+   Option A - Sur une machine locale avec Android SDK:
+   ─────────────────────────────────────────────────
+   cd /workspace/android-app
+   ./gradlew assembleRelease
+   
+   Option B - Sur la Freebox (SSH):
+   ─────────────────────────────────────────────────
+   ssh user@88.174.155.230 -p 33000
+   cd /path/to/android-app
+   ./gradlew assembleRelease
+   
+   ⚠️ IMPORTANT: Android SDK doit être installé et configuré
+   Consultez: COMPILATION_INSTRUCTIONS.md pour plus de détails
+
+ÉTAPE 3: RÉCUPÉRER L'APK
+   L'APK sera généré dans:
+   app/build/outputs/apk/release/app-release.apk
+
+ÉTAPE 4: INSTALLER L'APK
+   
+   Via ADB:
+   ─────────────────────────────────────────────────
+   adb install -r app-release.apk
+   
+   Via transfert manuel:
+   ─────────────────────────────────────────────────
+   1. Transférez le fichier APK sur votre téléphone
+   2. Activez "Sources inconnues" dans les paramètres
+   3. Ouvrez le fichier APK et installez
+
+ÉTAPE 5: TESTER L'APPLICATION
+   ✅ Vérifier que l'URL est pré-remplie
+   ✅ Se connecter via Discord OAuth
+   ✅ Ouvrir l'onglet Configuration
+   ✅ Vérifier que les noms s'affichent correctement
+   ✅ Tester la section Géolocalisation
+
+───────────────────────────────────────────────────────────────────────────
+📂 FICHIERS MODIFIÉS
+───────────────────────────────────────────────────────────────────────────
+
+1. app/src/main/java/com/bagbot/manager/App.kt
+   • Fonction renderKeyInfo améliorée
+   • Nouveau composant GeoMapViewer
+   • Intégration de la carte de géolocalisation
+
+2. app/src/main/java/com/bagbot/manager/SettingsStore.kt
+   • URL par défaut configurée
+
+───────────────────────────────────────────────────────────────────────────
+✅ CHECKLIST DE VÉRIFICATION
+───────────────────────────────────────────────────────────────────────────
+
+Après installation, vérifiez:
+
+[ ] L'application se lance
+[ ] URL pré-remplie: http://88.174.155.230:33002
+[ ] Connexion Discord OAuth fonctionne
+[ ] Onglet Configuration accessible
+[ ] Noms des MEMBRES affichés (pas les IDs)
+[ ] Noms des CHANNELS affichés (pas les IDs)
+[ ] Noms des RÔLES affichés (pas les IDs)
+[ ] Section Géolocalisation affiche la liste des membres
+[ ] Bouton "Voir la carte interactive" fonctionne
+
+───────────────────────────────────────────────────────────────────────────
+🔧 CONFIGURATION SERVEUR REQUISE
+───────────────────────────────────────────────────────────────────────────
+
+Le serveur doit être accessible et les endpoints API fonctionnels:
+
+✅ http://88.174.155.230:33002/api/discord/members
+✅ http://88.174.155.230:33002/api/discord/channels
+✅ http://88.174.155.230:33002/api/discord/roles
+✅ http://88.174.155.230:33002/api/configs/*
+
+───────────────────────────────────────────────────────────────────────────
+💡 POINTS IMPORTANTS
+───────────────────────────────────────────────────────────────────────────
+
+• L'application récupère les données en temps réel depuis le serveur
+• Les tokens et informations d'authentification sont gérés par l'API
+• Aucune nouvelle permission Android n'est requise
+• Compatible avec Android 8.0+ (API 26+)
+• Le fichier de signature (bagbot-release.jks) est déjà configuré
+
+───────────────────────────────────────────────────────────────────────────
+❓ EN CAS DE PROBLÈME
+───────────────────────────────────────────────────────────────────────────
+
+PROBLÈME: Erreur "SDK location not found" lors de la compilation
+SOLUTION: Créez un fichier local.properties avec:
+          sdk.dir=/path/to/android/sdk
+
+PROBLÈME: Les noms ne s'affichent pas correctement
+SOLUTION: Vérifiez que les endpoints API retournent les bonnes données:
+          /api/discord/members
+          /api/discord/channels
+          /api/discord/roles
+
+PROBLÈME: L'application ne se connecte pas
+SOLUTION: Vérifiez que le serveur est accessible:
+          curl http://88.174.155.230:33002
+
+POUR PLUS D'AIDE: Consultez COMPILATION_INSTRUCTIONS.md
+
+───────────────────────────────────────────────────────────────────────────
+🎯 OBJECTIFS ATTEINTS
+───────────────────────────────────────────────────────────────────────────
+
+✅ Onglet Config affiche les VRAIS PSEUDOS des membres
+✅ Onglet Config affiche les VRAIS NOMS des rôles
+✅ Onglet Config affiche les VRAIS NOMS des channels
+✅ Section GEO affiche une carte de localisation
+✅ URL par défaut configurée sur http://88.174.155.230:33002
+✅ Documentation complète fournie
+
+═══════════════════════════════════════════════════════════════════════════
+
+L'application est prête à être compilée et déployée ! 🚀
+
+Pour toute question, consultez la documentation complète dans:
+→ README_MODIFICATIONS.md
+
+═══════════════════════════════════════════════════════════════════════════

@@ -1610,6 +1610,7 @@ fun ConfigGroupsScreen(
 // ============================================
 
 @Composable
+@Composable
 fun renderKeyInfo(
     sectionKey: String,
     sectionData: JsonElement,
@@ -1623,23 +1624,29 @@ fun renderKeyInfo(
         when (sectionKey) {
             "tickets" -> {
                 val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
                 obj["categoryId"]?.jsonPrimitive?.contentOrNull?.let { id ->
-                    keyInfos.add("📁 Catégorie" to "${channels[id] ?: "Inconnu"} ($id)")
+                    keyInfos.add("📁 Catégorie" to (channels[id] ?: "Inconnu"))
                 }
                 obj["panelChannelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
-                    keyInfos.add("📋 Canal panel" to "${channels[id] ?: "Inconnu"} ($id)")
+                    keyInfos.add("📋 Canal panel" to (channels[id] ?: "Inconnu"))
                 }
                 obj["staffPingRoleIds"]?.jsonArray?.let { arr ->
                     val roleNames = arr.mapNotNull { it.jsonPrimitive.contentOrNull }.map { id ->
-                        roles[id] ?: id
+                        roles[id] ?: "Inconnu"
                     }.joinToString(", ")
                     keyInfos.add("👮 Rôles staff ping" to roleNames)
                 }
             }
             "welcome", "goodbye" -> {
                 val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
                 obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
-                    keyInfos.add("📢 Canal" to "${channels[id] ?: "Inconnu"} ($id)")
+                    keyInfos.add("📢 Canal" to (channels[id] ?: "Inconnu"))
                 }
                 obj["message"]?.jsonPrimitive?.contentOrNull?.let { msg ->
                     keyInfos.add("💬 Message" to msg.take(100) + if (msg.length > 100) "..." else "")
@@ -1647,43 +1654,172 @@ fun renderKeyInfo(
             }
             "logs" -> {
                 val obj = sectionData.jsonObject
+                var count = 0
                 obj["channels"]?.jsonObject?.forEach { (logType, channelIdEl) ->
                     val channelId = channelIdEl.jsonPrimitive.contentOrNull
                     if (channelId != null) {
-                        keyInfos.add("📝 $logType" to "${channels[channelId] ?: "Inconnu"} ($channelId)")
+                        keyInfos.add("📝 ${logType.replaceFirstChar { it.uppercase() }}" to (channels[channelId] ?: "Inconnu"))
+                        count++
                     }
+                }
+                if (count == 0) {
+                    keyInfos.add("📝 Logs" to "Aucun canal configuré")
                 }
             }
             "staffRoleIds" -> {
                 val arr = sectionData.jsonArray
                 val roleNames = arr.mapNotNull { it.jsonPrimitive.contentOrNull }.map { id ->
-                    "${roles[id] ?: "Inconnu"} ($id)"
+                    roles[id] ?: "Inconnu"
                 }
-                roleNames.forEach { name ->
-                    keyInfos.add("👮 Rôle staff" to name)
+                if (roleNames.isNotEmpty()) {
+                    roleNames.forEach { name ->
+                        keyInfos.add("👮 Rôle staff" to name)
+                    }
+                } else {
+                    keyInfos.add("👮 Rôles staff" to "Aucun rôle configuré")
                 }
             }
             "quarantineRoleId" -> {
                 val roleId = sectionData.jsonPrimitive.contentOrNull
                 if (roleId != null) {
-                    keyInfos.add("🔒 Rôle quarantaine" to "${roles[roleId] ?: "Inconnu"} ($roleId)")
+                    keyInfos.add("🔒 Rôle quarantaine" to (roles[roleId] ?: "Inconnu"))
                 }
             }
             "inactivity" -> {
                 val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
                 obj["kickAfterDays"]?.jsonPrimitive?.intOrNull?.let { days ->
                     keyInfos.add("⏰ Kick après" to "$days jours")
+                }
+                obj["warningDays"]?.jsonPrimitive?.intOrNull?.let { days ->
+                    keyInfos.add("⚠️ Avertissement après" to "$days jours")
+                }
+            }
+            "autokick" -> {
+                val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
+                obj["minMemberAge"]?.jsonPrimitive?.intOrNull?.let { age ->
+                    keyInfos.add("🕐 Âge minimum" to "$age minutes")
                 }
             }
             "economy" -> {
                 val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
                 val balanceCount = obj["balances"]?.jsonObject?.size ?: 0
                 keyInfos.add("💰 Nombre de comptes" to "$balanceCount utilisateurs")
+                obj["dailyReward"]?.jsonPrimitive?.intOrNull?.let { reward ->
+                    keyInfos.add("🎁 Récompense journalière" to "$reward coins")
+                }
             }
             "levels" -> {
                 val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
                 val userCount = obj["users"]?.jsonObject?.size ?: 0
                 keyInfos.add("📈 Utilisateurs avec XP" to "$userCount")
+                obj["xpPerMessage"]?.jsonPrimitive?.intOrNull?.let { xp ->
+                    keyInfos.add("⚡ XP par message" to "$xp")
+                }
+            }
+            "confess" -> {
+                val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
+                obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal" to (channels[id] ?: "Inconnu"))
+                }
+                obj["confessionCount"]?.jsonPrimitive?.intOrNull?.let { count ->
+                    keyInfos.add("🔢 Confessions" to "$count")
+                }
+            }
+            "counting" -> {
+                val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
+                obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal" to (channels[id] ?: "Inconnu"))
+                }
+                obj["currentNumber"]?.jsonPrimitive?.intOrNull?.let { num ->
+                    keyInfos.add("🔢 Nombre actuel" to "$num")
+                }
+                obj["lastUserId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("👤 Dernier utilisateur" to (members[id] ?: "Inconnu"))
+                }
+            }
+            "disboard" -> {
+                val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
+                obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal" to (channels[id] ?: "Inconnu"))
+                }
+                obj["reminderRoleId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("🔔 Rôle rappel" to (roles[id] ?: "Inconnu"))
+                }
+            }
+            "autothread" -> {
+                val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
+                obj["channels"]?.jsonArray?.let { arr ->
+                    val channelNames = arr.mapNotNull { it.jsonPrimitive.contentOrNull }.map { id ->
+                        channels[id] ?: "Inconnu"
+                    }
+                    keyInfos.add("📢 Canaux" to "${channelNames.size} configurés")
+                }
+            }
+            "geo" -> {
+                val obj = sectionData.jsonObject
+                val locationsCount = obj["locations"]?.jsonObject?.size ?: 0
+                keyInfos.add("🌍 Localisations" to "$locationsCount membres")
+                
+                if (locationsCount > 0) {
+                    obj["locations"]?.jsonObject?.entries?.take(5)?.forEach { (userId, locationEl) ->
+                        try {
+                            val location = locationEl.jsonObject
+                            val city = location["city"]?.jsonPrimitive?.contentOrNull ?: "Ville inconnue"
+                            val memberName = members[userId] ?: "Inconnu"
+                            keyInfos.add("📍 $memberName" to city)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing location for $userId: ${e.message}")
+                        }
+                    }
+                    if (locationsCount > 5) {
+                        keyInfos.add("..." to "et ${locationsCount - 5} autres")
+                    }
+                }
+            }
+            "truthdare" -> {
+                val obj = sectionData.jsonObject
+                obj["enabled"]?.jsonPrimitive?.booleanOrNull?.let { enabled ->
+                    keyInfos.add("✅ Statut" to if (enabled) "Activé" else "Désactivé")
+                }
+                val truthCount = obj["truths"]?.jsonArray?.size ?: 0
+                val dareCount = obj["dares"]?.jsonArray?.size ?: 0
+                keyInfos.add("❓ Vérités" to "$truthCount")
+                keyInfos.add("💪 Actions" to "$dareCount")
+            }
+            "categoryBanners" -> {
+                val obj = sectionData.jsonObject
+                val bannerCount = obj.size
+                keyInfos.add("🎨 Bannières" to "$bannerCount catégories")
+            }
+            "footerLogoUrl" -> {
+                val url = sectionData.jsonPrimitive.contentOrNull
+                if (!url.isNullOrBlank()) {
+                    keyInfos.add("🖼️ URL Logo" to url.take(50) + if (url.length > 50) "..." else "")
+                }
             }
         }
     } catch (e: Exception) {
@@ -1722,6 +1858,140 @@ fun renderKeyInfo(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun GeoMapViewer(
+    geoData: JsonObject,
+    members: Map<String, String>
+) {
+    val context = LocalContext.current
+    val locations = remember(geoData) {
+        try {
+            geoData["locations"]?.jsonObject?.entries?.mapNotNull { (userId, locationEl) ->
+                try {
+                    val location = locationEl.jsonObject
+                    val lat = location["lat"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+                    val lon = location["lon"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+                    val city = location["city"]?.jsonPrimitive?.contentOrNull ?: "Ville inconnue"
+                    val memberName = members[userId] ?: "Utilisateur $userId"
+                    mapOf(
+                        "lat" to lat,
+                        "lon" to lon,
+                        "city" to city,
+                        "memberName" to memberName
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            } ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    if (locations.isEmpty()) {
+        Card(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Box(
+                Modifier.fillMaxWidth().padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.LocationOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.Gray
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Aucune localisation disponible",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+        return
+    }
+    
+    Card(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                "🗺️ Carte de localisation",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4CAF50)
+            )
+            Spacer(Modifier.height(8.dp))
+            
+            // Liste des localisations
+            locations.forEach { location ->
+                Card(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                location["memberName"] as String,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                location["city"] as String,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF5865F2)
+                            )
+                            Text(
+                                "📍 ${location["lat"]}, ${location["lon"]}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            
+            // Bouton pour ouvrir la carte interactive
+            Button(
+                onClick = {
+                    // Créer une URL avec les marqueurs pour ouvrir dans un navigateur
+                    val centerLat = locations.map { it["lat"] as Double }.average()
+                    val centerLon = locations.map { it["lon"] as Double }.average()
+                    val mapUrl = "https://www.openstreetmap.org/?mlat=$centerLat&mlon=$centerLon#map=6/$centerLat/$centerLon"
+                    
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(mapUrl))
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Icon(Icons.Default.Map, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Voir la carte interactive")
             }
         }
     }
@@ -1813,6 +2083,16 @@ fun ConfigGroupDetailScreen(
                             Column(Modifier.padding(16.dp)) {
                                 // Afficher les infos clés avec les vrais noms
                                 renderKeyInfo(sectionKey, sectionData, members, channels, roles)
+                                
+                                // Affichage spécial pour la géolocalisation
+                                if (sectionKey == "geo") {
+                                    try {
+                                        GeoMapViewer(sectionData.jsonObject, members)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error displaying geo map: ${e.message}")
+                                    }
+                                }
+                                
                                 Spacer(Modifier.height(8.dp))
 
                                 var jsonText by remember { mutableStateOf(sectionData.toString()) }

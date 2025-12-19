@@ -23,7 +23,7 @@ class SettingsStore private constructor(context: Context) {
         }
     }
     
-    fun getBaseUrl(): String = prefs.getString("base_url", "") ?: ""
+    fun getBaseUrl(): String = prefs.getString("base_url", "http://88.174.155.230:33002") ?: "http://88.174.155.230:33002"
     fun setBaseUrl(url: String) = prefs.edit().putString("base_url", url).apply()
     
     fun getToken(): String? = prefs.getString("token", null)
