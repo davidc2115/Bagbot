@@ -43,6 +43,15 @@ import com.bagbot.manager.ui.components.RoleSelector
 import com.bagbot.manager.ui.screens.WelcomeConfigScreen
 import com.bagbot.manager.ui.screens.GoodbyeConfigScreen
 import com.bagbot.manager.ui.screens.TicketsConfigScreen
+import com.bagbot.manager.ui.screens.LogsConfigScreen
+import com.bagbot.manager.ui.screens.StaffConfigScreen
+import com.bagbot.manager.ui.screens.ConfessConfigScreen
+import com.bagbot.manager.ui.screens.AutoKickConfigScreen
+import com.bagbot.manager.ui.screens.InactivityConfigScreen
+import com.bagbot.manager.ui.screens.AutoThreadConfigScreen
+import com.bagbot.manager.ui.screens.config.DisboardConfigScreen
+import com.bagbot.manager.ui.screens.config.CountingConfigScreen
+import com.bagbot.manager.ui.screens.config.TruthDareConfigScreen
 
 private const val TAG = "BAG_APP"
 
@@ -2182,6 +2191,8 @@ fun getSectionDisplayName(key: String): String {
         "confess" -> "🤫 Confessions"
         "counting" -> "🔢 Comptage"
         "disboard" -> "📢 Disboard"
+        "staffRoleIds" -> "👥 Rôles Staff"
+        "truthdare" -> "🎲 Action ou Vérité"
         "footerLogoUrl" -> "🖼️ Logo footer"
         "geo" -> "🌍 Géolocalisation"
         "quarantineRoleId" -> "🔒 Rôle quarantaine"
@@ -2486,6 +2497,89 @@ fun ConfigEditorScreen(
                 api = api,
                 channels = channels,
                 roles = roles,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "logs" -> {
+            com.bagbot.manager.ui.screens.LogsConfigScreen(
+                api = api,
+                channels = channels,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "staffRoleIds" -> {
+            com.bagbot.manager.ui.screens.StaffConfigScreen(
+                api = api,
+                roles = roles,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "confess" -> {
+            com.bagbot.manager.ui.screens.ConfessConfigScreen(
+                api = api,
+                channels = channels,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "autokick" -> {
+            com.bagbot.manager.ui.screens.AutoKickConfigScreen(
+                api = api,
+                roles = roles,
+                members = members,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "inactivity" -> {
+            com.bagbot.manager.ui.screens.InactivityConfigScreen(
+                api = api,
+                roles = roles,
+                members = members,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "autothread" -> {
+            com.bagbot.manager.ui.screens.AutoThreadConfigScreen(
+                api = api,
+                channels = channels,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "disboard" -> {
+            com.bagbot.manager.ui.screens.config.DisboardConfigScreen(
+                api = api,
+                channels = channels,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "counting" -> {
+            com.bagbot.manager.ui.screens.config.CountingConfigScreen(
+                api = api,
+                channels = channels,
+                json = json,
+                onBack = onBack
+            )
+            return
+        }
+        "truthdare" -> {
+            com.bagbot.manager.ui.screens.config.TruthDareConfigScreen(
+                api = api,
+                channels = channels,
                 json = json,
                 onBack = onBack
             )
