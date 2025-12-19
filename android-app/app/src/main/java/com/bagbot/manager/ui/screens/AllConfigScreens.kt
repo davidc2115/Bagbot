@@ -743,6 +743,7 @@ fun StaffConfigScreen(
 // ============================================================================
 // CONFESSIONS - Système de confessions
 // ============================================================================
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfessConfigScreen(
     api: ApiClient,
@@ -1407,6 +1408,7 @@ fun InactivityConfigScreen(
 // ============================================================================
 // AUTOTHREAD - Création automatique de threads
 // ============================================================================
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AutoThreadConfigScreen(
     api: ApiClient,
