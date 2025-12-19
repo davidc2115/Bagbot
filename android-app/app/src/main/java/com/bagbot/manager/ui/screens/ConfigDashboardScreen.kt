@@ -1339,6 +1339,7 @@ private fun TicketsConfigTab(
 ) {
     val tickets = configData?.obj("tickets")
     var subTab by remember { mutableIntStateOf(0) } // 0=config, 1=categories, 2=history
+    var selectedCategoryIndex by remember { mutableStateOf<Int?>(null) }
 
     // fields
     var enabled by remember { mutableStateOf(tickets?.bool("enabled") ?: false) }
@@ -1365,115 +1366,215 @@ private fun TicketsConfigTab(
     val recordsCount = records.size
     var isSaving by remember { mutableStateOf(false) }
 
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            SectionCard(title = "🎫 Tickets", subtitle = "Config / Catégories / Historique") {
-                TabRow(selectedTabIndex = subTab) {
-                    Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text("⚙️ Config") })
-                    Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text("📁 Catégories") })
-                    Tab(selected = subTab == 2, onClick = { subTab = 2 }, text = { Text("📋 Historique") })
-                }
+    // UI
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionCard(title = "🎫 Tickets", subtitle = "Config / Catégories / Historique") {
+            TabRow(selectedTabIndex = subTab) {
+                Tab(selected = subTab == 0, onClick = { subTab = 0; selectedCategoryIndex = null }, text = { Text("⚙️ Config") })
+                Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text("📁 Catégories") })
+                Tab(selected = subTab == 2, onClick = { subTab = 2; selectedCategoryIndex = null }, text = { Text("📋 Historique") })
             }
         }
 
         when (subTab) {
             0 -> {
-                item {
-                    SectionCard(title = "⚙️ Configuration générale") {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Activer", color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Switch(checked = enabled, onCheckedChange = { enabled = it })
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item {
+                        SectionCard(title = "⚙️ Configuration générale") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Activer", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Switch(checked = enabled, onCheckedChange = { enabled = it })
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            ChannelSelector(channels, categoryId, { categoryId = it }, label = "Catégorie (ID)")
+                            Spacer(Modifier.height(10.dp))
+                            ChannelSelector(channels, panelChannelId, { panelChannelId = it }, label = "Channel du Panel")
+                            Spacer(Modifier.height(10.dp))
+                            ChannelSelector(channels, logChannelId, { logChannelId = it }, label = "Channel des logs (tickets)")
+                            Spacer(Modifier.height(10.dp))
+                            ChannelSelector(channels, transcriptChannelId, { transcriptChannelId = it }, label = "Channel des transcripts")
+                            Spacer(Modifier.height(10.dp))
+                            RoleSelector(roles, certifiedRoleId, { certifiedRoleId = it }, label = "Rôle Certified")
+                            Spacer(Modifier.height(10.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Ping staff à l'ouverture", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Switch(checked = pingStaffOnOpen, onCheckedChange = { pingStaffOnOpen = it })
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            OutlinedTextField(panelTitle, { panelTitle = it }, label = { Text("Titre panel") }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(panelText, { panelText = it }, label = { Text("Texte panel") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(bannerUrl, { bannerUrl = it }, label = { Text("Banner URL") }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(12.dp))
+                            Text("Naming", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(namingMode, { namingMode = it }, label = { Text("Mode (ex: custom)") }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(namingPattern, { namingPattern = it }, label = { Text("Pattern") }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(transcriptStyle, { transcriptStyle = it }, label = { Text("Transcript style (ex: pro)") }, modifier = Modifier.fillMaxWidth())
                         }
-                        Spacer(Modifier.height(10.dp))
-                        ChannelSelector(channels, categoryId, { categoryId = it }, label = "Catégorie (ID)")
-                        Spacer(Modifier.height(10.dp))
-                        ChannelSelector(channels, panelChannelId, { panelChannelId = it }, label = "Channel du Panel")
-                        Spacer(Modifier.height(10.dp))
-                        ChannelSelector(channels, logChannelId, { logChannelId = it }, label = "Channel des logs (tickets)")
-                        Spacer(Modifier.height(10.dp))
-                        ChannelSelector(channels, transcriptChannelId, { transcriptChannelId = it }, label = "Channel des transcripts")
-                        Spacer(Modifier.height(10.dp))
-                        RoleSelector(roles, certifiedRoleId, { certifiedRoleId = it }, label = "Rôle Certified")
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Ping staff à l'ouverture", color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Switch(checked = pingStaffOnOpen, onCheckedChange = { pingStaffOnOpen = it })
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(panelTitle, { panelTitle = it }, label = { Text("Titre panel") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(panelText, { panelText = it }, label = { Text("Texte panel") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(bannerUrl, { bannerUrl = it }, label = { Text("Banner URL") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(12.dp))
-                        Text("Naming", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(namingMode, { namingMode = it }, label = { Text("Mode (ex: custom)") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(namingPattern, { namingPattern = it }, label = { Text("Pattern") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(transcriptStyle, { transcriptStyle = it }, label = { Text("Transcript style (ex: pro)") }, modifier = Modifier.fillMaxWidth())
                     }
-                }
 
-                item {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isSaving = true
-                                withContext(Dispatchers.IO) {
-                                    try {
-                                        val settings = buildJsonObject {
-                                            put("enabled", enabled)
-                                            categoryId?.let { put("categoryId", it) }
-                                            panelChannelId?.let { put("panelChannelId", it) }
-                                            logChannelId?.let { put("logChannelId", it) }
-                                            transcriptChannelId?.let { put("transcriptChannelId", it) }
-                                            certifiedRoleId?.let { put("certifiedRoleId", it) }
-                                            put("pingStaffOnOpen", pingStaffOnOpen)
-                                            put("panelTitle", panelTitle)
-                                            put("panelText", panelText)
-                                            put("bannerUrl", bannerUrl)
-                                            put("naming", buildJsonObject {
-                                                put("mode", namingMode)
-                                                put("customPattern", namingPattern)
-                                            })
-                                            put("transcript", buildJsonObject { put("style", transcriptStyle) })
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val settings = buildJsonObject {
+                                                put("enabled", enabled)
+                                                categoryId?.let { put("categoryId", it) }
+                                                panelChannelId?.let { put("panelChannelId", it) }
+                                                logChannelId?.let { put("logChannelId", it) }
+                                                transcriptChannelId?.let { put("transcriptChannelId", it) }
+                                                certifiedRoleId?.let { put("certifiedRoleId", it) }
+                                                put("pingStaffOnOpen", pingStaffOnOpen)
+                                                put("panelTitle", panelTitle)
+                                                put("panelText", panelText)
+                                                put("bannerUrl", bannerUrl)
+                                                put("naming", buildJsonObject {
+                                                    put("mode", namingMode)
+                                                    put("customPattern", namingPattern)
+                                                })
+                                                put("transcript", buildJsonObject { put("style", transcriptStyle) })
+                                            }
+
+                                            postOrPutSection(
+                                                api = api,
+                                                json = json,
+                                                primaryPostPath = "/api/tickets",
+                                                primaryBody = buildJsonObject { put("settings", settings) },
+                                                fallbackSectionKey = "tickets",
+                                                fallbackSectionBody = settings
+                                            )
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Tickets sauvegardés") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
                                         }
-
-                                        // Prefer /api/tickets (dashboard), fallback /api/configs/tickets
-                                        postOrPutSection(
-                                            api = api,
-                                            json = json,
-                                            primaryPostPath = "/api/tickets",
-                                            primaryBody = buildJsonObject { put("settings", settings) },
-                                            fallbackSectionKey = "tickets",
-                                            fallbackSectionBody = settings
-                                        )
-                                        withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Tickets sauvegardés") }
-                                    } catch (e: Exception) {
-                                        withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
-                                    } finally {
-                                        withContext(Dispatchers.Main) { isSaving = false }
                                     }
                                 }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Config Tickets")
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        enabled = !isSaving
-                    ) {
-                        if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
-                        else {
-                            Icon(Icons.Default.Save, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sauvegarder Config Tickets")
                         }
                     }
                 }
             }
 
             1 -> {
-                itemsIndexed(categories) { idx, cat ->
+                // Toutes les catégories sous forme de vignettes
+                if (selectedCategoryIndex == null) {
+                    Column(Modifier.fillMaxSize()) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 160.dp),
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(4.dp)
+                        ) {
+                            itemsIndexedGrid(categories) { idx, cat ->
+                                val key = cat["key"]?.jsonPrimitive?.contentOrNull ?: ""
+                                val label = cat["label"]?.jsonPrimitive?.contentOrNull ?: "Catégorie"
+                                val emoji = cat["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎫"
+                                val staffCount = cat["staffPingRoleIds"]?.jsonArray?.size ?: 0
+                                val viewerCount = cat["extraViewerRoleIds"]?.jsonArray?.size ?: 0
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedCategoryIndex = idx }
+                                ) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(emoji, style = MaterialTheme.typography.headlineMedium)
+                                        Text(label, color = Color.White, fontWeight = FontWeight.Bold)
+                                        Text(key.ifBlank { "(sans key)" }, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                        Text("📌 $staffCount • 👁️ $viewerCount", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            categories = categories + buildJsonObject {
+                                                put("key", "nouvelle-categorie")
+                                                put("label", "Nouvelle catégorie")
+                                                put("emoji", "🎫")
+                                                put("description", "")
+                                                put("bannerUrl", "")
+                                                put("staffPingRoleIds", JsonArray(emptyList()))
+                                                put("extraViewerRoleIds", JsonArray(emptyList()))
+                                            }
+                                            selectedCategoryIndex = categories.size - 1
+                                        }
+                                ) {
+                                    Box(Modifier.padding(14.dp).height(90.dp), contentAlignment = Alignment.Center) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                                            Spacer(Modifier.height(6.dp))
+                                            Text("Ajouter", color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val catsArr = JsonArray(categories)
+                                            postOrPutSection(
+                                                api = api,
+                                                json = json,
+                                                primaryPostPath = "/api/tickets",
+                                                primaryBody = buildJsonObject { put("categories", catsArr) },
+                                                fallbackSectionKey = "tickets",
+                                                fallbackSectionBody = buildJsonObject { put("categories", catsArr) }
+                                            )
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Catégories sauvegardées") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Catégories")
+                            }
+                        }
+                    }
+                } else {
+                    val idx = selectedCategoryIndex!!
+                    val cat = categories.getOrNull(idx) ?: buildJsonObject { }
+
                     var key by remember(idx) { mutableStateOf(cat["key"]?.jsonPrimitive?.contentOrNull ?: "") }
                     var label by remember(idx) { mutableStateOf(cat["label"]?.jsonPrimitive?.contentOrNull ?: "") }
                     var emoji by remember(idx) { mutableStateOf(cat["emoji"]?.jsonPrimitive?.contentOrNull ?: "") }
@@ -1490,167 +1591,128 @@ private fun TicketsConfigTab(
                     var newStaffRoleId by remember { mutableStateOf<String?>(null) }
                     var newViewerRoleId by remember { mutableStateOf<String?>(null) }
 
-                    SectionCard(title = "📁 Catégorie #${idx + 1}", subtitle = key.ifBlank { "(sans key)" }) {
-                        OutlinedTextField(value = key, onValueChange = { key = it }, label = { Text("Key") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Label") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = emoji, onValueChange = { emoji = it }, label = { Text("Emoji") }, modifier = Modifier.fillMaxWidth())
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = banner, onValueChange = { banner = it }, label = { Text("Banner URL") }, modifier = Modifier.fillMaxWidth())
-
-                        Spacer(Modifier.height(12.dp))
-                        Text("📌 Staff ping roles (${staffPingRoleIds.size})", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        staffPingRoleIds.forEach { roleId ->
-                            RemovableIdRow(
-                                label = "Rôle",
-                                id = roleId,
-                                resolvedName = roles[roleId],
-                                onRemove = { staffPingRoleIds = staffPingRoleIds.filterNot { it == roleId } }
-                            )
-                        }
-                        RoleSelector(
-                            roles = roles.filterKeys { !staffPingRoleIds.contains(it) },
-                            selectedRoleId = newStaffRoleId,
-                            onRoleSelected = { newStaffRoleId = it },
-                            label = "Ajouter un rôle staff ping"
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                newStaffRoleId?.let { rid ->
-                                    staffPingRoleIds = staffPingRoleIds + rid
-                                    newStaffRoleId = null
+                    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        item {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = { selectedCategoryIndex = null }) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = "Retour", tint = Color.White)
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = newStaffRoleId != null
-                        ) { Text("➕ Ajouter") }
-
-                        Spacer(Modifier.height(12.dp))
-                        Text("👁️ Viewer roles (${extraViewerRoleIds.size})", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        extraViewerRoleIds.forEach { roleId ->
-                            RemovableIdRow(
-                                label = "Rôle",
-                                id = roleId,
-                                resolvedName = roles[roleId],
-                                onRemove = { extraViewerRoleIds = extraViewerRoleIds.filterNot { it == roleId } }
-                            )
-                        }
-                        RoleSelector(
-                            roles = roles.filterKeys { !extraViewerRoleIds.contains(it) },
-                            selectedRoleId = newViewerRoleId,
-                            onRoleSelected = { newViewerRoleId = it },
-                            label = "Ajouter un viewer rôle"
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                newViewerRoleId?.let { rid ->
-                                    extraViewerRoleIds = extraViewerRoleIds + rid
-                                    newViewerRoleId = null
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = newViewerRoleId != null
-                        ) { Text("➕ Ajouter") }
-
-                        Spacer(Modifier.height(12.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = { categories = categories.filterIndexed { i, _ -> i != idx } },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935))
-                            ) { Text("🗑️ Supprimer") }
-                            Button(
-                                onClick = {
-                                    val updated = buildJsonObject {
-                                        put("key", key)
-                                        put("label", label)
-                                        put("emoji", emoji)
-                                        put("description", description)
-                                        put("bannerUrl", banner)
-                                        put("staffPingRoleIds", JsonArray(staffPingRoleIds.map { JsonPrimitive(it) }))
-                                        put("extraViewerRoleIds", JsonArray(extraViewerRoleIds.map { JsonPrimitive(it) }))
-                                    }
-                                    categories = categories.mapIndexed { i, old ->
-                                        if (i == idx) updated else old
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("✅ Appliquer") }
-                        }
-                    }
-                }
-
-                item {
-                    Button(
-                        onClick = {
-                            categories = categories + buildJsonObject {
-                                put("key", "nouvelle-categorie")
-                                put("label", "Nouvelle catégorie")
-                                put("emoji", "🎫")
-                                put("description", "")
-                                put("bannerUrl", "")
-                                put("staffPingRoleIds", JsonArray(emptyList()))
-                                put("extraViewerRoleIds", JsonArray(emptyList()))
+                                Text("Éditer catégorie", color = Color.White, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(48.dp))
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("➕ Ajouter une catégorie") }
-                }
+                        }
 
-                item {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isSaving = true
-                                withContext(Dispatchers.IO) {
-                                    try {
-                                        val catsArr = JsonArray(categories)
-                                        postOrPutSection(
-                                            api = api,
-                                            json = json,
-                                            primaryPostPath = "/api/tickets",
-                                            primaryBody = buildJsonObject { put("categories", catsArr) },
-                                            fallbackSectionKey = "tickets",
-                                            fallbackSectionBody = buildJsonObject { put("categories", catsArr) }
-                                        )
-                                        withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Catégories sauvegardées") }
-                                    } catch (e: Exception) {
-                                        withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
-                                    } finally {
-                                        withContext(Dispatchers.Main) { isSaving = false }
-                                    }
-                                }
+                        item {
+                            SectionCard(title = "📁 Catégorie", subtitle = key.ifBlank { "(sans key)" }) {
+                                OutlinedTextField(value = key, onValueChange = { key = it }, label = { Text("Key") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Label") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(value = emoji, onValueChange = { emoji = it }, label = { Text("Emoji") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(value = banner, onValueChange = { banner = it }, label = { Text("Banner URL") }, modifier = Modifier.fillMaxWidth())
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        enabled = !isSaving
-                    ) {
-                        if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
-                        else {
-                            Icon(Icons.Default.Save, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sauvegarder Catégories")
+                        }
+
+                        item {
+                            SectionCard(title = "📌 Staff ping roles (${staffPingRoleIds.size})") {
+                                staffPingRoleIds.forEach { roleId ->
+                                    RemovableIdRow(
+                                        label = "Rôle",
+                                        id = roleId,
+                                        resolvedName = roles[roleId],
+                                        onRemove = { staffPingRoleIds = staffPingRoleIds.filterNot { it == roleId } }
+                                    )
+                                }
+                                RoleSelector(
+                                    roles = roles.filterKeys { !staffPingRoleIds.contains(it) },
+                                    selectedRoleId = newStaffRoleId,
+                                    onRoleSelected = { newStaffRoleId = it },
+                                    label = "Ajouter un rôle staff ping"
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = { newStaffRoleId?.let { staffPingRoleIds = staffPingRoleIds + it; newStaffRoleId = null } },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = newStaffRoleId != null
+                                ) { Text("➕ Ajouter") }
+                            }
+                        }
+
+                        item {
+                            SectionCard(title = "👁️ Viewer roles (${extraViewerRoleIds.size})") {
+                                extraViewerRoleIds.forEach { roleId ->
+                                    RemovableIdRow(
+                                        label = "Rôle",
+                                        id = roleId,
+                                        resolvedName = roles[roleId],
+                                        onRemove = { extraViewerRoleIds = extraViewerRoleIds.filterNot { it == roleId } }
+                                    )
+                                }
+                                RoleSelector(
+                                    roles = roles.filterKeys { !extraViewerRoleIds.contains(it) },
+                                    selectedRoleId = newViewerRoleId,
+                                    onRoleSelected = { newViewerRoleId = it },
+                                    label = "Ajouter un viewer rôle"
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = { newViewerRoleId?.let { extraViewerRoleIds = extraViewerRoleIds + it; newViewerRoleId = null } },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = newViewerRoleId != null
+                                ) { Text("➕ Ajouter") }
+                            }
+                        }
+
+                        item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { categories = categories.filterIndexed { i, _ -> i != idx }; selectedCategoryIndex = null },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935))
+                                ) { Text("🗑️ Supprimer") }
+
+                                Button(
+                                    onClick = {
+                                        val updated = buildJsonObject {
+                                            put("key", key)
+                                            put("label", label)
+                                            put("emoji", emoji)
+                                            put("description", description)
+                                            put("bannerUrl", banner)
+                                            put("staffPingRoleIds", JsonArray(staffPingRoleIds.map { JsonPrimitive(it) }))
+                                            put("extraViewerRoleIds", JsonArray(extraViewerRoleIds.map { JsonPrimitive(it) }))
+                                        }
+                                        categories = categories.mapIndexed { i, old -> if (i == idx) updated else old }
+                                        selectedCategoryIndex = null
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("✅ Appliquer") }
+                            }
                         }
                     }
                 }
             }
 
             else -> {
-                item {
-                    SectionCard(
-                        title = "📋 Historique",
-                        subtitle = "$recordsCount enregistrements (read-only)"
-                    ) {
-                        Text(
-                            "Le dashboard web affiche l'historique complet. Ici on montre juste un résumé.",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item {
+                        SectionCard(
+                            title = "📋 Historique",
+                            subtitle = "$recordsCount enregistrements (read-only)"
+                        ) {
+                            Text(
+                                "Le dashboard web affiche l'historique complet. Ici on montre juste un résumé.",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
             }
