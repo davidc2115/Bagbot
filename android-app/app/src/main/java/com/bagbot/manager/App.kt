@@ -101,7 +101,8 @@ fun EconomyFullScreen(
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    members: Map<String, String>
+    members: Map<String, String>,
+    onBack: (() -> Unit)? = null
 ) {
     var balances by remember { mutableStateOf<List<UserBalance>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -149,6 +150,12 @@ fun EconomyFullScreen(
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFA726))) {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
                     Icon(Icons.Default.AttachMoney, null, tint = Color.White, modifier = Modifier.size(32.dp))
                     Spacer(Modifier.width(12.dp))
                     Column {
@@ -342,7 +349,8 @@ fun FunFullScreen(
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
-    snackbar: SnackbarHostState
+    snackbar: SnackbarHostState,
+    onBack: (() -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var selectedCategory by remember { mutableStateOf("sfw") } // "sfw" or "nsfw"
@@ -498,6 +506,33 @@ fun FunFullScreen(
     }
     
     Column(Modifier.fillMaxSize()) {
+        // Header avec bouton retour si fourni
+        if (onBack != null) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF9B59B6))) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            "🎲 Action ou Vérité",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Gestion des prompts SFW/NSFW",
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        }
+        
         TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("🎲 Ajouter") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("📋 Gestion") })
@@ -1872,12 +1907,12 @@ fun CategoryDetailScreen(
     // au lieu d'afficher "en développement"
     when (category.id) {
         "economy" -> {
-            // Afficher l'écran d'économie complète
-            EconomyFullScreen(api, json, scope, snackbar, members)
+            // Afficher l'écran d'économie complète avec bouton retour
+            EconomyFullScreen(api, json, scope, snackbar, members, onBack)
         }
         "truthdare" -> {
-            // Afficher l'écran Action/Vérité
-            FunFullScreen(api, json, scope, snackbar)
+            // Afficher l'écran Action/Vérité avec bouton retour
+            FunFullScreen(api, json, scope, snackbar, onBack)
         }
         else -> {
             // Pour les autres catégories, utiliser ConfigEditorScreen

@@ -818,6 +818,48 @@ app.get('/api/discord/members', async (req, res) => {
   }
 });
 
+// Economy balances endpoint
+app.get('/api/economy/balances', async (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const balances = guildConfig.economy?.balances || {};
+    
+    // Convertir en format array attendu par l'app
+    const balanceArray = Object.entries(balances).map(([userId, data]) => ({
+      userId,
+      amount: data.amount || 0
+    }));
+    
+    res.json({ balances: balanceArray });
+  } catch (err) {
+    console.error('Error fetching economy balances:', err);
+    res.status(500).json({ error: 'Failed to fetch economy balances' });
+  }
+});
+
+// Levels leaderboard endpoint
+app.get('/api/levels/leaderboard', async (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const users = guildConfig.levels?.users || {};
+    
+    // Convertir en format array attendu par l'app
+    const leaderboard = Object.entries(users).map(([userId, data]) => ({
+      userId,
+      xp: data.xp || 0,
+      level: data.level || 0,
+      messages: data.messages || 0
+    })).sort((a, b) => b.xp - a.xp); // Trier par XP descendant
+    
+    res.json({ leaderboard });
+  } catch (err) {
+    console.error('Error fetching levels leaderboard:', err);
+    res.status(500).json({ error: 'Failed to fetch levels leaderboard' });
+  }
+});
+
 // Legacy endpoints for backward compatibility
 app.get('/api/config', (req, res) => {
   try {
