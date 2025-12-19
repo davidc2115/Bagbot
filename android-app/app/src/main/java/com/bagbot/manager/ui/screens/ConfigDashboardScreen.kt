@@ -238,6 +238,7 @@ private fun EconomyConfigTab(
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
     val currency = eco?.obj("currency")
+    val actionsConfig = eco?.obj("actions")?.obj("config")
 
     var emoji by remember { mutableStateOf(settings?.str("emoji") ?: "💰") }
     var currencyName by remember { mutableStateOf(currency?.str("name") ?: "BAG$") }
@@ -247,9 +248,91 @@ private fun EconomyConfigTab(
         settings?.obj("cooldowns")?.mapValues { it.value.jsonPrimitive.intOrNull ?: 0 } ?: emptyMap()
     }
     var cooldowns by remember(initialCooldowns) { mutableStateOf(initialCooldowns) }
+    var selectedCooldownAction by remember {
+        mutableStateOf(cooldowns.keys.sorted().firstOrNull())
+    }
+    var selectedCooldownValue by remember { mutableStateOf("") }
     var newCooldownKey by remember { mutableStateOf("") }
     var newCooldownValue by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
+    var cooldownPickerOpen by remember { mutableStateOf(false) }
+
+    // Actions config (actCfg)
+    val actionNames = remember(actionsConfig, cooldowns) {
+        val a = actionsConfig?.keys ?: emptySet()
+        val c = cooldowns.keys
+        (a + c).toList().distinct().sorted()
+    }
+    var selectedAction by remember { mutableStateOf(actionNames.firstOrNull()) }
+    var actionPickerOpen by remember { mutableStateOf(false) }
+
+    // Champs action (comme dashboard)
+    var moneyMin by remember { mutableStateOf("") }
+    var moneyMax by remember { mutableStateOf("") }
+    var karma by remember { mutableStateOf("none") } // none|charm|perversion
+    var karmaDelta by remember { mutableStateOf("") }
+    var xpDelta by remember { mutableStateOf("") }
+    var successRate by remember { mutableStateOf("") } // 0..1
+    var failMoneyMin by remember { mutableStateOf("") }
+    var failMoneyMax by remember { mutableStateOf("") }
+    var failKarmaDelta by remember { mutableStateOf("") }
+    var failXpDelta by remember { mutableStateOf("") }
+    var partnerMoneySharePercent by remember { mutableStateOf("") }
+    var partnerKarmaSharePercent by remember { mutableStateOf("") }
+    var partnerXpSharePercent by remember { mutableStateOf("") }
+    var actionCooldownSec by remember { mutableStateOf("") }
+    var zonesReadOnly by remember { mutableStateOf("") }
+
+    fun currentActionObj(): JsonObject? =
+        selectedAction?.let { actionsConfig?.get(it)?.jsonObject }
+
+    // sync selected cooldown value
+    LaunchedEffect(selectedCooldownAction, cooldowns) {
+        val key = selectedCooldownAction
+        selectedCooldownValue = (key?.let { cooldowns[it] } ?: 0).toString()
+    }
+
+    // Sync action fields when selection changes
+    LaunchedEffect(selectedAction, actionsConfig) {
+        val obj = currentActionObj()
+        if (obj == null) {
+            moneyMin = "0"
+            moneyMax = "0"
+            karma = "none"
+            karmaDelta = "0"
+            xpDelta = "0"
+            successRate = "1"
+            failMoneyMin = "0"
+            failMoneyMax = "0"
+            failKarmaDelta = "0"
+            failXpDelta = "0"
+            partnerMoneySharePercent = "0"
+            partnerKarmaSharePercent = "0"
+            partnerXpSharePercent = "0"
+            actionCooldownSec = "0"
+            zonesReadOnly = ""
+            return@LaunchedEffect
+        }
+
+        moneyMin = (obj["moneyMin"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        moneyMax = (obj["moneyMax"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        karma = obj["karma"]?.jsonPrimitive?.contentOrNull ?: "none"
+        karmaDelta = (obj["karmaDelta"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        xpDelta = (obj["xpDelta"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        successRate = (obj["successRate"]?.jsonPrimitive?.doubleOrNull ?: 1.0).toString()
+
+        failMoneyMin = (obj["failMoneyMin"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        failMoneyMax = (obj["failMoneyMax"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        failKarmaDelta = (obj["failKarmaDelta"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        failXpDelta = (obj["failXpDelta"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+
+        partnerMoneySharePercent = ((obj["partnerMoneyShare"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 100).toString()
+        partnerKarmaSharePercent = ((obj["partnerKarmaShare"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 100).toString()
+        partnerXpSharePercent = ((obj["partnerXpShare"]?.jsonPrimitive?.doubleOrNull ?: 0.0) * 100).toString()
+
+        actionCooldownSec = (obj["cooldown"]?.jsonPrimitive?.intOrNull ?: 0).toString()
+        zonesReadOnly = obj["zones"]?.jsonArray?.joinToString(", ") { it.jsonPrimitive.contentOrNull ?: "" } ?: ""
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -281,31 +364,83 @@ private fun EconomyConfigTab(
                 title = "⏱️ Cooldowns (settings.cooldowns)",
                 subtitle = "${cooldowns.size} entrées"
             ) {
-                cooldowns.entries.sortedBy { it.key }.forEach { (k, v) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(k, color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text("$v", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                if (actionNames.isEmpty()) {
+                    Text("Aucune action disponible", color = Color.Gray)
+                } else {
+                    Text("Action", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    Box(Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { cooldownPickerOpen = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(selectedCooldownAction ?: "Sélectionner…")
                         }
-                        IconButton(onClick = { cooldowns = cooldowns - k }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = Color(0xFFE53935))
+                        DropdownMenu(
+                            expanded = cooldownPickerOpen,
+                            onDismissRequest = { cooldownPickerOpen = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            actionNames.forEach { a ->
+                                DropdownMenuItem(
+                                    text = { Text(a) },
+                                    onClick = {
+                                        selectedCooldownAction = a
+                                        cooldownPickerOpen = false
+                                    }
+                                )
+                            }
                         }
                     }
-                    Divider(color = Color(0xFF2A2A2A))
+
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = selectedCooldownValue,
+                        onValueChange = { selectedCooldownValue = it },
+                        label = { Text("Cooldown (sec)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                val k = selectedCooldownAction ?: return@Button
+                                val v = selectedCooldownValue.trim().toIntOrNull() ?: 0
+                                cooldowns = cooldowns + (k to v)
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = selectedCooldownAction != null
+                        ) { Text("💾 Appliquer") }
+
+                        OutlinedButton(
+                            onClick = {
+                                val k = selectedCooldownAction ?: return@OutlinedButton
+                                cooldowns = cooldowns - k
+                                selectedCooldownAction = cooldowns.keys.sorted().firstOrNull()
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = selectedCooldownAction != null
+                        ) { Text("🗑️ Supprimer") }
+                    }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Divider(color = Color(0xFF2A2A2A), modifier = Modifier.padding(vertical = 12.dp))
+
+                Text("Ajouter une action manuellement", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = newCooldownKey,
                     onValueChange = { newCooldownKey = it },
-                    label = { Text("Clé") },
+                    label = { Text("Nom action") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = newCooldownValue,
                     onValueChange = { newCooldownValue = it },
-                    label = { Text("Valeur (sec)") },
+                    label = { Text("Cooldown (sec)") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -316,13 +451,165 @@ private fun EconomyConfigTab(
                         val v = newCooldownValue.trim().toIntOrNull()
                         if (k.isNotBlank() && v != null) {
                             cooldowns = cooldowns + (k to v)
+                            selectedCooldownAction = k
                             newCooldownKey = ""
                             newCooldownValue = ""
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = newCooldownKey.isNotBlank() && newCooldownValue.toIntOrNull() != null
-                ) { Text("➕ Ajouter / Modifier") }
+                ) { Text("➕ Ajouter") }
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "🎬 Réglages d'action (actCfg)",
+                subtitle = "Sélectionnez une action puis modifiez ses paramètres (inclut cooldown)"
+            ) {
+                if (actionNames.isEmpty()) {
+                    Text("Aucune action configurée", color = Color.Gray)
+                    return@SectionCard
+                }
+
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { actionPickerOpen = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(selectedAction ?: "Sélectionner…")
+                    }
+                    DropdownMenu(
+                        expanded = actionPickerOpen,
+                        onDismissRequest = { actionPickerOpen = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        actionNames.forEach { a ->
+                            DropdownMenuItem(
+                                text = { Text(a) },
+                                onClick = {
+                                    selectedAction = a
+                                    actionPickerOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("✅ Réussite", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(moneyMin, { moneyMin = it }, label = { Text("Argent Min") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(moneyMax, { moneyMax = it }, label = { Text("Argent Max") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(karma, { karma = it }, label = { Text("Karma (none/charm/perversion)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(karmaDelta, { karmaDelta = it }, label = { Text("Karma Δ") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(xpDelta, { xpDelta = it }, label = { Text("XP") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(successRate, { successRate = it }, label = { Text("Taux Succès (0..1)") }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("❌ Échec", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(failMoneyMin, { failMoneyMin = it }, label = { Text("Argent Min (échec)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(failMoneyMax, { failMoneyMax = it }, label = { Text("Argent Max (échec)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(failKarmaDelta, { failKarmaDelta = it }, label = { Text("Karma Δ (échec)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(failXpDelta, { failXpDelta = it }, label = { Text("XP (échec)") }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("👥 Partenaire (%)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(partnerMoneySharePercent, { partnerMoneySharePercent = it }, label = { Text("Argent (%)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(partnerKarmaSharePercent, { partnerKarmaSharePercent = it }, label = { Text("Karma (%)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(partnerXpSharePercent, { partnerXpSharePercent = it }, label = { Text("XP (%)") }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("⚙️ Autres", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(actionCooldownSec, { actionCooldownSec = it }, label = { Text("Cooldown (sec)") }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(zonesReadOnly, { zonesReadOnly = it }, label = { Text("Zones (lecture seule)") }, enabled = false, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        val actionName = selectedAction ?: return@Button
+                        scope.launch {
+                            isSaving = true
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val cfgMap = actionsConfig?.toMutableMap() ?: mutableMapOf()
+                                    val existing = cfgMap[actionName]?.jsonObject
+                                    val updated = (existing?.toMutableMap() ?: mutableMapOf()).apply {
+                                        this["moneyMin"] = JsonPrimitive(moneyMin.toIntOrNull() ?: 0)
+                                        this["moneyMax"] = JsonPrimitive(moneyMax.toIntOrNull() ?: 0)
+                                        this["karma"] = JsonPrimitive(karma.ifBlank { "none" })
+                                        this["karmaDelta"] = JsonPrimitive(karmaDelta.toIntOrNull() ?: 0)
+                                        this["xpDelta"] = JsonPrimitive(xpDelta.toIntOrNull() ?: 0)
+                                        this["successRate"] = JsonPrimitive(successRate.toDoubleOrNull() ?: 1.0)
+
+                                        this["failMoneyMin"] = JsonPrimitive(failMoneyMin.toIntOrNull() ?: 0)
+                                        this["failMoneyMax"] = JsonPrimitive(failMoneyMax.toIntOrNull() ?: 0)
+                                        this["failKarmaDelta"] = JsonPrimitive(failKarmaDelta.toIntOrNull() ?: 0)
+                                        this["failXpDelta"] = JsonPrimitive(failXpDelta.toIntOrNull() ?: 0)
+
+                                        this["partnerMoneyShare"] = JsonPrimitive((partnerMoneySharePercent.toDoubleOrNull() ?: 0.0) / 100.0)
+                                        this["partnerKarmaShare"] = JsonPrimitive((partnerKarmaSharePercent.toDoubleOrNull() ?: 0.0) / 100.0)
+                                        this["partnerXpShare"] = JsonPrimitive((partnerXpSharePercent.toDoubleOrNull() ?: 0.0) / 100.0)
+
+                                        this["cooldown"] = JsonPrimitive(actionCooldownSec.toIntOrNull() ?: 0)
+                                    }
+                                    cfgMap[actionName] = JsonObject(updated)
+
+                                    val body = buildJsonObject {
+                                        put("config", JsonObject(cfgMap))
+                                    }
+                                    api.postJson("/api/actions", json.encodeToString(JsonObject.serializer(), body))
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("✅ Action sauvegardée: $actionName")
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                    }
+                                } finally {
+                                    withContext(Dispatchers.Main) { isSaving = false }
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = selectedAction != null && !isSaving
+                ) {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder l'action")
+                }
             }
         }
 
