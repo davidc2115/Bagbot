@@ -297,6 +297,39 @@ private fun DashboardTab(
     val ecoUsers = eco?.size ?: 0
     val levelUsers = levels?.size ?: 0
     
+    var connectedUsers by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var isLoadingUsers by remember { mutableStateOf(false) }
+    
+    fun loadConnectedUsers() {
+        scope.launch {
+            isLoadingUsers = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val resp = api.getJson("/api/admin/sessions")
+                    val obj = json.parseToJsonElement(resp).jsonObject
+                    val sessions = obj["sessions"]?.jsonArray?.mapNotNull {
+                        val session = it.jsonObject
+                        val userId = session["userId"]?.jsonPrimitive?.contentOrNull
+                        val lastSeen = session["lastSeen"]?.jsonPrimitive?.contentOrNull
+                        if (userId != null && lastSeen != null) Pair(userId, lastSeen) else null
+                    } ?: emptyList()
+                    withContext(Dispatchers.Main) {
+                        connectedUsers = sessions
+                    }
+                } catch (e: Exception) {
+                    // Silently fail if endpoint doesn't exist
+                    withContext(Dispatchers.Main) {
+                        connectedUsers = emptyList()
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) { isLoadingUsers = false }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadConnectedUsers() }
+    
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -363,6 +396,76 @@ private fun DashboardTab(
                         color = Color(0xFF9B59B6)
                     )
                 }
+                
+                // Connectés
+                item {
+                    StatCard(
+                        title = "🟢 Connectés",
+                        value = connectedUsers.size.toString(),
+                        color = Color(0xFF57F287),
+                        textColor = Color.Black
+                    )
+                }
+            }
+        }
+        
+        // Connected users section
+        item {
+            SectionCard(
+                title = "🟢 Membres Connectés",
+                subtitle = "${connectedUsers.size} en ligne"
+            ) {
+                if (isLoadingUsers) {
+                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (connectedUsers.isEmpty()) {
+                    Text(
+                        "Aucun membre connecté actuellement",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        connectedUsers.take(10).forEach { (userId, lastSeen) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        members[userId] ?: "Membre inconnu",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "Vu: $lastSeen",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Color(0xFF57F287), shape = androidx.compose.foundation.shape.CircleShape)
+                                )
+                            }
+                            if (connectedUsers.indexOf(Pair(userId, lastSeen)) < connectedUsers.size - 1) {
+                                Divider(color = Color(0xFF2A2A2A))
+                            }
+                        }
+                        if (connectedUsers.size > 10) {
+                            Text(
+                                "+ ${connectedUsers.size - 10} autres membres",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
         
@@ -371,7 +474,8 @@ private fun DashboardTab(
                 onClick = {
                     scope.launch {
                         try {
-                            snackbar.showSnackbar("🔄 Rechargement...")
+                            loadConnectedUsers()
+                            snackbar.showSnackbar("🔄 Rechargé")
                         } catch (e: Exception) {
                             snackbar.showSnackbar("❌ Erreur: ${e.message}")
                         }
@@ -440,7 +544,7 @@ private fun EconomyConfigTab(
     snackbar: SnackbarHostState
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique")
+    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique", "Karma")
     
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
@@ -709,31 +813,303 @@ private fun EconomyConfigTab(
                 }
             }
             3 -> {
-                // Boutique placeholder
-                Box(
+                // Boutique
+                var shopItems by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+                var isLoading by remember { mutableStateOf(false) }
+                
+                fun loadShop() {
+                    scope.launch {
+                        isLoading = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val resp = api.getJson("/api/economy/shop")
+                                val obj = json.parseToJsonElement(resp).jsonObject
+                                val items = obj["items"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                                withContext(Dispatchers.Main) {
+                                    shopItems = items
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                }
+                            } finally {
+                                withContext(Dispatchers.Main) { isLoading = false }
+                            }
+                        }
+                    }
+                }
+                
+                LaunchedEffect(Unit) { loadShop() }
+                
+                LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "🛒 Boutique",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            IconButton(onClick = { loadShop() }, enabled = !isLoading) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
+                            }
+                        }
                         Text(
-                            "🛒 Boutique",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Section en construction",
+                            "${shopItems.size} objet(s)",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.Gray
                         )
-                        Spacer(Modifier.height(16.dp))
+                    }
+                    
+                    if (isLoading) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    } else {
+                        itemsIndexed(shopItems) { index, item ->
+                            val emoji = item["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
+                            val name = item["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                            val itemId = item["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                            val price = item["price"]?.jsonPrimitive?.intOrNull ?: 0
+                            
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                            ) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                emoji,
+                                                style = MaterialTheme.typography.displaySmall
+                                            )
+                                            Column {
+                                                Text(
+                                                    name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                                Text(
+                                                    "ID: $itemId",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            "$price $currencyName",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF57F287)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (shopItems.isEmpty()) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(40.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                "🛒",
+                                                style = MaterialTheme.typography.displayLarge
+                                            )
+                                            Spacer(Modifier.height(16.dp))
+                                            Text(
+                                                "Aucun objet dans la boutique",
+                                                color = Color.Gray,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            4 -> {
+                // Karma
+                var karmaEnabled by remember { mutableStateOf(false) }
+                var karmaDay by remember { mutableIntStateOf(0) }
+                var isSaving by remember { mutableStateOf(false) }
+                
+                LaunchedEffect(Unit) {
+                    // Load karma config
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val resp = api.getJson("/api/economy/karma")
+                                val obj = json.parseToJsonElement(resp).jsonObject
+                                withContext(Dispatchers.Main) {
+                                    karmaEnabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                                    karmaDay = obj["day"]?.jsonPrimitive?.intOrNull ?: 0
+                                }
+                            } catch (e: Exception) {
+                                // Ignore if not configured
+                            }
+                        }
+                    }
+                }
+                
+                val usersWithCharm = eco?.values?.count { 
+                    it.jsonObject["charm"]?.jsonPrimitive?.intOrNull?.let { it > 0 } ?: false 
+                } ?: 0
+                
+                val usersWithPerversion = eco?.values?.count { 
+                    it.jsonObject["perversion"]?.jsonPrimitive?.intOrNull?.let { it > 0 } ?: false 
+                } ?: 0
+                
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
                         Text(
-                            "Gérez la boutique via le dashboard web\nou utilisez les commandes Discord",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
+                            "🔄 Karma",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
+                        Text(
+                            "Configuration du système Karma",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                    
+                    item {
+                        SectionCard(
+                            title = "🔄 Reset Automatique",
+                            subtitle = if (karmaEnabled) "Actif" else "Inactif"
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Activer le reset automatique", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Switch(checked = karmaEnabled, onCheckedChange = { karmaEnabled = it })
+                            }
+                            
+                            if (karmaEnabled) {
+                                Spacer(Modifier.height(16.dp))
+                                Text("Jour de reset", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(8.dp))
+                                
+                                val days = listOf("Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi")
+                                Column {
+                                    days.forEachIndexed { index, day ->
+                                        Row(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .clickable { karmaDay = index }
+                                                .padding(vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = karmaDay == index,
+                                                onClick = { karmaDay = index }
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(day, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    item {
+                        SectionCard(
+                            title = "📊 Statistiques",
+                            subtitle = "Utilisateurs actifs"
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Utilisateurs avec charme 🫦", color = Color.White)
+                                    Text(
+                                        usersWithCharm.toString(),
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFEB459E)
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Utilisateurs avec perversion 😈", color = Color.White)
+                                    Text(
+                                        usersWithPerversion.toString(),
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF9B59B6)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("enabled", karmaEnabled)
+                                                put("day", karmaDay)
+                                            }
+                                            api.postJson("/api/economy/karma", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("✅ Karma sauvegardé")
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                            }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Karma")
+                            }
+                        }
                     }
                 }
             }

@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -132,6 +136,119 @@ fun AdminScreen(
                     Icon(Icons.Default.Add, null)
                     Spacer(Modifier.width(8.dp))
                     Text("Autoriser l'accès")
+                }
+            }
+        }
+        
+        Spacer(Modifier.height(24.dp))
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = BagError.copy(alpha = 0.1f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = BagError,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Révocation totale d'accès",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = BagError
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Retirer DÉFINITIVEMENT l'accès à l'application (même si admin)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.height(12.dp))
+                
+                var userToRevoke by remember { mutableStateOf<String?>(null) }
+                var showRevokeConfirm by remember { mutableStateOf(false) }
+                
+                MemberSelector(
+                    members = allowedUsers.associateWith { members[it] ?: "Utilisateur $it" },
+                    selectedMemberId = userToRevoke,
+                    onMemberSelected = { userToRevoke = it },
+                    label = "Sélectionner l'utilisateur à révoquer"
+                )
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Button(
+                    onClick = { showRevokeConfirm = true },
+                    enabled = userToRevoke != null && !isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = BagError)
+                ) {
+                    Icon(Icons.Default.Block, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Révoquer définitivement")
+                }
+                
+                if (showRevokeConfirm && userToRevoke != null) {
+                    AlertDialog(
+                        onDismissRequest = { showRevokeConfirm = false },
+                        title = { Text("⚠️ Confirmation") },
+                        text = {
+                            Column {
+                                Text("Voulez-vous vraiment révoquer DÉFINITIVEMENT l'accès de :")
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    members[userToRevoke] ?: "Utilisateur inconnu",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = BagError
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Cette action est irréversible et retire tous les droits, même admin.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        isLoading = true
+                                        try {
+                                            val body = """{"userId":"$userToRevoke","permanent":true}"""
+                                            api.postJson("/api/admin/allowed-users/revoke", body)
+                                            
+                                            val response = api.getJson("/api/admin/allowed-users")
+                                            val data = json.parseToJsonElement(response).jsonObject
+                                            allowedUsers = data["allowedUsers"]?.jsonArray?.map {
+                                                it.jsonPrimitive.content
+                                            } ?: emptyList()
+                                            
+                                            userToRevoke = null
+                                            showRevokeConfirm = false
+                                            onShowSnackbar("✅ Accès révoqué définitivement")
+                                        } catch (e: Exception) {
+                                            onShowSnackbar("❌ Erreur: ${e.message}")
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = BagError)
+                            ) {
+                                Text("Révoquer")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showRevokeConfirm = false }) {
+                                Text("Annuler")
+                            }
+                        }
+                    )
                 }
             }
         }
