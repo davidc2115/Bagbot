@@ -37,13 +37,16 @@ fun DisboardConfigScreen(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/disboard")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val disboardData = allConfigs["disboard"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    remindersEnabled = data["remindersEnabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                    remindChannelId = data["remindChannelId"]?.jsonPrimitive?.contentOrNull ?: ""
-                    lastBumpAt = data["lastBumpAt"]?.jsonPrimitive?.longOrNull
-                    reminded = data["reminded"]?.jsonPrimitive?.booleanOrNull ?: false
+                    if (disboardData != null) {
+                        remindersEnabled = disboardData["remindersEnabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                        remindChannelId = disboardData["remindChannelId"]?.jsonPrimitive?.contentOrNull ?: ""
+                        lastBumpAt = disboardData["lastBumpAt"]?.jsonPrimitive?.longOrNull
+                        reminded = disboardData["reminded"]?.jsonPrimitive?.booleanOrNull ?: false
+                    }
                 }
             } catch (e: Exception) {
             } finally {
@@ -165,18 +168,21 @@ fun CountingConfigScreen(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/counting")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val countingData = allConfigs["counting"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    countChannels = data["channels"]?.jsonArray?.mapNotNull {
-                        it.jsonPrimitive.contentOrNull
-                    } ?: emptyList()
-                    formulasAllowed = data["formulasAllowed"]?.jsonPrimitive?.booleanOrNull ?: false
-                    currentCount = data["current"]?.jsonPrimitive?.intOrNull ?: 0
-                    lastUserId = data["lastUserId"]?.jsonPrimitive?.contentOrNull
-                    achievedNumbers = data["achievedNumbers"]?.jsonArray?.mapNotNull {
-                        it.jsonPrimitive.intOrNull
-                    } ?: emptyList()
+                    if (countingData != null) {
+                        countChannels = countingData["channels"]?.jsonArray?.mapNotNull {
+                            it.jsonPrimitive.contentOrNull
+                        } ?: emptyList()
+                        formulasAllowed = countingData["formulasAllowed"]?.jsonPrimitive?.booleanOrNull ?: false
+                        currentCount = countingData["current"]?.jsonPrimitive?.intOrNull ?: 0
+                        lastUserId = countingData["lastUserId"]?.jsonPrimitive?.contentOrNull
+                        achievedNumbers = countingData["achievedNumbers"]?.jsonArray?.mapNotNull {
+                            it.jsonPrimitive.intOrNull
+                        } ?: emptyList()
+                    }
                 }
             } catch (e: Exception) {
             } finally {
@@ -340,21 +346,24 @@ fun TruthDareConfigScreen(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/truthdare")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val tdData = allConfigs["truthdare"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    sfwChannels = data["sfw"]?.jsonObject?.get("channels")?.jsonArray?.mapNotNull {
-                        it.jsonPrimitive.contentOrNull
-                    } ?: emptyList()
-                    nsfwChannels = data["nsfw"]?.jsonObject?.get("channels")?.jsonArray?.mapNotNull {
-                        it.jsonPrimitive.contentOrNull
-                    } ?: emptyList()
-                    
-                    val promptsMap = mutableMapOf<String, List<String>>()
-                    data["prompts"]?.jsonObject?.forEach { (key, value) ->
-                        promptsMap[key] = value.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    if (tdData != null) {
+                        sfwChannels = tdData["sfw"]?.jsonObject?.get("channels")?.jsonArray?.mapNotNull {
+                            it.jsonPrimitive.contentOrNull
+                        } ?: emptyList()
+                        nsfwChannels = tdData["nsfw"]?.jsonObject?.get("channels")?.jsonArray?.mapNotNull {
+                            it.jsonPrimitive.contentOrNull
+                        } ?: emptyList()
+                        
+                        val promptsMap = mutableMapOf<String, List<String>>()
+                        tdData["prompts"]?.jsonObject?.forEach { (key, value) ->
+                            promptsMap[key] = value.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+                        }
+                        prompts = promptsMap
                     }
-                    prompts = promptsMap
                 }
             } catch (e: Exception) {
             } finally {

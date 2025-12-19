@@ -39,17 +39,20 @@ fun BoostConfigScreen(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/boost")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val boostData = allConfigs["boost"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    enabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                    textXpMult = data["textXpMult"]?.jsonPrimitive?.doubleOrNull ?: 2.0
-                    voiceXpMult = data["voiceXpMult"]?.jsonPrimitive?.doubleOrNull ?: 2.0
-                    actionCooldownMult = data["actionCooldownMult"]?.jsonPrimitive?.doubleOrNull ?: 0.5
-                    shopPriceMult = data["shopPriceMult"]?.jsonPrimitive?.doubleOrNull ?: 0.5
-                    boostRoles = data["roles"]?.jsonArray?.mapNotNull {
-                        it.jsonPrimitive.contentOrNull
-                    } ?: emptyList()
+                    if (boostData != null) {
+                        enabled = boostData["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                        textXpMult = boostData["textXpMult"]?.jsonPrimitive?.doubleOrNull ?: 2.0
+                        voiceXpMult = boostData["voiceXpMult"]?.jsonPrimitive?.doubleOrNull ?: 2.0
+                        actionCooldownMult = boostData["actionCooldownMult"]?.jsonPrimitive?.doubleOrNull ?: 0.5
+                        shopPriceMult = boostData["shopPriceMult"]?.jsonPrimitive?.doubleOrNull ?: 0.5
+                        boostRoles = boostData["roles"]?.jsonArray?.mapNotNull {
+                            it.jsonPrimitive.contentOrNull
+                        } ?: emptyList()
+                    }
                 }
             } catch (e: Exception) {
             } finally {
@@ -231,12 +234,15 @@ fun GeoFullScreen(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/geo")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val geoData = allConfigs["geo"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    geoLocations = data["locations"]?.jsonObject?.mapValues { 
-                        it.value.jsonObject 
-                    } ?: emptyMap()
+                    if (geoData != null) {
+                        geoLocations = geoData["locations"]?.jsonObject?.mapValues { 
+                            it.value.jsonObject 
+                        } ?: emptyMap()
+                    }
                 }
             } catch (e: Exception) {
             } finally {

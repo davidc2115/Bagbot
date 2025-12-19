@@ -42,10 +42,17 @@ fun ActionsGifsScreen(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/economy/actions/gifs")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val economyData = allConfigs["economy"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    actionsData = data.mapValues { it.value.jsonObject }
+                    if (economyData != null) {
+                        val actionsObject = economyData["actions"]?.jsonObject
+                        val gifsObject = actionsObject?.get("gifs")?.jsonObject
+                        if (gifsObject != null) {
+                            actionsData = gifsObject.mapValues { it.value.jsonObject }
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 // Handle error
@@ -59,8 +66,23 @@ fun ActionsGifsScreen(
         selectedAction?.let { action ->
             withContext(Dispatchers.IO) {
                 try {
+                    // Charger la config complète
+                    val response = api.getJson("/api/configs")
+                    val allConfigs = json.parseToJsonElement(response).jsonObject.toMutableMap()
+                    
+                    // Mettre à jour economy.actions.gifs
+                    val economy = allConfigs["economy"]?.jsonObject?.toMutableMap() ?: mutableMapOf()
+                    val actions = (economy["actions"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+                    val gifs = (actions["gifs"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+                    
                     val actionData = actionsData[action] ?: buildJsonObject {}
-                    api.putJson("/api/economy/actions/gifs/$action", actionData.toString())
+                    gifs[action] = actionData
+                    
+                    actions["gifs"] = JsonObject(gifs)
+                    economy["actions"] = JsonObject(actions)
+                    
+                    // Sauvegarder toute la section economy
+                    api.putJson("/api/configs/economy", JsonObject(economy).toString())
                 } catch (e: Exception) {
                     // Handle error
                 }

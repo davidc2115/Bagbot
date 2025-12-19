@@ -76,14 +76,27 @@ fun EconomyConfigTab(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/economy")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val economyData = allConfigs["economy"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    enabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                    startCoins = data["startCoins"]?.jsonPrimitive?.intOrNull ?: 100
-                    dailyAmount = data["dailyAmount"]?.jsonPrimitive?.intOrNull ?: 50
-                    workMinAmount = data["workMinAmount"]?.jsonPrimitive?.intOrNull ?: 10
-                    workMaxAmount = data["workMaxAmount"]?.jsonPrimitive?.intOrNull ?: 50
+                    if (economyData != null) {
+                        enabled = economyData["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                        // Vérifier si settings existe, sinon utiliser les valeurs directes
+                        val settings = economyData["settings"]?.jsonObject
+                        if (settings != null) {
+                            startCoins = settings["startCoins"]?.jsonPrimitive?.intOrNull ?: 100
+                            dailyAmount = settings["dailyAmount"]?.jsonPrimitive?.intOrNull ?: 50
+                            workMinAmount = settings["workMinAmount"]?.jsonPrimitive?.intOrNull ?: 10
+                            workMaxAmount = settings["workMaxAmount"]?.jsonPrimitive?.intOrNull ?: 50
+                        } else {
+                            // Fallback si pas de settings, chercher directement dans economy
+                            startCoins = economyData["startCoins"]?.jsonPrimitive?.intOrNull ?: 100
+                            dailyAmount = economyData["dailyAmount"]?.jsonPrimitive?.intOrNull ?: 50
+                            workMinAmount = economyData["workMinAmount"]?.jsonPrimitive?.intOrNull ?: 10
+                            workMaxAmount = economyData["workMaxAmount"]?.jsonPrimitive?.intOrNull ?: 50
+                        }
+                    }
                 }
             } catch (e: Exception) {
             } finally {
@@ -118,10 +131,12 @@ fun EconomyConfigTab(
                         try {
                             val updates = buildJsonObject {
                                 put("enabled", enabled)
-                                put("startCoins", startCoins)
-                                put("dailyAmount", dailyAmount)
-                                put("workMinAmount", workMinAmount)
-                                put("workMaxAmount", workMaxAmount)
+                                putJsonObject("settings") {
+                                    put("startCoins", startCoins)
+                                    put("dailyAmount", dailyAmount)
+                                    put("workMinAmount", workMinAmount)
+                                    put("workMaxAmount", workMaxAmount)
+                                }
                             }
                             api.putJson("/api/configs/economy", updates.toString())
                             Result.success("✅ Sauvegardé")
@@ -329,14 +344,17 @@ fun LevelsConfigTab(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
-                val response = api.getJson("/api/configs/levels")
-                val data = json.parseToJsonElement(response).jsonObject
+                val response = api.getJson("/api/configs")
+                val allConfigs = json.parseToJsonElement(response).jsonObject
+                val levelsData = allConfigs["levels"]?.jsonObject
                 withContext(Dispatchers.Main) {
-                    enabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                    textXpMin = data["textXpMin"]?.jsonPrimitive?.intOrNull ?: 5
-                    textXpMax = data["textXpMax"]?.jsonPrimitive?.intOrNull ?: 15
-                    voiceXpPerMin = data["voiceXpPerMin"]?.jsonPrimitive?.intOrNull ?: 10
-                    xpMultiplier = data["xpMultiplier"]?.jsonPrimitive?.doubleOrNull ?: 1.2
+                    if (levelsData != null) {
+                        enabled = levelsData["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                        textXpMin = levelsData["textXpMin"]?.jsonPrimitive?.intOrNull ?: 5
+                        textXpMax = levelsData["textXpMax"]?.jsonPrimitive?.intOrNull ?: 15
+                        voiceXpPerMin = levelsData["voiceXpPerMin"]?.jsonPrimitive?.intOrNull ?: 10
+                        xpMultiplier = levelsData["xpMultiplier"]?.jsonPrimitive?.doubleOrNull ?: 1.2
+                    }
                 }
             } catch (e: Exception) {
             } finally {
