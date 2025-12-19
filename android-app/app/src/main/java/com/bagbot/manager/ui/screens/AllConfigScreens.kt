@@ -111,25 +111,66 @@ fun WelcomeConfigScreen(
                     }
                 }
             ) {
-                ConfigSwitch("Système activé", enabled) { enabled = it }
+                ConfigSwitch(
+                    label = "Système activé",
+                    checked = enabled,
+                    onCheckedChange = { enabled = it }
+                )
                 Spacer(Modifier.height(16.dp))
-                ChannelSelector(channels, channelId, { channelId = it }, "Salon de bienvenue")
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = channelId,
+                    onChannelSelected = { channelId = it },
+                    label = "Salon de bienvenue"
+                )
                 Spacer(Modifier.height(16.dp))
-                ConfigTextField("Message", message, { message = it }, "Bienvenue {user} !", true)
+                ConfigTextField(
+                    label = "Message",
+                    value = message,
+                    onValueChange = { message = it },
+                    placeholder = "Bienvenue {user} !",
+                    multiline = true
+                )
                 Spacer(Modifier.height(16.dp))
-                ConfigSwitch("Activer l'embed", embedEnabled) { embedEnabled = it }
+                ConfigSwitch(
+                    label = "Activer l'embed",
+                    checked = embedEnabled,
+                    onCheckedChange = { embedEnabled = it }
+                )
                 
                 if (embedEnabled) {
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Titre embed", embedTitle, { embedTitle = it })
+                    ConfigTextField(
+                        label = "Titre embed",
+                        value = embedTitle,
+                        onValueChange = { embedTitle = it }
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Description", embedDescription, { embedDescription = it }, multiline = true)
+                    ConfigTextField(
+                        label = "Description",
+                        value = embedDescription,
+                        onValueChange = { embedDescription = it },
+                        multiline = true
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Couleur (hex)", embedColor, { embedColor = it }, "#4CAF50")
+                    ConfigTextField(
+                        label = "Couleur (hex)",
+                        value = embedColor,
+                        onValueChange = { embedColor = it },
+                        placeholder = "#4CAF50"
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Footer", embedFooter, { embedFooter = it })
+                    ConfigTextField(
+                        label = "Footer",
+                        value = embedFooter,
+                        onValueChange = { embedFooter = it }
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigSwitch("Envoyer en DM", sendEmbedInDM) { sendEmbedInDM = it }
+                    ConfigSwitch(
+                        label = "Envoyer en DM",
+                        checked = sendEmbedInDM,
+                        onCheckedChange = { sendEmbedInDM = it }
+                    )
                 }
             }
         }
@@ -227,23 +268,60 @@ fun GoodbyeConfigScreen(
                     }
                 }
             ) {
-                ConfigSwitch("Système activé", enabled) { enabled = it }
+                ConfigSwitch(
+                    label = "Système activé",
+                    checked = enabled,
+                    onCheckedChange = { enabled = it }
+                )
                 Spacer(Modifier.height(16.dp))
-                ChannelSelector(channels, channelId, { channelId = it }, "Salon d'au revoir")
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = channelId,
+                    onChannelSelected = { channelId = it },
+                    label = "Salon d'au revoir"
+                )
                 Spacer(Modifier.height(16.dp))
-                ConfigTextField("Message", message, { message = it }, "Au revoir {user} !", true)
+                ConfigTextField(
+                    label = "Message",
+                    value = message,
+                    onValueChange = { message = it },
+                    placeholder = "Au revoir {user} !",
+                    multiline = true
+                )
                 Spacer(Modifier.height(16.dp))
-                ConfigSwitch("Activer l'embed", embedEnabled) { embedEnabled = it }
+                ConfigSwitch(
+                    label = "Activer l'embed",
+                    checked = embedEnabled,
+                    onCheckedChange = { embedEnabled = it }
+                )
                 
                 if (embedEnabled) {
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Titre embed", embedTitle, { embedTitle = it })
+                    ConfigTextField(
+                        label = "Titre embed",
+                        value = embedTitle,
+                        onValueChange = { embedTitle = it }
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Description", embedDescription, { embedDescription = it }, multiline = true)
+                    ConfigTextField(
+                        label = "Description",
+                        value = embedDescription,
+                        onValueChange = { embedDescription = it },
+                        multiline = true
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Couleur (hex)", embedColor, { embedColor = it }, "#8B4513")
+                    ConfigTextField(
+                        label = "Couleur (hex)",
+                        value = embedColor,
+                        onValueChange = { embedColor = it },
+                        placeholder = "#8B4513"
+                    )
                     Spacer(Modifier.height(16.dp))
-                    ConfigTextField("Footer", embedFooter, { embedFooter = it })
+                    ConfigTextField(
+                        label = "Footer",
+                        value = embedFooter,
+                        onValueChange = { embedFooter = it }
+                    )
                 }
             }
         }
@@ -335,11 +413,25 @@ fun TicketsConfigScreen(
                     }
                 }
             ) {
-                ConfigSwitch("Système activé", enabled) { enabled = it }
+                ConfigSwitch(
+                    label = "Système activé",
+                    checked = enabled,
+                    onCheckedChange = { enabled = it }
+                )
                 Spacer(Modifier.height(16.dp))
-                ChannelSelector(channels, panelChannelId, { panelChannelId = it }, "Canal du panel")
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = panelChannelId,
+                    onChannelSelected = { panelChannelId = it },
+                    label = "Canal du panel"
+                )
                 Spacer(Modifier.height(16.dp))
-                ChannelSelector(channels, categoryId, { categoryId = it }, "Catégorie des tickets")
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = categoryId,
+                    onChannelSelected = { categoryId = it },
+                    label = "Catégorie des tickets"
+                )
                 Spacer(Modifier.height(16.dp))
                 
                 Text("Rôles staff à ping", style = MaterialTheme.typography.titleSmall)
@@ -366,7 +458,12 @@ fun TicketsConfigScreen(
                     Spacer(Modifier.height(8.dp))
                 }
                 
-                RoleSelector(roles, selectedRoleToAdd, { selectedRoleToAdd = it }, "Ajouter un rôle")
+                RoleSelector(
+                    roles = roles,
+                    selectedRoleId = selectedRoleToAdd,
+                    onRoleSelected = { selectedRoleToAdd = it },
+                    label = "Ajouter un rôle"
+                )
                 Spacer(Modifier.height(8.dp))
                 
                 Button(
