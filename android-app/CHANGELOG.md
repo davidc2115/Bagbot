@@ -1,111 +1,166 @@
 # Changelog - BAG Bot Manager Android
 
-## [2.2.0] - 2025-12-19
+## [3.0.0] - 2025-12-19
+
+### 🎉 VERSION MAJEURE - Fusion v2.5.2 + v2.8.0
+
+#### ✨ Nouvelles Fonctionnalités Majeures
+
+##### 🎨 Interface avec 20 Catégories en Vignettes (de v2.5.2)
+- **Refonte complète** de l'interface de configuration
+- **20 catégories distinctes** affichées en grille colorée
+- **Icônes et couleurs** distinctives pour chaque catégorie
+- **Navigation intuitive** par vignettes au lieu de groupes
+
+**Catégories disponibles:**
+- 📊 Dashboard, 💰 Économie, 📈 Niveaux, 🚀 Booster
+- 🔢 Comptage, 🎲 Action/Vérité, 🎬 Actions (GIFs)
+- 📝 Logs, 🎫 Tickets, 💬 Confessions
+- 👋 Welcome, 👋 Goodbye, 👥 Staff
+- 👢 AutoKick, ⏰ Inactivité
+- 🧵 AutoThread, 📢 Disboard
+- 🌍 Géolocalisation, 💾 Backups, 🎮 Contrôle Bot
+
+##### 📊 Informations Enrichies (de v2.8.0)
+
+**Statut du Bot:**
+- Statistiques détaillées (uptime, redémarrages, commandes)
+- Métriques système (CPU, RAM via PM2)
+- Version du bot en temps réel
+
+**Serveur Discord:**
+- Nom et icône du serveur
+- Compteurs : membres, salons, rôles
+- Date de création du serveur
+
+**Carte Dashboard:**
+- Version dashboard
+- Statistiques de stockage
+- **✨ Liste visuelle des fonctionnalités actives**
+
+**Statistiques Temps Réel:**
+- Économie : utilisateurs actifs, monnaie totale
+- Niveaux : niveau maximum atteint
+
+#### 🔐 Système de Permissions Admin Amélioré
+
+##### Vérification Automatique des Permissions Discord
+- **Détection automatique** des administrateurs via l'API Discord
+- Vérification des permissions `Administrator` et `ManageGuild`
+- Vérification des rôles staff configurés
+- **Tous les admins Discord** ont maintenant accès à la section Admin
+
+##### Accès à la Section Admin
+- ✅ **Fondateur** : Accès automatique complet
+- ✅ **Administrateurs Discord** : Accès automatique via permissions
+- ✅ **Rôles Staff** : Accès si configuré dans les rôles staff
+- 🔒 **Autres membres** : Pas d'accès à la section Admin
+
+#### 💬 Chat Staff en Temps Réel
+
+##### Communication Inter-Admins Améliorée
+- **Synchronisation automatique** toutes les 5 secondes
+- **Polling intelligent** : récupération uniquement des nouveaux messages
+- **Système de timestamp** pour éviter les doublons
+- **Messages partagés** entre toutes les applications des admins
+- **Affichage en temps réel** des nouveaux messages
+
+##### Fonctionnalités du Chat
+- Envoi de messages instantané
+- Affichage du nom d'utilisateur et avatar
+- Historique des 100 derniers messages
+- Rafraîchissement manuel possible
+- Notification visuelle du nombre de messages
+
+### 🔧 Améliorations Backend
+
+#### Nouvelles APIs
+
+**1. `/api/me` (enrichie)**
+- Retourne maintenant `isAdmin` et `isFounder`
+- Vérification automatique des permissions Discord
+- Récupération des rôles du membre
+- Validation contre les rôles staff configurés
+
+**2. `/api/staff/messages` (nouvelle)**
+- `GET` : Récupérer les messages avec pagination par timestamp
+- `POST` : Envoyer un nouveau message
+- `DELETE /:messageId` : Supprimer un message (auteur ou fondateur)
+- Stockage en mémoire des 100 derniers messages
+
+**3. `/api/staff/online` (nouvelle)**
+- Liste des admins connectés (actifs dans les 5 dernières minutes)
+- Mise à jour automatique du statut de présence
+- Nettoyage automatique des utilisateurs inactifs
+
+### 🎨 Améliorations UI/UX
+
+- **Interface modernisée** avec vignettes colorées
+- **Navigation intuitive** par catégories
+- **Cartes d'information** bien organisées
+- **Codes couleur cohérents** pour chaque section
+- **Emojis** pour meilleure lisibilité
+- **Messages de chargement** informatifs
+
+### 🐛 Corrections
+
+- Correction de la vérification des permissions admin
+- Amélioration du système de polling du chat staff
+- Optimisation du chargement des messages
+- Meilleure gestion des erreurs réseau
+- Fix des doublons de messages dans le chat
+
+### 📝 Documentation
+
+- README.md mis à jour avec nouvelles fonctionnalités
+- Documentation des nouvelles APIs
+- Guide d'utilisation complet
+- Section résolution de problèmes enrichie
+
+### 🔐 Sécurité
+
+- Vérification des permissions via Discord API
+- Validation automatique des accès admin
+- Limitation des messages à 2000 caractères
+- Nettoyage automatique des tokens expirés
+- Protection contre les doublons de messages
+
+### 📱 Informations Techniques
+
+- **Version :** 3.0.0
+- **Version Code :** 30
+- **Min SDK :** Android 8.0 (API 26)
+- **Target SDK :** Android 14 (API 34)
+- **Taille :** ~11 MB
+
+---
+
+## [2.8.0] - 2025-12-19
 
 ### ✨ Nouvelles Fonctionnalités
 
 #### Informations Enrichies du Bot
-- Ajout des statistiques détaillées du bot dans l'écran d'accueil
-- Affichage du temps de fonctionnement (uptime) du bot
-- Affichage du nombre de redémarrages
-- Affichage de l'utilisation mémoire et CPU (via PM2)
+- Statistiques détaillées du bot
+- Informations du serveur Discord
+- Nouvelle carte Dashboard
+- Statistiques temps réel
 
-#### Informations du Serveur Discord
-- Nouvelle section affichant le nom du serveur Discord
-- Compteurs détaillés : membres totaux, salons, rôles
-- Statistiques économie : nombre d'utilisateurs actifs et monnaie totale
-- Statistiques de niveaux : niveau maximum atteint par les membres
-- Icône du serveur Discord (à venir)
-
-#### Nouveau Dashboard Info
-- Nouvelle carte "Dashboard" dans l'écran d'accueil
-- Affichage de la version du dashboard (v2.8)
-- Temps de fonctionnement du dashboard
-- Port d'écoute du serveur
-- Statistiques de stockage :
-  - Nombre de sauvegardes disponibles
-  - Nombre de fichiers uploadés
-  - Taille du fichier de configuration
-- Liste visuelle des fonctionnalités actives avec emojis :
-  - 💰 Économie
-  - 📊 Niveaux
-  - 🎲 Action/Vérité
-  - 🎫 Tickets
-  - 💬 Confessions
-  - 🚪 Auto-kick
-  - 🔢 Comptage
-  - 🌍 Géolocalisation
-  - 🎵 Musique
-
-### 🔧 Améliorations Backend
-
-#### API `/api/bot/status` Enrichie
-- Ajout des informations du serveur Discord (guild)
-- Ajout des statistiques d'économie et de niveaux
-- Ajout des métriques système (mémoire, CPU)
-- Récupération automatique du nombre de membres/salons/rôles
-
-#### Nouvelle API `/api/dashboard/info`
-- Exposition des informations du dashboard
-- Liste des fonctionnalités activées/désactivées
-- Statistiques de stockage et de configuration
-- Informations système (OS, version Node.js, hostname)
-
-### 🎨 Améliorations UI/UX
-
-- Design amélioré de la carte "Statut du Bot"
-- Meilleure organisation des informations avec dividers
-- Codes couleur cohérents pour les différentes statistiques
-- Emojis pour une meilleure lisibilité
-- Messages de chargement plus informatifs lors du démarrage
-
-### 🐛 Corrections de Bugs
-- Correction du typo dans l'affichage de la version (Bot au lieu de juste Version)
-- Amélioration de la gestion des erreurs lors du chargement des données
-- Meilleure gestion des données nulles/manquantes
-
-### 📝 Documentation
-- Ajout d'un README.md complet
-- Documentation des nouvelles APIs
-- Guide d'installation et de configuration
-- Section résolution de problèmes
-
-### 🔐 Sécurité
-- Pas de changements majeurs, même niveau de sécurité OAuth
+(Voir détails dans le CHANGELOG précédent)
 
 ---
 
-## [2.1.8] - Précédente Version
+## [2.5.2] - 2025-12-19
 
-### Fonctionnalités
-- Chat staff intégré
-- Corrections critiques de sécurité
-- Amélioration de l'affichage des noms réels (rôles, channels, membres)
+### ✨ Interface Modernisée
 
----
+- 20 catégories en vignettes colorées
+- Interface intuitive et moderne
+- Navigation par vignettes
 
-## [2.1.7] - Version Complète
-
-### Fonctionnalités
-- Application ultra-complète avec toutes les fonctionnalités
-- Éditeurs de configuration par catégories
-- Gestion complète du bot depuis l'app mobile
+(Voir détails dans le CHANGELOG précédent)
 
 ---
 
-## [2.1.0] - Version Complète Recréée
+## Versions Antérieures
 
-### Fonctionnalités
-- Reconstruction complète de l'application
-- Architecture améliorée
-- UI modernisée avec Material 3
-
----
-
-## [2.0.x] - Versions Initiales
-
-### Fonctionnalités
-- Lancement initial de l'application
-- Authentification OAuth Discord
-- Gestion basique de la configuration
-- Interface par vignettes catégorisées
+Voir les releases précédents sur GitHub pour l'historique complet.

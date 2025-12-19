@@ -2345,8 +2345,8 @@ app.get('/auth/mobile/callback', async (req, res) => {
   }
 });
 
-// Route /api/me
-app.get('/api/me', (req, res) => {
+// Route /api/me - Avec vérification des permissions Discord
+app.get('/api/me', async (req, res) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token' });
@@ -2364,11 +2364,117 @@ app.get('/api/me', (req, res) => {
     return res.status(401).json({ error: 'Token expired' });
   }
   
+  // Récupérer les informations du membre sur le serveur Discord
+  let isAdmin = false;
+  let isFounder = userData.userId === '943487722738311219';
+  let memberRoles = [];
+  let permissions = '0';
+  
+  try {
+    // Récupérer les infos du membre depuis Discord API
+    const memberData = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'discord.com',
+        path: `/api/v10/guilds/${GUILD}/members/${userData.userId}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bot ${DISCORD_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      };
+      
+      const req = https.request(options, (response) => {
+        let data = '';
+        response.on('data', (chunk) => data += chunk);
+        response.on('end', () => {
+          if (response.statusCode === 200) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error(`Discord API error: ${response.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    
+    memberRoles = memberData.roles || [];
+    
+    // Vérifier les permissions via les rôles
+    if (memberRoles.length > 0) {
+      const rolesData = await getRoles();
+      
+      // Récupérer les permissions de chaque rôle
+      for (const roleId of memberRoles) {
+        try {
+          const roleInfo = await new Promise((resolve, reject) => {
+            const options = {
+              hostname: 'discord.com',
+              path: `/api/v10/guilds/${GUILD}/roles`,
+              method: 'GET',
+              headers: {
+                'Authorization': `Bot ${DISCORD_TOKEN}`,
+                'Content-Type': 'application/json'
+              }
+            };
+            
+            const req = https.request(options, (response) => {
+              let data = '';
+              response.on('data', (chunk) => data += chunk);
+              response.on('end', () => {
+                if (response.statusCode === 200) {
+                  const roles = JSON.parse(data);
+                  const role = roles.find(r => r.id === roleId);
+                  resolve(role);
+                } else {
+                  reject(new Error(`Discord API error: ${response.statusCode}`));
+                }
+              });
+            });
+            req.on('error', reject);
+            req.end();
+          });
+          
+          if (roleInfo && roleInfo.permissions) {
+            const perms = BigInt(roleInfo.permissions);
+            // Vérifier les permissions Administrator (0x8) ou ManageGuild (0x20)
+            if ((perms & 0x8n) === 0x8n || (perms & 0x20n) === 0x20n) {
+              isAdmin = true;
+              break;
+            }
+          }
+        } catch (err) {
+          console.error('Error checking role permissions:', err);
+        }
+      }
+    }
+    
+    // Vérifier aussi les rôles staff configurés
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const staffRoleIds = guildConfig.staffRoleIds || [];
+    
+    if (staffRoleIds.some(roleId => memberRoles.includes(roleId))) {
+      isAdmin = true;
+    }
+    
+  } catch (err) {
+    console.error('Error fetching member data:', err.message);
+  }
+  
+  // Le fondateur a toujours accès admin
+  if (isFounder) {
+    isAdmin = true;
+  }
+  
   res.json({
     userId: userData.userId,
     username: userData.username,
     discriminator: userData.discriminator,
-    avatar: userData.avatar
+    avatar: userData.avatar,
+    isAdmin: isAdmin,
+    isFounder: isFounder,
+    roles: memberRoles
   });
 });
 
@@ -2496,10 +2602,168 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
   }
 });
 
+// ============================================
+// CHAT STAFF API - Communication en temps réel
+// ============================================
+
+// Stockage des messages staff en mémoire (max 100 messages)
+const staffMessages = [];
+const MAX_STAFF_MESSAGES = 100;
+
+// GET /api/staff/messages - Récupérer les messages (avec pagination/timestamp)
+app.get('/api/staff/messages', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  // Récupérer depuis quel timestamp (pour ne récupérer que les nouveaux messages)
+  const since = parseInt(req.query.since) || 0;
+  
+  // Filtrer les messages depuis le timestamp demandé
+  const messages = staffMessages.filter(msg => msg.timestamp > since);
+  
+  res.json({
+    messages: messages,
+    currentTimestamp: Date.now()
+  });
+});
+
+// POST /api/staff/messages - Poster un nouveau message
+app.post('/api/staff/messages', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const { message } = req.body;
+  
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ error: 'Message requis' });
+  }
+  
+  if (message.length > 2000) {
+    return res.status(400).json({ error: 'Message trop long (max 2000 caractères)' });
+  }
+  
+  // Créer le message
+  const newMessage = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    userId: userData.userId,
+    username: userData.username,
+    avatar: userData.avatar,
+    message: message.trim(),
+    timestamp: Date.now()
+  };
+  
+  // Ajouter au tableau
+  staffMessages.push(newMessage);
+  
+  // Limiter la taille du tableau
+  if (staffMessages.length > MAX_STAFF_MESSAGES) {
+    staffMessages.shift(); // Supprimer le plus ancien
+  }
+  
+  console.log(`💬 [Staff Chat] ${userData.username}: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+  
+  res.json({
+    success: true,
+    message: newMessage
+  });
+});
+
+// DELETE /api/staff/messages/:messageId - Supprimer un message (admin seulement)
+app.delete('/api/staff/messages/:messageId', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const { messageId } = req.params;
+  const messageIndex = staffMessages.findIndex(msg => msg.id === messageId);
+  
+  if (messageIndex === -1) {
+    return res.status(404).json({ error: 'Message non trouvé' });
+  }
+  
+  const message = staffMessages[messageIndex];
+  
+  // Vérifier que c'est l'auteur du message ou le fondateur
+  if (message.userId !== userData.userId && userData.userId !== '943487722738311219') {
+    return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres messages' });
+  }
+  
+  staffMessages.splice(messageIndex, 1);
+  
+  console.log(`🗑️ [Staff Chat] Message supprimé par ${userData.username}`);
+  
+  res.json({ success: true });
+});
+
+// GET /api/staff/online - Liste des admins connectés (actifs dans les 5 dernières minutes)
+const activeUsers = new Map(); // userId -> { username, avatar, lastSeen }
+
+app.get('/api/staff/online', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  // Mettre à jour le lastSeen de l'utilisateur actuel
+  activeUsers.set(userData.userId, {
+    userId: userData.userId,
+    username: userData.username,
+    avatar: userData.avatar,
+    lastSeen: Date.now()
+  });
+  
+  // Nettoyer les utilisateurs inactifs (plus de 5 minutes)
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  for (const [userId, user] of activeUsers.entries()) {
+    if (user.lastSeen < fiveMinutesAgo) {
+      activeUsers.delete(userId);
+    }
+  }
+  
+  // Retourner la liste des utilisateurs actifs
+  res.json({
+    online: Array.from(activeUsers.values())
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`✓ Dashboard V2 Server running on port ${PORT}`);
   console.log(`✓ Guild ID: ${GUILD}`);
   console.log(`✓ Config file: ${CONFIG}`);
   console.log(`✓ Access: http://localhost:${PORT}`);
   console.log(`✓ Discord API integration enabled`);
+  console.log(`✓ Staff Chat API enabled`);
 });

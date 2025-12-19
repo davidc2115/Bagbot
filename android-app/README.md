@@ -1,10 +1,60 @@
 # BAG Bot Manager - Application Android
 
-## 📱 Version 2.2.0
+## 📱 Version 3.0.0
 
 Application Android de gestion complète du bot Discord BAG (Boy and Girls) et de son dashboard.
 
-## ✨ Nouvelles Fonctionnalités (v2.2.0)
+### 🎉 VERSION MAJEURE - Fusion v2.5.2 + v2.8.0
+
+Cette version combine le meilleur des deux mondes :
+- **Interface en vignettes** de la v2.5.2 (20 catégories colorées)
+- **Informations enrichies** de la v2.8.0 (stats bot/serveur/dashboard)
+- **Système admin amélioré** avec permissions Discord automatiques
+- **Chat staff en temps réel** synchronisé entre tous les admins
+
+## ✨ Nouvelles Fonctionnalités (v3.0.0)
+
+### 🎨 Interface avec 20 Catégories en Vignettes
+
+Toutes les sections du dashboard sont maintenant accessibles via des **vignettes colorées** avec icônes distinctives :
+
+#### 🎯 Gamification & Économie
+- 📊 Dashboard - Vue d'ensemble
+- 💰 Économie - Gestion coins/boutique  
+- 📈 Niveaux - Système XP
+- 🚀 Booster - Configuration
+
+#### 🎮 Jeux & Fun
+- 🔢 Comptage - Jeu comptage
+- 🎲 Action/Vérité - Prompts SFW/NSFW
+- 🎬 Actions (GIFs) - GIFs réaction
+
+#### 🛠️ Modération & Administration
+- 📝 Logs, 🎫 Tickets, 💬 Confessions
+- 👥 Staff, 👢 AutoKick, ⏰ Inactivité
+
+#### 🌐 Communication & Utilitaires
+- 👋 Welcome, 👋 Goodbye, 🧵 AutoThread
+- 📢 Disboard, 🌍 Géolocalisation
+- 💾 Backups, 🎮 Contrôle Bot
+
+### 🔐 Système Admin Intelligent
+
+#### Détection Automatique des Permissions
+- ✅ **Administrateurs Discord** détectés automatiquement
+- ✅ Vérification des permissions `Administrator` et `ManageGuild`
+- ✅ Vérification des rôles staff configurés
+- 🔒 **Tous les admins** ont accès à la section Admin (pas seulement le fondateur)
+
+### 💬 Chat Staff en Temps Réel
+
+- **Synchronisation automatique** toutes les 5 secondes
+- **Messages partagés** entre toutes les applications des admins
+- **Polling intelligent** : récupération uniquement des nouveaux messages
+- **Historique** des 100 derniers messages
+- **Affichage du statut** : nombre de messages, rafraîchissement
+
+### 📊 Informations Enrichies (v2.8.0)
 
 ### 🎯 Informations Enrichies du Bot
 

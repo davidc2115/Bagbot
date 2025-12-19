@@ -727,24 +727,36 @@ fun StaffChatScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSending by remember { mutableStateOf(false) }
     
+    var lastTimestamp by remember { mutableStateOf(0L) }
+    
     fun loadMessages() {
         scope.launch {
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val response = api.getJson("/api/staff/chat/messages")
+                    val response = api.getJson("/api/staff/messages?since=$lastTimestamp")
                     val data = json.parseToJsonElement(response).jsonObject
                     withContext(Dispatchers.Main) {
-                        messages = data["messages"]?.jsonArray?.map {
+                        val newMessages = data["messages"]?.jsonArray?.map {
                             val msg = it.jsonObject
                             StaffMessage(
                                 id = msg["id"]?.jsonPrimitive?.content ?: "",
                                 userId = msg["userId"]?.jsonPrimitive?.content ?: "",
                                 username = msg["username"]?.jsonPrimitive?.content ?: "Inconnu",
                                 message = msg["message"]?.jsonPrimitive?.content ?: "",
-                                timestamp = msg["timestamp"]?.jsonPrimitive?.content ?: ""
+                                timestamp = msg["timestamp"]?.jsonPrimitive?.longOrNull?.toString() ?: ""
                             )
                         } ?: emptyList()
+                        
+                        // Ajouter les nouveaux messages à la liste existante
+                        if (newMessages.isNotEmpty()) {
+                            messages = (messages + newMessages).distinctBy { it.id }
+                        }
+                        
+                        // Mettre à jour le timestamp
+                        data["currentTimestamp"]?.jsonPrimitive?.longOrNull?.let {
+                            lastTimestamp = it
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Load messages error: ${e.message}")
@@ -759,24 +771,25 @@ fun StaffChatScreen(
     
     fun sendMessage() {
         if (newMessage.isBlank()) return
+        val messageToSend = newMessage
         scope.launch {
             isSending = true
             withContext(Dispatchers.IO) {
                 try {
-                    val userId = userInfo?.get("id")?.jsonPrimitive?.content ?: "unknown"
-                    val username = userInfo?.get("username")?.jsonPrimitive?.content ?: "Inconnu"
                     val body = buildJsonObject {
-                        put("userId", userId)
-                        put("username", username)
-                        put("message", newMessage)
+                        put("message", messageToSend)
                     }
-                    api.postJson("/api/staff/chat/send", body.toString())
+                    api.postJson("/api/staff/messages", body.toString())
                     withContext(Dispatchers.Main) {
                         newMessage = ""
+                        // Charger immédiatement les nouveaux messages
                         loadMessages()
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Send error: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
                 } finally {
                     withContext(Dispatchers.Main) {
                         isSending = false
@@ -1021,7 +1034,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         
         withContext(Dispatchers.IO) {
             try {
-                // 1. Informations utilisateur
+                // 1. Informations utilisateur et permissions
                 loadingMessage = "Récupération de votre profil..."
                 Log.d(TAG, "Fetching /api/me")
                 try {
@@ -1031,9 +1044,10 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     withContext(Dispatchers.Main) {
                         userId = me["userId"]?.jsonPrimitive?.contentOrNull ?: ""
                         userName = me["username"]?.jsonPrimitive?.contentOrNull ?: ""
-                        isFounder = userId == "943487722738311219"
+                        isFounder = me["isFounder"]?.jsonPrimitive?.booleanOrNull ?: false
+                        isAdmin = me["isAdmin"]?.jsonPrimitive?.booleanOrNull ?: false
                     }
-                    Log.d(TAG, "User loaded: $userName ($userId)")
+                    Log.d(TAG, "User loaded: $userName ($userId) - Admin: $isAdmin, Founder: $isFounder")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/me: ${e.message}")
                     withContext(Dispatchers.Main) {
@@ -1209,7 +1223,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.Settings, "Config") },
                                 label = { Text("Config") }
                             )
-                            if (isFounder) {
+                            if (isAdmin) {
                                 NavigationBarItem(
                                     selected = tab == 3,
                                     onClick = { tab = 3 },
@@ -1337,7 +1351,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 }
                             )
                         }
-                        tab == 3 && isFounder -> {
+                        tab == 3 && isAdmin -> {
                             StaffMainScreen(
                                 api = api,
                                 json = json,
