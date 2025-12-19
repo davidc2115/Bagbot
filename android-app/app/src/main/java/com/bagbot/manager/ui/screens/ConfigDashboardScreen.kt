@@ -38,6 +38,7 @@ import kotlinx.serialization.json.*
 private const val TAG = "BAG_CONFIG"
 
 private enum class DashTab(val label: String) {
+    Dashboard("🏠 Dashboard"),
     Economy("💰 Économie"),
     Levels("📈 Niveaux"),
     Booster("🚀 Booster"),
@@ -137,7 +138,8 @@ fun ConfigDashboardScreen(
         } else {
             // Show selected category content
             when (selectedTab) {
-                DashTab.Economy -> EconomyConfigTab(configData, api, json, scope, snackbar)
+                DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
+                DashTab.Economy -> EconomyConfigTab(configData, members, api, json, scope, snackbar)
                 DashTab.Levels -> LevelsConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
@@ -276,13 +278,168 @@ private suspend fun postOrPutSection(
 // ------------------------
 
 @Composable
-private fun EconomyConfigTab(
+private fun DashboardTab(
     configData: JsonObject?,
+    members: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
+    val eco = configData?.obj("economy")
+    val levels = configData?.obj("levels")
+    
+    val totalMembers = members.size
+    val totalHumans = members.count { !it.key.contains("bot") }
+    val totalBots = totalMembers - totalHumans
+    val ecoUsers = eco?.size ?: 0
+    val levelUsers = levels?.size ?: 0
+    
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text(
+                "📊 Dashboard",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+        
+        // Grid of statistics cards
+        item {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.height(600.dp)
+            ) {
+                // Membres Total
+                item {
+                    StatCard(
+                        title = "👥 Membres Total",
+                        value = totalMembers.toString(),
+                        color = Color(0xFF5865F2)
+                    )
+                }
+                
+                // Humains
+                item {
+                    StatCard(
+                        title = "😊 Humains",
+                        value = totalHumans.toString(),
+                        color = Color(0xFF57F287)
+                    )
+                }
+                
+                // Bots
+                item {
+                    StatCard(
+                        title = "🤖 Bots",
+                        value = totalBots.toString(),
+                        color = Color(0xFFED4245)
+                    )
+                }
+                
+                // Économie
+                item {
+                    StatCard(
+                        title = "💰 Économie",
+                        value = ecoUsers.toString(),
+                        color = Color(0xFFFEE75C),
+                        textColor = Color.Black
+                    )
+                }
+                
+                // Niveaux
+                item {
+                    StatCard(
+                        title = "📊 Niveaux",
+                        value = levelUsers.toString(),
+                        color = Color(0xFF9B59B6)
+                    )
+                }
+            }
+        }
+        
+        item {
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            snackbar.showSnackbar("🔄 Rechargement...")
+                        } catch (e: Exception) {
+                            snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "Recharger")
+                Spacer(Modifier.width(8.dp))
+                Text("Rafraîchir les données")
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatCard(
+    title: String,
+    value: String,
+    color: Color,
+    textColor: Color = Color.White
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f),
+        colors = CardDefaults.cardColors(containerColor = color),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = textColor.copy(alpha = 0.9f),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.displaySmall,
+                    color = textColor,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EconomyConfigTab(
+    configData: JsonObject?,
+    members: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    var selectedSubTab by remember { mutableIntStateOf(0) }
+    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique")
+    
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
     val currency = eco?.obj("currency")
@@ -299,119 +456,283 @@ private fun EconomyConfigTab(
     var newCooldownValue by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            SectionCard(
-                title = "💰 Paramètres Économie",
-                subtitle = "Emoji + devise + cooldowns (comme le dashboard)"
-            ) {
-                OutlinedTextField(
-                    value = emoji,
-                    onValueChange = { emoji = it },
-                    label = { Text("Emoji") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = currencyName,
-                    onValueChange = { currencyName = it },
-                    label = { Text("Devise") },
-                    modifier = Modifier.fillMaxWidth()
+    Column(Modifier.fillMaxSize()) {
+        // Sub-tabs
+        ScrollableTabRow(
+            selectedTabIndex = selectedSubTab,
+            containerColor = Color(0xFF1E1E1E),
+            contentColor = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            subTabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedSubTab == index,
+                    onClick = { selectedSubTab = index },
+                    text = { Text(title) }
                 )
             }
         }
-
-        item {
-            SectionCard(
-                title = "⏱️ Cooldowns (settings.cooldowns)",
-                subtitle = "${cooldowns.size} entrées"
-            ) {
-                cooldowns.entries.sortedBy { it.key }.forEach { (k, v) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(k, color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text("$v", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                        IconButton(onClick = { cooldowns = cooldowns - k }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = Color(0xFFE53935))
+        
+        when (selectedSubTab) {
+            0 -> {
+                // Settings
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        SectionCard(
+                            title = "💰 Paramètres Économie",
+                            subtitle = "Emoji + devise"
+                        ) {
+                            OutlinedTextField(
+                                value = emoji,
+                                onValueChange = { emoji = it },
+                                label = { Text("Emoji") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = currencyName,
+                                onValueChange = { currencyName = it },
+                                label = { Text("Devise") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
-                    Divider(color = Color(0xFF2A2A2A))
-                }
 
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = newCooldownKey,
-                    onValueChange = { newCooldownKey = it },
-                    label = { Text("Clé") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = newCooldownValue,
-                    onValueChange = { newCooldownValue = it },
-                    label = { Text("Valeur (sec)") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(10.dp))
-                Button(
-                    onClick = {
-                        val k = newCooldownKey.trim()
-                        val v = newCooldownValue.trim().toIntOrNull()
-                        if (k.isNotBlank() && v != null) {
-                            cooldowns = cooldowns + (k to v)
-                            newCooldownKey = ""
-                            newCooldownValue = ""
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = newCooldownKey.isNotBlank() && newCooldownValue.toIntOrNull() != null
-                ) { Text("➕ Ajouter / Modifier") }
-            }
-        }
-
-        item {
-            Button(
-                onClick = {
-                    scope.launch {
-                        isSaving = true
-                        withContext(Dispatchers.IO) {
-                            try {
-                                val body = buildJsonObject {
-                                    put("settings", buildJsonObject {
-                                        put("emoji", emoji)
-                                        put("cooldowns", buildJsonObject {
-                                            cooldowns.forEach { (k, v) -> put(k, v) }
-                                        })
-                                    })
-                                    put("currency", buildJsonObject { put("name", currencyName) })
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("settings", buildJsonObject {
+                                                    put("emoji", emoji)
+                                                    put("cooldowns", buildJsonObject {
+                                                        cooldowns.forEach { (k, v) -> put(k, v) }
+                                                    })
+                                                })
+                                                put("currency", buildJsonObject { put("name", currencyName) })
+                                            }
+                                            api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("✅ Settings sauvegardés")
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                            }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
+                                        }
+                                    }
                                 }
-                                api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
-                                withContext(Dispatchers.Main) {
-                                    snackbar.showSnackbar("✅ Économie sauvegardée")
-                                }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                }
-                            } finally {
-                                withContext(Dispatchers.Main) { isSaving = false }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Settings")
                             }
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !isSaving
-            ) {
-                if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
-                else {
-                    Icon(Icons.Default.Save, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Sauvegarder Économie")
+                }
+            }
+            1 -> {
+                // Cooldowns
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        SectionCard(
+                            title = "⏱️ Cooldowns",
+                            subtitle = "${cooldowns.size} entrées"
+                        ) {
+                            cooldowns.entries.sortedBy { it.key }.forEach { (k, v) ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(k, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Text("$v secondes", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    IconButton(onClick = { cooldowns = cooldowns - k }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = Color(0xFFE53935))
+                                    }
+                                }
+                                Divider(color = Color(0xFF2A2A2A))
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = newCooldownKey,
+                                onValueChange = { newCooldownKey = it },
+                                label = { Text("Clé") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = newCooldownValue,
+                                onValueChange = { newCooldownValue = it },
+                                label = { Text("Valeur (sec)") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    val k = newCooldownKey.trim()
+                                    val v = newCooldownValue.trim().toIntOrNull()
+                                    if (k.isNotBlank() && v != null) {
+                                        cooldowns = cooldowns + (k to v)
+                                        newCooldownKey = ""
+                                        newCooldownValue = ""
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = newCooldownKey.isNotBlank() && newCooldownValue.toIntOrNull() != null
+                            ) { Text("➕ Ajouter / Modifier") }
+                        }
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("settings", buildJsonObject {
+                                                    put("emoji", emoji)
+                                                    put("cooldowns", buildJsonObject {
+                                                        cooldowns.forEach { (k, v) -> put(k, v) }
+                                                    })
+                                                })
+                                                put("currency", buildJsonObject { put("name", currencyName) })
+                                            }
+                                            api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("✅ Cooldowns sauvegardés")
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                            }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Cooldowns")
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
+                // Users list (read-only for now)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Text(
+                            "👥 Utilisateurs Économie",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${eco?.size ?: 0} utilisateurs actifs",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                    
+                    eco?.entries?.sortedByDescending { 
+                        it.value.jsonObject["amount"]?.jsonPrimitive?.intOrNull ?: 0 
+                    }?.forEach { (userId, userData) ->
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        members[userId] ?: "Utilisateur inconnu",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "ID: ${userId.takeLast(8)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Text(
+                                            "💰 ${userData.jsonObject["amount"]?.jsonPrimitive?.intOrNull ?: 0} $currencyName",
+                                            color = Color(0xFF57F287),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        userData.jsonObject["charm"]?.jsonPrimitive?.intOrNull?.let {
+                                            Text("🫦 $it", color = Color(0xFFEB459E))
+                                        }
+                                        userData.jsonObject["perversion"]?.jsonPrimitive?.intOrNull?.let {
+                                            Text("😈 $it", color = Color(0xFF9B59B6))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            3 -> {
+                // Boutique placeholder
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "🛒 Boutique",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Section en construction",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Gérez la boutique via le dashboard web\nou utilisez les commandes Discord",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
