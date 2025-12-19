@@ -337,7 +337,18 @@ fun LevelsFullScreen(
     }
 }
 
-// ---------------- FUN SCREEN (GIFs + Prompts) ----------------
+// ---------------- FUN SCREEN (GIFs + Prompts) avec SFW/NSFW ----------------
+data class TruthDarePrompt(
+    val id: Int,
+    val text: String,
+    val type: String // "truth" or "dare"
+)
+
+data class TruthDareCategory(
+    val mode: String, // "sfw" or "nsfw"
+    val prompts: List<TruthDarePrompt>
+)
+
 @Composable
 fun FunFullScreen(
     api: ApiClient,
@@ -346,23 +357,48 @@ fun FunFullScreen(
     snackbar: SnackbarHostState
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    var truthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
-    var darePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedCategory by remember { mutableStateOf("sfw") } // "sfw" or "nsfw"
+    var selectedType by remember { mutableStateOf("truth") } // "truth" or "dare"
+    var sfwData by remember { mutableStateOf<TruthDareCategory?>(null) }
+    var nsfwData by remember { mutableStateOf<TruthDareCategory?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var newPrompt by remember { mutableStateOf("") }
-    var selectedMode by remember { mutableStateOf("truth") }
+    var editingPrompt by remember { mutableStateOf<TruthDarePrompt?>(null) }
+    var editText by remember { mutableStateOf("") }
+    var showEditDialog by remember { mutableStateOf(false) }
     
     fun loadPrompts() {
         scope.launch {
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val response = api.getJson("/api/truthdare/prompts")
-                    val data = json.parseToJsonElement(response).jsonObject
-                    val prompts = data["prompts"]?.jsonObject
+                    // Load SFW
+                    val sfwResponse = api.getJson("/api/truthdare/sfw")
+                    val sfwJson = json.parseToJsonElement(sfwResponse).jsonObject
+                    val sfwPrompts = sfwJson["prompts"]?.jsonArray?.map {
+                        val p = it.jsonObject
+                        TruthDarePrompt(
+                            id = p["id"]?.jsonPrimitive?.int ?: 0,
+                            text = p["text"]?.jsonPrimitive?.content ?: "",
+                            type = p["type"]?.jsonPrimitive?.content ?: "truth"
+                        )
+                    } ?: emptyList()
+                    
+                    // Load NSFW
+                    val nsfwResponse = api.getJson("/api/truthdare/nsfw")
+                    val nsfwJson = json.parseToJsonElement(nsfwResponse).jsonObject
+                    val nsfwPrompts = nsfwJson["prompts"]?.jsonArray?.map {
+                        val p = it.jsonObject
+                        TruthDarePrompt(
+                            id = p["id"]?.jsonPrimitive?.int ?: 0,
+                            text = p["text"]?.jsonPrimitive?.content ?: "",
+                            type = p["type"]?.jsonPrimitive?.content ?: "truth"
+                        )
+                    } ?: emptyList()
+                    
                     withContext(Dispatchers.Main) {
-                        truthPrompts = prompts?.get("truth")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-                        darePrompts = prompts?.get("dare")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        sfwData = TruthDareCategory("sfw", sfwPrompts)
+                        nsfwData = TruthDareCategory("nsfw", nsfwPrompts)
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
@@ -383,10 +419,10 @@ fun FunFullScreen(
             withContext(Dispatchers.IO) {
                 try {
                     val body = buildJsonObject {
-                        put("mode", selectedMode)
+                        put("type", selectedType)
                         put("text", newPrompt)
                     }
-                    api.postJson("/api/truthdare/prompt", body.toString())
+                    api.postJson("/api/truthdare/$selectedCategory", body.toString())
                     withContext(Dispatchers.Main) {
                         newPrompt = ""
                         loadPrompts()
@@ -401,54 +437,271 @@ fun FunFullScreen(
         }
     }
     
+    fun updatePrompt(category: String, id: Int, newText: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject {
+                        put("text", newText)
+                    }
+                    api.patchJson("/api/truthdare/$category/$id", body.toString())
+                    withContext(Dispatchers.Main) {
+                        showEditDialog = false
+                        editingPrompt = null
+                        loadPrompts()
+                        snackbar.showSnackbar("✅ Prompt modifié")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    fun deletePrompt(category: String, id: Int) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    api.deleteJson("/api/truthdare/$category/$id")
+                    withContext(Dispatchers.Main) {
+                        loadPrompts()
+                        snackbar.showSnackbar("✅ Prompt supprimé")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
     LaunchedEffect(Unit) { loadPrompts() }
+    
+    // Dialog pour éditer un prompt
+    if (showEditDialog && editingPrompt != null) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Modifier le prompt") },
+            text = {
+                OutlinedTextField(
+                    value = editText,
+                    onValueChange = { editText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Texte du prompt") },
+                    minLines = 2
+                )
+            },
+            confirmButton = {
+                Button(onClick = { 
+                    editingPrompt?.let { updatePrompt(selectedCategory, it.id, editText) }
+                }) {
+                    Text("Enregistrer")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showEditDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
     
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("🎲 Prompts AouV") })
-            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("🎬 GIFs") })
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("🎲 Ajouter") })
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("📋 Gestion") })
+            Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("🎬 GIFs") })
         }
         
         when (selectedTab) {
             0 -> {
+                // Onglet Ajouter - Interface simplifiée
                 Column(Modifier.fillMaxSize()) {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("🎲 Action ou Vérité", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                            Spacer(Modifier.height(8.dp))
+                            Text("🎲 Ajouter un Prompt", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            
+                            // Sélection catégorie
+                            Text("Catégorie :", color = Color.White, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth()) {
-                                FilterChip(selected = selectedMode == "truth", onClick = { selectedMode = "truth" }, label = { Text("💭 Vérités (${truthPrompts.size})") })
-                                Spacer(Modifier.width(8.dp))
-                                FilterChip(selected = selectedMode == "dare", onClick = { selectedMode = "dare" }, label = { Text("🎯 Actions (${darePrompts.size})") })
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = newPrompt,
-                                    onValueChange = { newPrompt = it },
-                                    modifier = Modifier.weight(1f),
-                                    placeholder = { Text("Nouveau prompt...") },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                FilterChip(
+                                    selected = selectedCategory == "sfw",
+                                    onClick = { selectedCategory = "sfw" },
+                                    label = { Text("✅ SFW") }
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                IconButton(onClick = { addPrompt() }, enabled = newPrompt.isNotBlank()) {
-                                    Icon(Icons.Default.Add, "Ajouter", tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray)
-                                }
+                                FilterChip(
+                                    selected = selectedCategory == "nsfw",
+                                    onClick = { selectedCategory = "nsfw" },
+                                    label = { Text("🔞 NSFW") }
+                                )
                             }
-                        }
-                    }
-                    LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(if (selectedMode == "truth") truthPrompts else darePrompts) { prompt ->
-                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(prompt, modifier = Modifier.weight(1f), color = Color.White)
-                                }
+                            
+                            Spacer(Modifier.height(8.dp))
+                            
+                            // Sélection type
+                            Text("Type :", color = Color.White, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth()) {
+                                FilterChip(
+                                    selected = selectedType == "truth",
+                                    onClick = { selectedType = "truth" },
+                                    label = { Text("💭 Vérité") }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                FilterChip(
+                                    selected = selectedType == "dare",
+                                    onClick = { selectedType = "dare" },
+                                    label = { Text("🎯 Action") }
+                                )
+                            }
+                            
+                            Spacer(Modifier.height(12.dp))
+                            
+                            // Champ de texte
+                            OutlinedTextField(
+                                value = newPrompt,
+                                onValueChange = { newPrompt = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Nouveau prompt", color = Color.White) },
+                                minLines = 2,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            
+                            Spacer(Modifier.height(8.dp))
+                            
+                            Button(
+                                onClick = { addPrompt() },
+                                enabled = newPrompt.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                            ) {
+                                Icon(Icons.Default.Add, "Ajouter")
+                                Spacer(Modifier.width(8.dp))
+                                Text("Ajouter le prompt")
                             }
                         }
                     }
                 }
             }
             1 -> {
+                // Onglet Gestion - Liste des prompts avec édition/suppression
+                Column(Modifier.fillMaxSize().padding(16.dp)) {
+                    Text("📋 Gestion des Prompts", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Sélection de la catégorie
+                    Row(Modifier.fillMaxWidth()) {
+                        FilterChip(
+                            selected = selectedCategory == "sfw",
+                            onClick = { selectedCategory = "sfw" },
+                            label = { 
+                                val count = sfwData?.prompts?.size ?: 0
+                                Text("✅ SFW ($count)")
+                            }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(
+                            selected = selectedCategory == "nsfw",
+                            onClick = { selectedCategory = "nsfw" },
+                            label = { 
+                                val count = nsfwData?.prompts?.size ?: 0
+                                Text("🔞 NSFW ($count)")
+                            }
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    val currentData = if (selectedCategory == "sfw") sfwData else nsfwData
+                    val truthPrompts = currentData?.prompts?.filter { it.type == "truth" } ?: emptyList()
+                    val darePrompts = currentData?.prompts?.filter { it.type == "dare" } ?: emptyList()
+                    
+                    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        // Section Vérités
+                        item {
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF3F51B5))) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        "💭 Vérités (${truthPrompts.size})",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        items(truthPrompts) { prompt ->
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(prompt.text, modifier = Modifier.weight(1f), color = Color.White)
+                                    Row {
+                                        IconButton(onClick = {
+                                            editingPrompt = prompt
+                                            editText = prompt.text
+                                            showEditDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, "Modifier", tint = Color(0xFF2196F3))
+                                        }
+                                        IconButton(onClick = { deletePrompt(selectedCategory, prompt.id) }) {
+                                            Icon(Icons.Default.Delete, "Supprimer", tint = Color(0xFFE53935))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Section Actions
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        "🎯 Actions (${darePrompts.size})",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        items(darePrompts) { prompt ->
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(prompt.text, modifier = Modifier.weight(1f), color = Color.White)
+                                    Row {
+                                        IconButton(onClick = {
+                                            editingPrompt = prompt
+                                            editText = prompt.text
+                                            showEditDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, "Modifier", tint = Color(0xFF2196F3))
+                                        }
+                                        IconButton(onClick = { deletePrompt(selectedCategory, prompt.id) }) {
+                                            Icon(Icons.Default.Delete, "Supprimer", tint = Color(0xFFE53935))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Image, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
