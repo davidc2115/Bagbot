@@ -891,6 +891,51 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     }
                 }
                 
+                // 7. Vérification des droits admin
+                withContext(Dispatchers.Main) {
+                    if (userId.isNotEmpty()) {
+                        // Vérifier si l'utilisateur a un rôle staff
+                        val userRoles = memberRoles[userId] ?: emptyList()
+                        val staffRoles = configData?.get("staffRoleIds")?.jsonArray?.mapNotNull { 
+                            it.jsonPrimitive.contentOrNull 
+                        } ?: emptyList()
+                        
+                        // L'utilisateur est admin s'il a au moins un rôle staff ou s'il est fondateur
+                        isAdmin = isFounder || userRoles.any { it in staffRoles }
+                        
+                        Log.d(TAG, "User $userName - isFounder: $isFounder, isAdmin: $isAdmin")
+                        Log.d(TAG, "User roles: ${userRoles.size}, Staff roles configured: ${staffRoles.size}")
+                        
+                        if (isAdmin) {
+                            Log.d(TAG, "✅ User has admin access")
+                        } else {
+                            Log.d(TAG, "⚠️ User does NOT have admin access")
+                        }
+                    }
+                }
+                
+                // 8. Vérification autorisation d'accès
+                loadingMessage = "Vérification des accès..."
+                Log.d(TAG, "Checking /api/admin/allowed-users")
+                try {
+                    val allowedJson = api.getJson("/api/admin/allowed-users")
+                    val allowedData = json.parseToJsonElement(allowedJson).jsonObject
+                    val allowedUsers = allowedData["allowedUsers"]?.jsonArray?.map {
+                        it.jsonPrimitive.content
+                    } ?: emptyList()
+                    
+                    withContext(Dispatchers.Main) {
+                        isAuthorized = userId in allowedUsers || isFounder
+                        Log.d(TAG, "User authorized: $isAuthorized")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error checking authorization: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        // Si erreur, autoriser le fondateur par défaut
+                        isAuthorized = isFounder
+                    }
+                }
+                
                 Log.d(TAG, "✅ All data loaded successfully")
                 
             } catch (e: Exception) {
