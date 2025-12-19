@@ -1,5 +1,47 @@
 # Changelog - BAG Bot Manager Android
 
+## [3.0.2] - 2025-12-19
+
+### 🔧 Corrections Critiques
+
+#### ✅ Problème Onglet Admin Résolu
+- **Fix majeur**: L'onglet Admin est maintenant toujours accessible depuis toutes les sections
+- Ajout de boutons retour dans les écrans Économie et Action/Vérité
+- Navigation fluide sans perdre l'accès aux fonctionnalités admin
+- Retour aux vignettes de configuration avec le bouton retour
+
+#### 💰 Données Réelles Affichées
+- **Économie**: Les montants réels s'affichent au lieu de 0
+- **Niveaux**: Affichage des XP et niveaux réels des utilisateurs
+- Lecture directe depuis la configuration du bot Discord
+- Synchronisation automatique avec le serveur
+
+#### 🔗 Nouveautés Backend
+**Nouvelles API créées:**
+- `GET /api/economy/balances` - Retourne tous les comptes utilisateurs
+- `GET /api/levels/leaderboard` - Retourne le classement par XP
+- Format JSON standardisé pour toutes les réponses
+
+#### 📱 Améliorations UX
+- Headers personnalisés avec boutons retour
+- Liste d'économie avec recherche et tri par montant
+- Gestion complète des prompts Action/Vérité
+- Navigation intuitive dans toute l'application
+
+#### 🛠️ Changements Techniques
+- `EconomyFullScreen`: Nouveau paramètre `onBack` optionnel
+- `FunFullScreen`: Header dynamique avec navigation
+- `CategoryDetailScreen`: Propagation du callback onBack
+- Backend: Conversion des données config.json vers format API
+
+### 🐛 Bugs Corrigés
+- L'onglet Admin ne disparaît plus lors de la navigation dans les catégories
+- Les données d'économie ne sont plus toutes à 0
+- Les niveaux affichent maintenant les vraies valeurs
+- Navigation cohérente dans toute l'application
+
+---
+
 ## [3.0.1] - 2025-12-19
 
 ### 🔧 Corrections Majeures
