@@ -339,12 +339,14 @@ private fun DashboardTab(
 ) {
     val eco = configData?.obj("economy")
     val levels = configData?.obj("levels")
+    val ecoBalances = eco?.obj("balances")
+    val levelsData = levels?.obj("data")
     
     val totalMembers = members.size
     val totalHumans = members.count { !it.key.contains("bot") }
     val totalBots = totalMembers - totalHumans
-    val ecoUsers = eco?.size ?: 0
-    val levelUsers = levels?.size ?: 0
+    val ecoUsers = ecoBalances?.jsonObject?.size ?: 0
+    val levelUsers = levelsData?.jsonObject?.size ?: 0
     
     var connectedUsers by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var isLoadingUsers by remember { mutableStateOf(false) }
@@ -593,7 +595,7 @@ private fun EconomyConfigTab(
     snackbar: SnackbarHostState
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique", "Karma", "Actions", "GIFs")
+    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique", "Karma")
     
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
@@ -1116,118 +1118,6 @@ private fun EconomyConfigTab(
                     }
                 }
             }
-            5 -> {
-                // Actions - placeholder matching web
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item {
-                        Text(
-                            "🎭 Actions Économiques",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "Configuration des actions économiques interactives",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                    }
-                    
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.SportsEsports,
-                                        contentDescription = null,
-                                        tint = Color.Gray.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                    Spacer(Modifier.height(16.dp))
-                                    Text(
-                                        "Configuration disponible sur le dashboard web",
-                                        color = Color.Gray,
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        "http://88.174.155.230:33002",
-                                        color = Color(0xFF5865F2),
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            6 -> {
-                // GIFs - placeholder matching web
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item {
-                        Text(
-                            "🎬 Actions & GIFs",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "Gérez les GIFs associés à chaque action économique",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                    }
-                    
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.Gif,
-                                        contentDescription = null,
-                                        tint = Color.Gray.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                    Spacer(Modifier.height(16.dp))
-                                    Text(
-                                        "Gestion des GIFs disponible sur le dashboard web",
-                                        color = Color.Gray,
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        "http://88.174.155.230:33002",
-                                        color = Color(0xFF5865F2),
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -1521,60 +1411,252 @@ private fun LevelsConfigTab(
                 }
             }
             3 -> {
-                // Annonces placeholder
-                Box(
+                // Annonces - active system
+                LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    item {
                         Text(
                             "📢 Annonces",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        Spacer(Modifier.height(8.dp))
                         Text(
-                            "Configuration des annonces de level up\net de récompenses",
+                            "Configuration des annonces de level up et récompenses",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
+                            color = Color.Gray
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "Section en construction",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray.copy(alpha = 0.6f)
-                        )
+                    }
+                    
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Campaign,
+                                        contentDescription = null,
+                                        tint = Color(0xFF57F287),
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        "Système d'annonces actif",
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "Les annonces de montée de niveau et de récompenses\nsont automatiquement envoyées dans le canal configuré",
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
             4 -> {
-                // Cartes placeholder
-                Box(
+                // Cartes - Level card backgrounds
+                val cardsConfig = levels?.obj("cards")
+                var femaleRoleIds by remember(cardsConfig) {
+                    mutableStateOf(cardsConfig?.arr("femaleRoleIds")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableList() ?: mutableListOf())
+                }
+                var certifiedRoleIds by remember(cardsConfig) {
+                    mutableStateOf(cardsConfig?.arr("certifiedRoleIds")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableList() ?: mutableListOf())
+                }
+                val backgrounds = cardsConfig?.obj("backgrounds")
+                var defaultBg by remember(backgrounds) { mutableStateOf(backgrounds?.str("default") ?: "") }
+                var femaleBg by remember(backgrounds) { mutableStateOf(backgrounds?.str("female") ?: "") }
+                var certifiedBg by remember(backgrounds) { mutableStateOf(backgrounds?.str("certified") ?: "") }
+                var prestigeBlueBg by remember(backgrounds) { mutableStateOf(backgrounds?.str("prestigeBlue") ?: "") }
+                var prestigeRoseBg by remember(backgrounds) { mutableStateOf(backgrounds?.str("prestigeRose") ?: "") }
+                var savingCards by remember { mutableStateOf(false) }
+                
+                LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    item {
                         Text(
                             "🎴 Cartes de Niveau",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        Spacer(Modifier.height(8.dp))
                         Text(
-                            "Configuration des backgrounds\net styles des cartes",
+                            "Configuration des backgrounds personnalisés",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
+                            color = Color.Gray
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "Section en construction",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray.copy(alpha = 0.6f)
-                        )
+                    }
+                    
+                    // Backgrounds
+                    item {
+                        SectionCard(title = "🖼️ Backgrounds", subtitle = "URLs des images") {
+                            OutlinedTextField(
+                                value = defaultBg,
+                                onValueChange = { defaultBg = it },
+                                label = { Text("Background par défaut") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = femaleBg,
+                                onValueChange = { femaleBg = it },
+                                label = { Text("Background femmes") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = certifiedBg,
+                                onValueChange = { certifiedBg = it },
+                                label = { Text("Background certifiés") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = prestigeBlueBg,
+                                onValueChange = { prestigeBlueBg = it },
+                                label = { Text("Background prestige bleu") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = prestigeRoseBg,
+                                onValueChange = { prestigeRoseBg = it },
+                                label = { Text("Background prestige rose") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
+                    }
+                    
+                    // Female Roles
+                    item {
+                        SectionCard(title = "♀️ Rôles Femmes (${femaleRoleIds.size})", subtitle = "Pour background femmes") {
+                            femaleRoleIds.forEach { roleId ->
+                                RemovableIdRow(
+                                    label = "Rôle",
+                                    id = roleId,
+                                    resolvedName = roles[roleId],
+                                    onRemove = { femaleRoleIds.remove(roleId) }
+                                )
+                                Divider(color = Color(0xFF2A2A2A))
+                            }
+                            
+                            var newRoleId by remember { mutableStateOf<String?>(null) }
+                            Spacer(Modifier.height(10.dp))
+                            RoleSelector(
+                                roles = roles.filterKeys { !femaleRoleIds.contains(it) },
+                                selectedRoleId = newRoleId,
+                                onRoleSelected = { newRoleId = it },
+                                label = "Ajouter un rôle"
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { newRoleId?.let { femaleRoleIds.add(it); newRoleId = null } },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = newRoleId != null
+                            ) {
+                                Icon(Icons.Default.Add, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Ajouter")
+                            }
+                        }
+                    }
+                    
+                    // Certified Roles
+                    item {
+                        SectionCard(title = "✅ Rôles Certifiés (${certifiedRoleIds.size})", subtitle = "Pour background certifiés") {
+                            certifiedRoleIds.forEach { roleId ->
+                                RemovableIdRow(
+                                    label = "Rôle",
+                                    id = roleId,
+                                    resolvedName = roles[roleId],
+                                    onRemove = { certifiedRoleIds.remove(roleId) }
+                                )
+                                Divider(color = Color(0xFF2A2A2A))
+                            }
+                            
+                            var newRoleId by remember { mutableStateOf<String?>(null) }
+                            Spacer(Modifier.height(10.dp))
+                            RoleSelector(
+                                roles = roles.filterKeys { !certifiedRoleIds.contains(it) },
+                                selectedRoleId = newRoleId,
+                                onRoleSelected = { newRoleId = it },
+                                label = "Ajouter un rôle"
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { newRoleId?.let { certifiedRoleIds.add(it); newRoleId = null } },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = newRoleId != null
+                            ) {
+                                Icon(Icons.Default.Add, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Ajouter")
+                            }
+                        }
+                    }
+                    
+                    // Save button
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    savingCards = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("cards", buildJsonObject {
+                                                    put("femaleRoleIds", JsonArray(femaleRoleIds.map { JsonPrimitive(it) }))
+                                                    put("certifiedRoleIds", JsonArray(certifiedRoleIds.map { JsonPrimitive(it) }))
+                                                    put("backgrounds", buildJsonObject {
+                                                        put("default", defaultBg)
+                                                        put("female", femaleBg)
+                                                        put("certified", certifiedBg)
+                                                        put("prestigeBlue", prestigeBlueBg)
+                                                        put("prestigeRose", prestigeRoseBg)
+                                                    })
+                                                    put("perRoleBackgrounds", buildJsonObject {})
+                                                })
+                                            }
+                                            api.putJson("/api/configs/levels", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Cartes sauvegardées") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { savingCards = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !savingCards
+                        ) {
+                            if (savingCards) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Cartes")
+                            }
+                        }
                     }
                 }
             }
