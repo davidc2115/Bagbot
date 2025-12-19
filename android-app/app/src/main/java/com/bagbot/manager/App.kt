@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -45,53 +48,38 @@ private const val TAG = "BAG_APP"
 
 
 // ============================================
-// CONFIGURATION PAR GROUPES v2.1.3
+// CATÉGORIES DU DASHBOARD v2.5.2 - TOUTES LES 20 CATÉGORIES
 // ============================================
 
-data class ConfigGroup(
+data class DashboardCategory(
     val id: String,
     val name: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val color: Color,
-    val sections: List<String>
+    val description: String
 )
 
-val configGroups = listOf(
-    ConfigGroup(
-        "messages",
-        "👋 Messages & Bienvenue",
-        Icons.Default.EmojiPeople,
-        Color(0xFF4CAF50),
-        listOf("welcome", "goodbye")
-    ),
-    ConfigGroup(
-        "moderation",
-        "👮 Modération & Sécurité",
-        Icons.Default.Security,
-        Color(0xFFE53935),
-        listOf("logs", "autokick", "inactivity", "staffRoleIds", "quarantineRoleId")
-    ),
-    ConfigGroup(
-        "gamification",
-        "🎮 Gamification & Fun",
-        Icons.Default.Gamepad,
-        Color(0xFF9C27B0),
-        listOf("economy", "levels", "truthdare")
-    ),
-    ConfigGroup(
-        "features",
-        "🛠️ Fonctionnalités",
-        Icons.Default.Extension,
-        Color(0xFF2196F3),
-        listOf("tickets", "confess", "counting", "disboard", "autothread")
-    ),
-    ConfigGroup(
-        "customization",
-        "🎨 Personnalisation",
-        Icons.Default.Palette,
-        Color(0xFFFF9800),
-        listOf("categoryBanners", "footerLogoUrl", "geo")
-    )
+val dashboardCategories = listOf(
+    DashboardCategory("dashboard", "📊 Dashboard", Icons.Default.Dashboard, Color(0xFF5865F2), "Vue d'ensemble du serveur"),
+    DashboardCategory("economy", "💰 Économie", Icons.Default.AttachMoney, Color(0xFF57F287), "Gestion des coins et boutique"),
+    DashboardCategory("levels", "📈 Niveaux", Icons.Default.TrendingUp, Color(0xFFFEE75C), "Système XP et récompenses"),
+    DashboardCategory("booster", "🚀 Booster", Icons.Default.Rocket, Color(0xFFEB459E), "Configuration des boosters"),
+    DashboardCategory("counting", "🔢 Comptage", Icons.Default.Pin, Color(0xFF00D4FF), "Jeu de comptage"),
+    DashboardCategory("truthdare", "🎲 Action/Vérité", Icons.Default.Casino, Color(0xFF9B59B6), "Prompts SFW/NSFW"),
+    DashboardCategory("logs", "📝 Logs", Icons.Default.Description, Color(0xFF95A5A6), "Journaux de modération"),
+    DashboardCategory("tickets", "🎫 Tickets", Icons.Default.ConfirmationNumber, Color(0xFFE67E22), "Système de tickets"),
+    DashboardCategory("confess", "💬 Confessions", Icons.Default.Chat, Color(0xFFE91E63), "Confessions anonymes"),
+    DashboardCategory("welcome", "👋 Welcome", Icons.Default.Waving, Color(0xFF3498DB), "Messages de bienvenue"),
+    DashboardCategory("goodbye", "👋 Goodbye", Icons.Default.ExitToApp, Color(0xFF8B4513), "Messages d'au revoir"),
+    DashboardCategory("staff", "👥 Staff", Icons.Default.AdminPanelSettings, Color(0xFFFFD700), "Gestion du staff"),
+    DashboardCategory("autokick", "👢 AutoKick", Icons.Default.RemoveCircle, Color(0xFFDC143C), "Kick automatique"),
+    DashboardCategory("inactivity", "⏰ Inactivité", Icons.Default.Timer, Color(0xFFFF69B4), "Kick inactivité"),
+    DashboardCategory("autothread", "🧵 AutoThread", Icons.Default.Forum, Color(0xFF20B2AA), "Fils automatiques"),
+    DashboardCategory("disboard", "📢 Disboard", Icons.Default.Campaign, Color(0xFF4169E1), "Rappels Disboard"),
+    DashboardCategory("geo", "🌍 Géolocalisation", Icons.Default.Map, Color(0xFF32CD32), "Carte des membres"),
+    DashboardCategory("actions", "🎬 Actions (GIFs)", Icons.Default.Gif, Color(0xFFE91E63), "GIFs de réaction"),
+    DashboardCategory("backups", "💾 Backups", Icons.Default.Backup, Color(0xFF607D8B), "Sauvegardes"),
+    DashboardCategory("botcontrol", "🎮 Contrôle Bot", Icons.Default.Settings, Color(0xFFFF5722), "Contrôle du bot")
 )
 
 
@@ -1718,8 +1706,6 @@ fun AppConfigScreen(
             }
         }
     }
-}
-
 @Composable
 fun ConfigGroupsScreen(
     configData: JsonObject?,
@@ -1733,13 +1719,12 @@ fun ConfigGroupsScreen(
     isLoading: Boolean,
     onReloadConfig: () -> Unit
 ) {
-    var selectedGroup by remember { mutableStateOf<ConfigGroup?>(null) }
-    var expandedSection by remember { mutableStateOf<String?>(null) }
+    var selectedCategory by remember { mutableStateOf<DashboardCategory?>(null) }
     
-    if (selectedGroup != null) {
-        // Afficher les sections du groupe sélectionné
-        ConfigGroupDetailScreen(
-            group = selectedGroup!!,
+    if (selectedCategory != null) {
+        // Afficher l'écran détaillé de la catégorie
+        CategoryDetailScreen(
+            category = selectedCategory!!,
             configData = configData,
             members = members,
             channels = channels,
@@ -1748,109 +1733,191 @@ fun ConfigGroupsScreen(
             json = json,
             scope = scope,
             snackbar = snackbar,
-            expandedSection = expandedSection,
-            onExpandSection = { expandedSection = if (expandedSection == it) null else it },
-            onBack = { selectedGroup = null }
+            onBack = { selectedCategory = null }
         )
     } else {
-        // Afficher les vignettes de groupes
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF9C27B0))
-            }
-        } else if (configData != null) {
-            LazyColumn(
-                Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        // Afficher la grille de vignettes
+        Column(Modifier.fillMaxSize()) {
+            // Header
+            Card(
+                Modifier.fillMaxWidth().padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
             ) {
-                item {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                    ) {
-                        Column(Modifier.padding(20.dp)) {
-                            Text(
-                                "🤖 Configuration du Bot",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text("Serveur: 💎 BAG", color = Color.White)
-                            Text("${members.size} membres • ${channels.size} salons", color = Color.Gray)
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                "💡 Sélectionnez un groupe pour configurer",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFFF1744),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "🤖 Configuration du Bot",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("Serveur: 💎 BAG", color = Color.White)
+                    Text("${members.size} membres • ${channels.size} salons • ${roles.size} rôles", color = Color.Gray)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "💡 Sélectionnez une catégorie pour configurer",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFFF1744),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                
-                items(configGroups) { group ->
-                    val sectionsInConfig = group.sections.count { configData.containsKey(it) }
-                    
-                    Card(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedGroup = group },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    Modifier
-                                        .size(48.dp)
-                                        .background(group.color.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        group.icon,
-                                        null,
-                                        tint = group.color,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        group.name,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Text(
-                                        "$sectionsInConfig/${group.sections.size} sections configurées",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.Gray
-                                    )
-                                }
-                            }
-                            Icon(Icons.Default.ChevronRight, null, tint = group.color)
-                        }
+            }
+            
+            if (isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF9C27B0))
+                }
+            } else {
+                // Grille de vignettes 2 colonnes
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(dashboardCategories) { category ->
+                        CategoryCard(
+                            category = category,
+                            onClick = { selectedCategory = category }
+                        )
                     }
                 }
             }
-        } else {
-            Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
-                    Spacer(Modifier.height(16.dp))
-                    Text("⚠️ Configuration non chargée", color = Color.White)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { onReloadConfig() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-                    ) {
-                        Icon(Icons.Default.Refresh, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Recharger")
+        }
+    }
+}
+
+@Composable
+fun CategoryCard(category: DashboardCategory, onClick: () -> Unit) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .background(category.color.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    category.icon,
+                    contentDescription = null,
+                    tint = category.color,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                category.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                category.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryDetailScreen(
+    category: DashboardCategory,
+    configData: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    onBack: () -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        // Header avec retour
+        Card(
+            Modifier.fillMaxWidth().padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = category.color.copy(alpha = 0.15f))
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, "Retour", tint = category.color)
+                }
+                Spacer(Modifier.width(8.dp))
+                Icon(category.icon, null, tint = category.color, modifier = Modifier.size(32.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        category.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        category.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+        
+        // Contenu de la catégorie
+        LazyColumn(
+            Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "Configuration ${category.name}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Cette section permettra de configurer ${category.name}",
+                            color = Color.Gray
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    snackbar.showSnackbar("Fonctionnalité en développement pour ${category.name}")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = category.color)
+                        ) {
+                            Text("Configurer")
+                        }
                     }
                 }
             }
@@ -1980,193 +2047,6 @@ fun renderKeyInfo(
     }
 }
 
-@Composable
-fun ConfigGroupDetailScreen(
-    group: ConfigGroup,
-    configData: JsonObject?,
-    members: Map<String, String>,
-    channels: Map<String, String>,
-    roles: Map<String, String>,
-    api: ApiClient,
-    json: Json,
-    scope: kotlinx.coroutines.CoroutineScope,
-    snackbar: SnackbarHostState,
-    expandedSection: String?,
-    onExpandSection: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
-    ) {
-        item {
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = group.color)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Icon(group.icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        group.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-        
-        items(group.sections) { sectionKey ->
-            if (configData?.containsKey(sectionKey) == true) {
-                val sectionData = configData[sectionKey]
-                val isExpanded = expandedSection == sectionKey
-                
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                ) {
-                    Column {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onExpandSection(sectionKey) }
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    getSectionDisplayName(sectionKey),
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    if (isExpanded) "Cliquez pour masquer" else "Cliquez pour afficher",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
-                            }
-                            Icon(
-                                if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                null,
-                                tint = group.color
-                            )
-                        }
-                        
-                        if (isExpanded && sectionData != null) {
-                            Divider(color = Color(0xFF2E2E2E))
-                            Column(Modifier.padding(16.dp)) {
-                                // Afficher les infos clés avec les vrais noms
-                                renderKeyInfo(sectionKey, sectionData, members, channels, roles)
-                                Spacer(Modifier.height(8.dp))
-
-                                var jsonText by remember { mutableStateOf(sectionData.toString()) }
-                                var isSaving by remember { mutableStateOf(false) }
-                                
-                                Text(
-                                    "Contenu JSON (modifiable):",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                
-                                OutlinedTextField(
-                                    value = jsonText,
-                                    onValueChange = { jsonText = it },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 150.dp, max = 300.dp),
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    ),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.LightGray
-                                    )
-                                )
-                                
-                                Spacer(Modifier.height(12.dp))
-                                
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            isSaving = true
-                                            withContext(Dispatchers.IO) {
-                                                try {
-                                                    val updates = json.parseToJsonElement(jsonText).jsonObject
-                                                    api.putJson("/api/configs/$sectionKey", updates.toString())
-                                                    withContext(Dispatchers.Main) {
-                                                        snackbar.showSnackbar("✅ $sectionKey sauvegardé")
-                                                    }
-                                                } catch (e: Exception) {
-                                                    withContext(Dispatchers.Main) {
-                                                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                                    }
-                                                } finally {
-                                                    withContext(Dispatchers.Main) {
-                                                        isSaving = false
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = group.color),
-                                    enabled = !isSaving
-                                ) {
-                                    if (isSaving) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    } else {
-                                        Icon(Icons.Default.Save, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Sauvegarder")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fun getSectionDisplayName(key: String): String {
-    return when (key) {
-        "economy" -> "💰 Économie"
-        "tickets" -> "🎫 Tickets"
-        "welcome" -> "👋 Bienvenue"
-        "goodbye" -> "👋 Au revoir"
-        "inactivity" -> "💤 Inactivité"
-        "levels" -> "📈 Niveaux/XP"
-        "logs" -> "📝 Logs"
-        "autokick" -> "🦶 Auto-kick"
-        "autothread" -> "🧵 Auto-thread"
-        "categoryBanners" -> "🎨 Bannières catégories"
-        "confess" -> "🤫 Confessions"
-        "counting" -> "🔢 Comptage"
-        "disboard" -> "📢 Disboard"
-        "footerLogoUrl" -> "🖼️ Logo footer"
-        "geo" -> "🌍 Géolocalisation"
-        "quarantineRoleId" -> "🔒 Rôle quarantaine"
-        "staffRoleIds" -> "👮 Rôles staff"
-        "truthdare" -> "🎲 Action ou vérité"
-        else -> "⚙️ $key"
-    }
-}
-
-// Partie 3 - AdminScreenWithAccess et ConfigEditorScreen
 
 @Composable
 fun AdminScreenWithAccess(
