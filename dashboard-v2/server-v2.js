@@ -291,6 +291,12 @@ app.get('/api/bot/status', async (req, res) => {
       guildInfo.icon = guildResponse.icon ? `https://cdn.discordapp.com/icons/${GUILD}/${guildResponse.icon}.png` : null;
       guildInfo.createdAt = guildResponse.id ? new Date(parseInt(guildResponse.id) / 4194304 + 1420070400000).toISOString() : null;
       
+      // Stocker l'owner ID du serveur pour la détection du fondateur
+      if (guildResponse.owner_id) {
+        GUILD_OWNER_ID = guildResponse.owner_id;
+        console.log('✓ Guild owner ID détecté:', GUILD_OWNER_ID);
+      }
+      
       // Compter les salons et rôles
       const channels = await getChannels();
       const roles = await getRoles();
@@ -481,6 +487,9 @@ const BACKUP_DIR = '/var/data/backups';
 
 // Discord API credentials
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+
+// Variable pour stocker l'owner ID du serveur (récupéré dynamiquement via Discord API)
+let GUILD_OWNER_ID = null;
 
 if (!DISCORD_TOKEN) {
   console.error('❌ DISCORD_TOKEN manquant dans .env');
@@ -2408,7 +2417,8 @@ app.get('/api/me', async (req, res) => {
   
   // Récupérer les informations du membre sur le serveur Discord
   let isAdmin = false;
-  let isFounder = userData.userId === '943487722738311219';
+  // Vérifier si c'est le fondateur (owner du serveur Discord)
+  let isFounder = GUILD_OWNER_ID ? userData.userId === GUILD_OWNER_ID : userData.userId === '943487722738311219';
   let memberRoles = [];
   let permissions = '0';
   
@@ -2526,7 +2536,12 @@ app.get('/api/me', async (req, res) => {
 // ============================================
 
 // Stockage des utilisateurs autorisés (en mémoire - à remplacer par DB si nécessaire)
-const allowedUsers = new Set(['943487722738311219']); // Fondateur par défaut
+const allowedUsers = new Set([]);
+
+// Fonction pour vérifier si un utilisateur est le fondateur
+function isUserFounder(userId) {
+  return GUILD_OWNER_ID ? userId === GUILD_OWNER_ID : userId === '943487722738311219';
+}
 
 // GET /api/admin/allowed-users - Récupérer la liste
 app.get('/api/admin/allowed-users', (req, res) => {
@@ -2538,8 +2553,8 @@ app.get('/api/admin/allowed-users', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  if (!userData || !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Founder only' });
   }
   
   res.json({ allowedUsers: Array.from(allowedUsers) });
@@ -2555,8 +2570,8 @@ app.post('/api/admin/allowed-users', express.json(), (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  if (!userData || !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Founder only' });
   }
   
   const { userId } = req.body;
@@ -2579,13 +2594,13 @@ app.delete('/api/admin/allowed-users/:userId', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  if (!userData || !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Founder only' });
   }
   
   const { userId } = req.params;
   
-  if (userId === '943487722738311219') {
+  if (isUserFounder(userId)) {
     return res.status(400).json({ error: 'Cannot remove founder' });
   }
   
@@ -2752,7 +2767,7 @@ app.delete('/api/staff/messages/:messageId', (req, res) => {
   const message = staffMessages[messageIndex];
   
   // Vérifier que c'est l'auteur du message ou le fondateur
-  if (message.userId !== userData.userId && userData.userId !== '943487722738311219') {
+  if (message.userId !== userData.userId && !isUserFounder(userData.userId)) {
     return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres messages' });
   }
   
