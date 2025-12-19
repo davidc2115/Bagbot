@@ -748,6 +748,9 @@ private fun LevelsConfigTab(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
+    var selectedSubTab by remember { mutableIntStateOf(1) } // Start at Config XP
+    val subTabs = listOf("Users", "Config XP", "Rewards", "Annonces", "Cartes")
+    
     val levels = configData?.obj("levels")
     var enabled by remember { mutableStateOf(levels?.bool("enabled") ?: false) }
     var xpMsg by remember { mutableStateOf((levels?.int("xpPerMessage") ?: 10).toString()) }
@@ -764,130 +767,322 @@ private fun LevelsConfigTab(
     var newRewardRoleId by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            SectionCard(title = "📈 Niveaux", subtitle = "Config générale + rewards (rôles)") {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Activer", color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = xpMsg, onValueChange = { xpMsg = it },
-                    label = { Text("XP par message") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = xpVoice, onValueChange = { xpVoice = it },
-                    label = { Text("XP par minute vocale") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                Text("Courbe de niveau", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = curveBase, onValueChange = { curveBase = it },
-                    label = { Text("Base") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = curveFactor, onValueChange = { curveFactor = it },
-                    label = { Text("Factor") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+    Column(Modifier.fillMaxSize()) {
+        // Sub-tabs
+        ScrollableTabRow(
+            selectedTabIndex = selectedSubTab,
+            containerColor = Color(0xFF1E1E1E),
+            contentColor = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            subTabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedSubTab == index,
+                    onClick = { selectedSubTab = index },
+                    text = { Text(title) }
                 )
             }
         }
-
-        item {
-            SectionCard(title = "🎁 Rewards (level -> roleId)", subtitle = "${rewards.size} niveaux") {
-                rewards.entries.sortedBy { it.key.toIntOrNull() ?: Int.MAX_VALUE }.forEach { (level, roleId) ->
-                    RemovableIdRow(
-                        label = "Niveau $level",
-                        id = roleId,
-                        resolvedName = roles[roleId],
-                        onRemove = { rewards = rewards - level }
-                    )
-                    Divider(color = Color(0xFF2A2A2A))
-                }
-
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = newRewardLevel,
-                    onValueChange = { newRewardLevel = it },
-                    label = { Text("Niveau") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                RoleSelector(
-                    roles = roles,
-                    selectedRoleId = newRewardRoleId,
-                    onRoleSelected = { newRewardRoleId = it },
-                    label = "Sélectionner le rôle reward"
-                )
-                Spacer(Modifier.height(10.dp))
-                Button(
-                    onClick = {
-                        val level = newRewardLevel.trim()
-                        val roleId = newRewardRoleId
-                        if (level.toIntOrNull() != null && roleId != null) {
-                            rewards = rewards + (level to roleId)
-                            newRewardLevel = ""
-                            newRewardRoleId = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = newRewardLevel.toIntOrNull() != null && newRewardRoleId != null
-                ) { Text("➕ Ajouter / Modifier reward") }
-            }
-        }
-
-        item {
-            Button(
-                onClick = {
-                    scope.launch {
-                        isSaving = true
-                        withContext(Dispatchers.IO) {
-                            try {
-                                val body = buildJsonObject {
-                                    put("enabled", enabled)
-                                    put("xpPerMessage", xpMsg.toIntOrNull() ?: 10)
-                                    put("xpPerVoiceMinute", xpVoice.toIntOrNull() ?: 5)
-                                    put("levelCurve", buildJsonObject {
-                                        put("base", curveBase.toIntOrNull() ?: 100)
-                                        put("factor", curveFactor.toDoubleOrNull() ?: 1.12)
-                                    })
-                                    put("rewards", buildJsonObject {
-                                        rewards.forEach { (lvl, roleId) -> put(lvl, roleId) }
-                                    })
+        
+        when (selectedSubTab) {
+            0 -> {
+                // Users list
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Text(
+                            "📊 Utilisateurs avec Niveaux",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${levels?.size ?: 0} utilisateurs",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                    
+                    levels?.entries?.sortedByDescending { 
+                        it.value.jsonObject["level"]?.jsonPrimitive?.intOrNull ?: 0 
+                    }?.forEach { (userId, userData) ->
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        "Membre ID: ${userId.takeLast(8)}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Text(
+                                            "📈 Niveau ${userData.jsonObject["level"]?.jsonPrimitive?.intOrNull ?: 0}",
+                                            color = Color(0xFFFEE75C),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "⭐ ${userData.jsonObject["xp"]?.jsonPrimitive?.intOrNull ?: 0} XP",
+                                            color = Color(0xFF57F287)
+                                        )
+                                        userData.jsonObject["messages"]?.jsonPrimitive?.intOrNull?.let {
+                                            Text("💬 $it msgs", color = Color.Gray)
+                                        }
+                                    }
                                 }
-                                api.putJson("/api/configs/levels", json.encodeToString(JsonObject.serializer(), body))
-                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Niveaux sauvegardés") }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
-                            } finally {
-                                withContext(Dispatchers.Main) { isSaving = false }
                             }
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !isSaving
-            ) {
-                if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
-                else {
-                    Icon(Icons.Default.Save, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Sauvegarder Niveaux")
+                }
+            }
+            1 -> {
+                // Config XP
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        SectionCard(title = "📈 Configuration XP", subtitle = "Gains et paramètres") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Activer", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Switch(checked = enabled, onCheckedChange = { enabled = it })
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text("Gains d'XP", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = xpMsg, onValueChange = { xpMsg = it },
+                                label = { Text("XP par message") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = xpVoice, onValueChange = { xpVoice = it },
+                                label = { Text("XP par minute vocale") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text("Courbe de niveau", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = curveBase, onValueChange = { curveBase = it },
+                                label = { Text("Base") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = curveFactor, onValueChange = { curveFactor = it },
+                                label = { Text("Factor") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("enabled", enabled)
+                                                put("xpPerMessage", xpMsg.toIntOrNull() ?: 10)
+                                                put("xpPerVoiceMinute", xpVoice.toIntOrNull() ?: 5)
+                                                put("levelCurve", buildJsonObject {
+                                                    put("base", curveBase.toIntOrNull() ?: 100)
+                                                    put("factor", curveFactor.toDoubleOrNull() ?: 1.12)
+                                                })
+                                                put("rewards", buildJsonObject {
+                                                    rewards.forEach { (lvl, roleId) -> put(lvl, roleId) }
+                                                })
+                                            }
+                                            api.putJson("/api/configs/levels", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Config XP sauvegardée") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Config XP")
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
+                // Rewards
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        SectionCard(title = "🎁 Rewards", subtitle = "${rewards.size} niveaux configurés") {
+                            rewards.entries.sortedBy { it.key.toIntOrNull() ?: Int.MAX_VALUE }.forEach { (level, roleId) ->
+                                RemovableIdRow(
+                                    label = "Niveau $level",
+                                    id = roleId,
+                                    resolvedName = roles[roleId],
+                                    onRemove = { rewards = rewards - level }
+                                )
+                                Divider(color = Color(0xFF2A2A2A))
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+                            Text("Ajouter un reward", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = newRewardLevel,
+                                onValueChange = { newRewardLevel = it },
+                                label = { Text("Niveau") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            RoleSelector(
+                                roles = roles,
+                                selectedRoleId = newRewardRoleId,
+                                onRoleSelected = { newRewardRoleId = it },
+                                label = "Sélectionner le rôle reward"
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    val level = newRewardLevel.trim()
+                                    val roleId = newRewardRoleId
+                                    if (level.toIntOrNull() != null && roleId != null) {
+                                        rewards = rewards + (level to roleId)
+                                        newRewardLevel = ""
+                                        newRewardRoleId = null
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = newRewardLevel.toIntOrNull() != null && newRewardRoleId != null
+                            ) { Text("➕ Ajouter reward") }
+                        }
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isSaving = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("enabled", enabled)
+                                                put("xpPerMessage", xpMsg.toIntOrNull() ?: 10)
+                                                put("xpPerVoiceMinute", xpVoice.toIntOrNull() ?: 5)
+                                                put("levelCurve", buildJsonObject {
+                                                    put("base", curveBase.toIntOrNull() ?: 100)
+                                                    put("factor", curveFactor.toDoubleOrNull() ?: 1.12)
+                                                })
+                                                put("rewards", buildJsonObject {
+                                                    rewards.forEach { (lvl, roleId) -> put(lvl, roleId) }
+                                                })
+                                            }
+                                            api.putJson("/api/configs/levels", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Rewards sauvegardés") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { isSaving = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !isSaving
+                        ) {
+                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Rewards")
+                            }
+                        }
+                    }
+                }
+            }
+            3 -> {
+                // Annonces placeholder
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "📢 Annonces",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Configuration des annonces de level up\net de récompenses",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Section en construction",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+            4 -> {
+                // Cartes placeholder
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "🎴 Cartes de Niveau",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Configuration des backgrounds\net styles des cartes",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Section en construction",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         }
@@ -1737,11 +1932,12 @@ private fun TicketsConfigTab(
 
     // UI
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionCard(title = "🎫 Tickets", subtitle = "Config / Catégories / Historique") {
+        SectionCard(title = "🎫 Tickets", subtitle = "Config / Catégories / Historique / Panel") {
             TabRow(selectedTabIndex = subTab) {
                 Tab(selected = subTab == 0, onClick = { subTab = 0; selectedCategoryIndex = null }, text = { Text("⚙️ Config") })
                 Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text("📁 Catégories") })
                 Tab(selected = subTab == 2, onClick = { subTab = 2; selectedCategoryIndex = null }, text = { Text("📋 Historique") })
+                Tab(selected = subTab == 3, onClick = { subTab = 3; selectedCategoryIndex = null }, text = { Text("🎨 Panel") })
             }
         }
 
@@ -2069,7 +2265,8 @@ private fun TicketsConfigTab(
                 }
             }
 
-            else -> {
+            2 -> {
+                // Historique
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
                         SectionCard(
@@ -2078,6 +2275,51 @@ private fun TicketsConfigTab(
                         ) {
                             Text(
                                 "Le dashboard web affiche l'historique complet. Ici on montre juste un résumé.",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+            
+            3 -> {
+                // Panel (preview)
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item {
+                        SectionCard(
+                            title = "🎨 Panel Tickets",
+                            subtitle = "Aperçu de la configuration du panel"
+                        ) {
+                            Column {
+                                Text("Titre:", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(panelTitle, color = Color.Gray)
+                                Spacer(Modifier.height(12.dp))
+                                Text("Texte:", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(panelText.ifBlank { "(aucun texte)" }, color = Color.Gray)
+                                Spacer(Modifier.height(12.dp))
+                                Text("Banner URL:", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(bannerUrl.ifBlank { "(aucune bannière)" }, color = Color.Gray)
+                                Spacer(Modifier.height(12.dp))
+                                Text("Catégories disponibles:", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("${categories.size} catégorie(s)", color = Color.Gray)
+                                Spacer(Modifier.height(8.dp))
+                                categories.forEach { cat ->
+                                    val catLabel = cat["label"]?.jsonPrimitive?.contentOrNull ?: "?"
+                                    val catEmoji = cat["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎫"
+                                    Text("$catEmoji $catLabel", color = Color(0xFF57F287), modifier = Modifier.padding(start = 8.dp, top = 4.dp))
+                                }
+                            }
+                        }
+                    }
+                    
+                    item {
+                        SectionCard(
+                            title = "ℹ️ Information",
+                            subtitle = "Configuration"
+                        ) {
+                            Text(
+                                "Pour modifier le panel, utilisez l'onglet Config ci-dessus.\nLe panel sera automatiquement mis à jour sur Discord.",
                                 color = Color.Gray,
                                 style = MaterialTheme.typography.bodySmall
                             )
