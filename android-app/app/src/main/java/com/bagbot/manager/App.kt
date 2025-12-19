@@ -1422,7 +1422,7 @@ fun AppConfigScreen(
                     )
                     Spacer(Modifier.height(16.dp))
                     Text("URL Dashboard: $baseUrl", color = Color.White)
-                    Text("Version: 3.0.3", color = Color.Gray)
+                    Text("Version: 3.1.0", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
