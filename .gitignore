@@ -68,3 +68,5 @@ token*.txt
 test-token.js
 **/token*.js
 
+ecosystem.config.js.original
+*.original

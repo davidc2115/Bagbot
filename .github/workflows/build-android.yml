@@ -1,0 +1,74 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Accept Android SDK licenses
+      run: yes | sdkmanager --licenses || true
+      
+    - name: Install build tools
+      run: sdkmanager "build-tools;34.0.0" "platforms;android-34" || true
+      
+    - name: Make gradlew executable
+      working-directory: android-app
+      run: chmod +x gradlew || true
+      
+    - name: Build APK
+      working-directory: android-app
+      run: ./gradlew assembleRelease --stacktrace
+        
+    - name: Rename APK
+      run: |
+        mkdir -p release
+        cp android-app/app/build/outputs/apk/release/app-release.apk release/BagBot-Manager-${{ github.ref_name }}.apk
+        
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BagBot-Manager-APK
+        path: release/BagBot-Manager-${{ github.ref_name }}.apk
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/BagBot-Manager-${{ github.ref_name }}.apk
+        body: |
+          ## 🎉 BAG Bot Manager ${{ github.ref_name }}
+          
+          ### ✨ Nouvelles fonctionnalités
+          - 🎨 Nouveau design violet/rose
+          - 🚀 Écran de chargement animé
+          - 🔐 Interface d'administration
+          - 👥 Sélecteur de membres
+          - 📱 Navigation Material 3
+          - 🔒 Gestion des accès
+          
+          ### 📥 Installation
+          1. Téléchargez l'APK
+          2. Activez "Sources inconnues"
+          3. Installez et profitez !
+          
+          ### 🔗 URL: http://88.174.155.230:33002
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

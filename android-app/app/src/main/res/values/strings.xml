@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BAG Bot Manager</string>
+    <string name="connect_button">Se connecter via Discord</string>
+    <string name="dashboard_url_hint">URL Dashboard</string>
+    <string name="home_tab">Accueil</string>
+    <string name="config_tab">Config</string>
+    <string name="admin_tab">Admin</string>
+    <string name="loading">Chargement...</string>
+</resources>
