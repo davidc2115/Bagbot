@@ -240,32 +240,31 @@ fun GeoMapTab(geoData: JsonObject?, members: Map<String, String>) {
             ) {
                 items(locations.size) {
                     val (userId, location) = locations.entries.toList()[it]
-                        val loc = location.jsonObject
-                        val city = loc["city"]?.jsonPrimitive?.contentOrNull ?: "Inconnue"
-                        val lat = loc["lat"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                        val lon = loc["lon"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                        
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                    val loc = location.jsonObject
+                    val city = loc["city"]?.jsonPrimitive?.contentOrNull ?: "Inconnue"
+                    val lat = loc["lat"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                    val lon = loc["lon"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                    
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(members[userId] ?: "Inconnu", fontWeight = FontWeight.Bold)
+                                Text(city, color = Color(0xFF32CD32), fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                            }
+                            IconButton(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(${members[userId] ?: "Membre"})"))
+                                    context.startActivity(intent)
+                                }
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(members[userId] ?: "Inconnu", fontWeight = FontWeight.Bold)
-                                    Text(city, color = Color(0xFF32CD32), fontSize = MaterialTheme.typography.bodySmall.fontSize)
-                                }
-                                IconButton(
-                                    onClick = {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(${members[userId] ?: "Membre"})"))
-                                        context.startActivity(intent)
-                                    }
-                                ) {
-                                    Icon(Icons.Default.LocationOn, "Voir sur carte", tint = Color(0xFF32CD32))
-                                }
+                                Icon(Icons.Default.LocationOn, "Voir sur carte", tint = Color(0xFF32CD32))
                             }
                         }
                     }
