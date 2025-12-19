@@ -1,5 +1,52 @@
 # Changelog - BAG Bot Manager Android
 
+## [3.0.3] - 2025-12-19
+
+### ⚠️ IMPORTANT - REDÉMARRAGE BACKEND REQUIS
+**Pour que ces modifications prennent effet, vous devez REDÉMARRER le serveur backend:**
+```bash
+pm2 restart dashboard-v2
+```
+
+### ✅ Détection Automatique du Fondateur
+- **Fix majeur**: Le fondateur est maintenant détecté automatiquement via l'API Discord
+- Récupération de `owner_id` depuis les informations du serveur Discord
+- Plus d'ID hardcodé - fonctionne pour n'importe quel serveur
+- Variable `GUILD_OWNER_ID` mise à jour au démarrage du serveur
+
+### 🔐 Système de Permissions Amélioré
+
+#### Backend
+- Nouvelle fonction `isUserFounder(userId)` pour vérifier le fondateur
+- Toutes les routes admin utilisent cette fonction
+- Le fondateur a automatiquement les droits admin
+- Messages d'erreur plus clairs ("Founder only" vs "Admin only")
+
+#### Routes Sécurisées
+- `POST /api/admin/allowed-users` - Réservé au fondateur
+- `GET /api/admin/allowed-users` - Réservé au fondateur  
+- `DELETE /api/admin/allowed-users/:userId` - Réservé au fondateur
+- `DELETE /api/staff/messages/:messageId` - Fondateur ou auteur
+
+### 🐛 Bugs Corrigés
+- ✅ Le fondateur est détecté automatiquement (plus d'ID hardcodé)
+- ✅ Les permissions sont vérifiées correctement
+- ✅ L'onglet Admin devrait être visible pour le fondateur (après redémarrage backend)
+
+### 🔍 Debug - Si l'onglet Admin ne s'affiche pas
+1. **Redémarrez le backend:** `pm2 restart dashboard-v2`
+2. Vérifiez les logs: `pm2 logs dashboard-v2`
+3. Cherchez: `✓ Guild owner ID détecté: VOTRE_ID`
+4. Déconnectez/reconnectez dans l'app
+5. Vérifiez les logs Android pour `isAdmin` et `isFounder`
+
+### 📚 Documentation
+- Nouveau fichier: `dashboard-v2/RESTART-BACKEND.md`
+- Guide complet pour redémarrer le backend
+- Troubleshooting et checklist de déploiement
+
+---
+
 ## [3.0.2] - 2025-12-19
 
 ### 🔧 Corrections Critiques
