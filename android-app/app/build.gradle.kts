@@ -12,8 +12,8 @@ android {
         applicationId = "com.bagbot.manager"
         minSdk = 26
         targetSdk = 34
-        versionCode = 330
-        versionName = "3.3.0"
+        versionCode = 340
+        versionName = "3.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -92,6 +92,9 @@ dependencies {
     
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    
+    // OSMDroid for maps
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

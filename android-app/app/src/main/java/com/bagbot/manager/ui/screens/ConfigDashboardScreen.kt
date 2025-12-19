@@ -14,6 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -3475,26 +3477,240 @@ private fun GeoConfigTab(
 ) {
     val geo = configData?.obj("geo")
     val locs = geo?.obj("locations") ?: buildJsonObject { }
-    val rows = remember(locs) {
+    
+    data class Location(val userId: String, val city: String, val lat: Double, val lon: Double, val updatedAt: String)
+    
+    val locations = remember(locs) {
         locs.mapNotNull { (uid, el) ->
             val o = el.jsonObject
             val city = o["city"]?.jsonPrimitive?.contentOrNull ?: ""
-            val lat = o["lat"]?.jsonPrimitive?.doubleOrNull
-            val lon = o["lon"]?.jsonPrimitive?.doubleOrNull
-            Triple(uid, city, (lat?.toString() ?: "") + "," + (lon?.toString() ?: ""))
+            val lat = o["lat"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+            val lon = o["lon"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+            val updatedAt = o["updatedAt"]?.jsonPrimitive?.contentOrNull ?: ""
+            Location(uid, city, lat, lon, updatedAt)
         }
     }
+    
+    var selectedLocation by remember { mutableStateOf<Location?>(null) }
+    var showMap by remember { mutableStateOf(true) }
 
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            SectionCard(title = "🌍 Géo", subtitle = "Locations (read-only)") {
-                Text("Total: ${rows.size}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+    Column(Modifier.fillMaxSize()) {
+        // Header with toggle
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "🌍 Géolocalisation",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    "${locations.size} membre(s) localisé(s)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { showMap = !showMap }) {
+                    Icon(
+                        if (showMap) Icons.Default.List else Icons.Default.Place,
+                        contentDescription = if (showMap) "Liste" else "Carte",
+                        tint = Color.White
+                    )
+                }
             }
         }
-        itemsIndexed(rows) { idx, (uid, city, coords) ->
-            SectionCard(title = "${idx + 1}. ${members[uid] ?: uid}", subtitle = uid) {
-                Text(city.ifBlank { "(ville inconnue)" }, color = Color.White)
-                Text(coords, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+
+        if (showMap) {
+            // Map view using AndroidView
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(400.dp)
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Place,
+                            contentDescription = null,
+                            tint = Color(0xFF57F287),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Carte Interactive",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "${locations.size} point(s) sur la carte",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Carte OpenStreetMap",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray.copy(alpha = 0.6f)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Affichant les localisations des membres",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        
+        // List view
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            itemsIndexed(locations.sortedBy { members[it.userId] ?: it.userId }) { _, location ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedLocation = location },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (selectedLocation == location) Color(0xFF2E2E2E) else Color(0xFF1E1E1E)
+                    )
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    members[location.userId] ?: "Membre inconnu",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "ID: ${location.userId.takeLast(8)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            Icon(
+                                Icons.Default.Place,
+                                contentDescription = null,
+                                tint = Color(0xFF5865F2),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(8.dp))
+                        
+                        Text(
+                            location.city.ifBlank { "Ville inconnue" },
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF5865F2),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        
+                        Spacer(Modifier.height(8.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    "📍 Latitude",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Text(
+                                    location.lat.toString(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                            }
+                            Column {
+                                Text(
+                                    "📍 Longitude",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Text(
+                                    location.lon.toString(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                            }
+                        }
+                        
+                        if (location.updatedAt.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Mis à jour: ${location.updatedAt}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            if (locations.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Place,
+                                    contentDescription = null,
+                                    tint = Color.Gray.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    "Aucune localisation enregistrée",
+                                    color = Color.Gray.copy(alpha = 0.7f),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
