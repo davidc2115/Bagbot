@@ -232,7 +232,7 @@ app.post('/bot/control', (req, res) => {
 
 
 // Bot status info
-app.get('/api/bot/status', (req, res) => {
+app.get('/api/bot/status', async (req, res) => {
   try {
     const { exec } = require('child_process');
     const fs = require('fs');
@@ -248,11 +248,71 @@ app.get('/api/bot/status', (req, res) => {
       console.error('Error counting commands:', err);
     }
     
+    // Récupérer les informations du serveur Discord
+    let guildInfo = {
+      name: 'Boy and Girls (BAG)',
+      memberCount: 0,
+      channelCount: 0,
+      roleCount: 0,
+      icon: null,
+      createdAt: null
+    };
+    
+    try {
+      // Récupérer les informations du serveur via l'API Discord
+      const guildResponse = await new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'discord.com',
+          path: `/api/v10/guilds/${GUILD}`,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bot ${DISCORD_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        };
+        
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            if (res.statusCode === 200) {
+              resolve(JSON.parse(data));
+            } else {
+              reject(new Error(`Discord API error: ${res.statusCode}`));
+            }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      
+      guildInfo.name = guildResponse.name || guildInfo.name;
+      guildInfo.memberCount = guildResponse.approximate_member_count || guildResponse.member_count || 0;
+      guildInfo.icon = guildResponse.icon ? `https://cdn.discordapp.com/icons/${GUILD}/${guildResponse.icon}.png` : null;
+      guildInfo.createdAt = guildResponse.id ? new Date(parseInt(guildResponse.id) / 4194304 + 1420070400000).toISOString() : null;
+      
+      // Stocker l'owner ID du serveur pour la détection du fondateur
+      if (guildResponse.owner_id) {
+        GUILD_OWNER_ID = guildResponse.owner_id;
+        console.log('✓ Guild owner ID détecté:', GUILD_OWNER_ID);
+      }
+      
+      // Compter les salons et rôles
+      const channels = await getChannels();
+      const roles = await getRoles();
+      guildInfo.channelCount = Object.keys(channels).length;
+      guildInfo.roleCount = Object.keys(roles).length;
+    } catch (err) {
+      console.error('Error fetching guild info:', err);
+    }
+    
     // Obtenir le statut PM2
     exec('pm2 jlist', (error, stdout, stderr) => {
       let botStatus = 'unknown';
       let restarts = 0;
       let uptime = 0;
+      let memory = 0;
+      let cpu = 0;
       
       if (!error && stdout) {
         try {
@@ -262,6 +322,8 @@ app.get('/api/bot/status', (req, res) => {
             botStatus = bagbot.pm2_env.status;
             restarts = bagbot.pm2_env.restart_time || 0;
             uptime = bagbot.pm2_env.pm_uptime || 0;
+            memory = bagbot.monit?.memory || 0;
+            cpu = bagbot.monit?.cpu || 0;
           }
         } catch (err) {
           console.error('Error parsing PM2 data:', err);
@@ -278,17 +340,137 @@ app.get('/api/bot/status', (req, res) => {
         console.error('Error reading package.json:', err);
       }
       
+      // Lire les statistiques de la configuration
+      let economyStats = { users: 0, totalMoney: 0 };
+      let levelsStats = { users: 0, maxLevel: 0 };
+      try {
+        const config = readConfig();
+        const guildConfig = config.guilds[GUILD] || {};
+        
+        // Stats économie
+        if (guildConfig.economy && guildConfig.economy.balances) {
+          const balances = guildConfig.economy.balances;
+          economyStats.users = Object.keys(balances).length;
+          economyStats.totalMoney = Object.values(balances).reduce((sum, user) => sum + (user.amount || 0), 0);
+        }
+        
+        // Stats niveaux
+        if (guildConfig.levels && guildConfig.levels.users) {
+          const users = guildConfig.levels.users;
+          economyStats.users = Object.keys(users).length;
+          levelsStats.maxLevel = Math.max(0, ...Object.values(users).map(u => u.level || 0));
+        }
+      } catch (err) {
+        console.error('Error reading config stats:', err);
+      }
+      
       res.json({
         status: botStatus,
         commandCount,
         restarts,
         uptime,
+        memory,
+        cpu,
         version,
-        dashboardVersion: 'v2.8'
+        dashboardVersion: 'v2.8',
+        guild: guildInfo,
+        stats: {
+          economy: economyStats,
+          levels: levelsStats
+        }
       });
     });
   } catch (err) {
     console.error('Error getting bot status:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Dashboard info API
+app.get('/api/dashboard/info', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    
+    // Informations sur le dashboard
+    const dashboardInfo = {
+      version: 'v2.8',
+      port: PORT,
+      uptime: process.uptime(),
+      nodeVersion: process.version,
+      platform: os.platform(),
+      hostname: os.hostname()
+    };
+    
+    // Statistiques sur les fichiers
+    const statsInfo = {
+      backups: 0,
+      uploads: 0,
+      configSize: 0
+    };
+    
+    try {
+      // Compter les backups
+      if (fs.existsSync(BACKUP_DIR)) {
+        const files = fs.readdirSync(BACKUP_DIR);
+        statsInfo.backups = files.filter(f => f.endsWith('.json') && !f.startsWith('pre-restore-')).length;
+      }
+      
+      // Compter les uploads
+      const uploadsPath = path.join(__dirname, '../data/uploads');
+      if (fs.existsSync(uploadsPath)) {
+        const files = fs.readdirSync(uploadsPath);
+        statsInfo.uploads = files.length;
+      }
+      
+      // Taille du fichier de config
+      if (fs.existsSync(CONFIG)) {
+        const stats = fs.statSync(CONFIG);
+        statsInfo.configSize = stats.size;
+      }
+    } catch (err) {
+      console.error('Error collecting dashboard stats:', err);
+    }
+    
+    // Lire les fonctionnalités activées depuis la config
+    const features = {
+      economy: false,
+      levels: false,
+      truthdare: false,
+      tickets: false,
+      confess: false,
+      autokick: false,
+      counting: false,
+      geo: false,
+      music: false
+    };
+    
+    try {
+      const config = readConfig();
+      const guildConfig = config.guilds[GUILD] || {};
+      
+      features.economy = !!(guildConfig.economy && guildConfig.economy.enabled);
+      features.levels = !!(guildConfig.levels && guildConfig.levels.enabled);
+      features.truthdare = !!(guildConfig.truthdare);
+      features.tickets = !!(guildConfig.tickets && guildConfig.tickets.enabled);
+      features.confess = !!(guildConfig.confess && guildConfig.confess.enabled);
+      features.autokick = !!(guildConfig.autokick && guildConfig.autokick.enabled);
+      features.counting = !!(guildConfig.counting && guildConfig.counting.enabled);
+      features.geo = !!(guildConfig.geo);
+      // La musique est toujours disponible
+      features.music = true;
+    } catch (err) {
+      console.error('Error reading config features:', err);
+    }
+    
+    res.json({
+      dashboard: dashboardInfo,
+      stats: statsInfo,
+      features: features
+    });
+  } catch (err) {
+    console.error('Error getting dashboard info:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -305,6 +487,9 @@ const BACKUP_DIR = '/var/data/backups';
 
 // Discord API credentials
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+
+// Variable pour stocker l'owner ID du serveur (récupéré dynamiquement via Discord API)
+let GUILD_OWNER_ID = null;
 
 if (!DISCORD_TOKEN) {
   console.error('❌ DISCORD_TOKEN manquant dans .env');
@@ -639,6 +824,48 @@ app.get('/api/discord/members', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/discord/members:', err);
     res.status(500).json({ error: 'Failed to fetch members' });
+  }
+});
+
+// Economy balances endpoint
+app.get('/api/economy/balances', async (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const balances = guildConfig.economy?.balances || {};
+    
+    // Convertir en format array attendu par l'app
+    const balanceArray = Object.entries(balances).map(([userId, data]) => ({
+      userId,
+      amount: data.amount || 0
+    }));
+    
+    res.json({ balances: balanceArray });
+  } catch (err) {
+    console.error('Error fetching economy balances:', err);
+    res.status(500).json({ error: 'Failed to fetch economy balances' });
+  }
+});
+
+// Levels leaderboard endpoint
+app.get('/api/levels/leaderboard', async (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const users = guildConfig.levels?.users || {};
+    
+    // Convertir en format array attendu par l'app
+    const leaderboard = Object.entries(users).map(([userId, data]) => ({
+      userId,
+      xp: data.xp || 0,
+      level: data.level || 0,
+      messages: data.messages || 0
+    })).sort((a, b) => b.xp - a.xp); // Trier par XP descendant
+    
+    res.json({ leaderboard });
+  } catch (err) {
+    console.error('Error fetching levels leaderboard:', err);
+    res.status(500).json({ error: 'Failed to fetch levels leaderboard' });
   }
 });
 
@@ -2169,8 +2396,8 @@ app.get('/auth/mobile/callback', async (req, res) => {
   }
 });
 
-// Route /api/me
-app.get('/api/me', (req, res) => {
+// Route /api/me - Avec vérification des permissions Discord
+app.get('/api/me', async (req, res) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token' });
@@ -2188,11 +2415,118 @@ app.get('/api/me', (req, res) => {
     return res.status(401).json({ error: 'Token expired' });
   }
   
+  // Récupérer les informations du membre sur le serveur Discord
+  let isAdmin = false;
+  // Vérifier si c'est le fondateur (owner du serveur Discord)
+  let isFounder = GUILD_OWNER_ID ? userData.userId === GUILD_OWNER_ID : userData.userId === '943487722738311219';
+  let memberRoles = [];
+  let permissions = '0';
+  
+  try {
+    // Récupérer les infos du membre depuis Discord API
+    const memberData = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'discord.com',
+        path: `/api/v10/guilds/${GUILD}/members/${userData.userId}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bot ${DISCORD_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      };
+      
+      const req = https.request(options, (response) => {
+        let data = '';
+        response.on('data', (chunk) => data += chunk);
+        response.on('end', () => {
+          if (response.statusCode === 200) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error(`Discord API error: ${response.statusCode}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    
+    memberRoles = memberData.roles || [];
+    
+    // Vérifier les permissions via les rôles
+    if (memberRoles.length > 0) {
+      const rolesData = await getRoles();
+      
+      // Récupérer les permissions de chaque rôle
+      for (const roleId of memberRoles) {
+        try {
+          const roleInfo = await new Promise((resolve, reject) => {
+            const options = {
+              hostname: 'discord.com',
+              path: `/api/v10/guilds/${GUILD}/roles`,
+              method: 'GET',
+              headers: {
+                'Authorization': `Bot ${DISCORD_TOKEN}`,
+                'Content-Type': 'application/json'
+              }
+            };
+            
+            const req = https.request(options, (response) => {
+              let data = '';
+              response.on('data', (chunk) => data += chunk);
+              response.on('end', () => {
+                if (response.statusCode === 200) {
+                  const roles = JSON.parse(data);
+                  const role = roles.find(r => r.id === roleId);
+                  resolve(role);
+                } else {
+                  reject(new Error(`Discord API error: ${response.statusCode}`));
+                }
+              });
+            });
+            req.on('error', reject);
+            req.end();
+          });
+          
+          if (roleInfo && roleInfo.permissions) {
+            const perms = BigInt(roleInfo.permissions);
+            // Vérifier les permissions Administrator (0x8) ou ManageGuild (0x20)
+            if ((perms & 0x8n) === 0x8n || (perms & 0x20n) === 0x20n) {
+              isAdmin = true;
+              break;
+            }
+          }
+        } catch (err) {
+          console.error('Error checking role permissions:', err);
+        }
+      }
+    }
+    
+    // Vérifier aussi les rôles staff configurés
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const staffRoleIds = guildConfig.staffRoleIds || [];
+    
+    if (staffRoleIds.some(roleId => memberRoles.includes(roleId))) {
+      isAdmin = true;
+    }
+    
+  } catch (err) {
+    console.error('Error fetching member data:', err.message);
+  }
+  
+  // Le fondateur a toujours accès admin
+  if (isFounder) {
+    isAdmin = true;
+  }
+  
   res.json({
     userId: userData.userId,
     username: userData.username,
     discriminator: userData.discriminator,
-    avatar: userData.avatar
+    avatar: userData.avatar,
+    isAdmin: isAdmin,
+    isFounder: isFounder,
+    roles: memberRoles
   });
 });
 
@@ -2202,7 +2536,12 @@ app.get('/api/me', (req, res) => {
 // ============================================
 
 // Stockage des utilisateurs autorisés (en mémoire - à remplacer par DB si nécessaire)
-const allowedUsers = new Set(['943487722738311219']); // Fondateur par défaut
+const allowedUsers = new Set([]);
+
+// Fonction pour vérifier si un utilisateur est le fondateur
+function isUserFounder(userId) {
+  return GUILD_OWNER_ID ? userId === GUILD_OWNER_ID : userId === '943487722738311219';
+}
 
 // GET /api/admin/allowed-users - Récupérer la liste
 app.get('/api/admin/allowed-users', (req, res) => {
@@ -2214,8 +2553,8 @@ app.get('/api/admin/allowed-users', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  if (!userData || !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Founder only' });
   }
   
   res.json({ allowedUsers: Array.from(allowedUsers) });
@@ -2231,8 +2570,8 @@ app.post('/api/admin/allowed-users', express.json(), (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  if (!userData || !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Founder only' });
   }
   
   const { userId } = req.body;
@@ -2255,13 +2594,13 @@ app.delete('/api/admin/allowed-users/:userId', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  if (!userData || !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Founder only' });
   }
   
   const { userId } = req.params;
   
-  if (userId === '943487722738311219') {
+  if (isUserFounder(userId)) {
     return res.status(400).json({ error: 'Cannot remove founder' });
   }
   
@@ -2320,10 +2659,168 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
   }
 });
 
+// ============================================
+// CHAT STAFF API - Communication en temps réel
+// ============================================
+
+// Stockage des messages staff en mémoire (max 100 messages)
+const staffMessages = [];
+const MAX_STAFF_MESSAGES = 100;
+
+// GET /api/staff/messages - Récupérer les messages (avec pagination/timestamp)
+app.get('/api/staff/messages', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  // Récupérer depuis quel timestamp (pour ne récupérer que les nouveaux messages)
+  const since = parseInt(req.query.since) || 0;
+  
+  // Filtrer les messages depuis le timestamp demandé
+  const messages = staffMessages.filter(msg => msg.timestamp > since);
+  
+  res.json({
+    messages: messages,
+    currentTimestamp: Date.now()
+  });
+});
+
+// POST /api/staff/messages - Poster un nouveau message
+app.post('/api/staff/messages', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const { message } = req.body;
+  
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ error: 'Message requis' });
+  }
+  
+  if (message.length > 2000) {
+    return res.status(400).json({ error: 'Message trop long (max 2000 caractères)' });
+  }
+  
+  // Créer le message
+  const newMessage = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    userId: userData.userId,
+    username: userData.username,
+    avatar: userData.avatar,
+    message: message.trim(),
+    timestamp: Date.now()
+  };
+  
+  // Ajouter au tableau
+  staffMessages.push(newMessage);
+  
+  // Limiter la taille du tableau
+  if (staffMessages.length > MAX_STAFF_MESSAGES) {
+    staffMessages.shift(); // Supprimer le plus ancien
+  }
+  
+  console.log(`💬 [Staff Chat] ${userData.username}: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+  
+  res.json({
+    success: true,
+    message: newMessage
+  });
+});
+
+// DELETE /api/staff/messages/:messageId - Supprimer un message (admin seulement)
+app.delete('/api/staff/messages/:messageId', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const { messageId } = req.params;
+  const messageIndex = staffMessages.findIndex(msg => msg.id === messageId);
+  
+  if (messageIndex === -1) {
+    return res.status(404).json({ error: 'Message non trouvé' });
+  }
+  
+  const message = staffMessages[messageIndex];
+  
+  // Vérifier que c'est l'auteur du message ou le fondateur
+  if (message.userId !== userData.userId && !isUserFounder(userData.userId)) {
+    return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres messages' });
+  }
+  
+  staffMessages.splice(messageIndex, 1);
+  
+  console.log(`🗑️ [Staff Chat] Message supprimé par ${userData.username}`);
+  
+  res.json({ success: true });
+});
+
+// GET /api/staff/online - Liste des admins connectés (actifs dans les 5 dernières minutes)
+const activeUsers = new Map(); // userId -> { username, avatar, lastSeen }
+
+app.get('/api/staff/online', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  // Mettre à jour le lastSeen de l'utilisateur actuel
+  activeUsers.set(userData.userId, {
+    userId: userData.userId,
+    username: userData.username,
+    avatar: userData.avatar,
+    lastSeen: Date.now()
+  });
+  
+  // Nettoyer les utilisateurs inactifs (plus de 5 minutes)
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  for (const [userId, user] of activeUsers.entries()) {
+    if (user.lastSeen < fiveMinutesAgo) {
+      activeUsers.delete(userId);
+    }
+  }
+  
+  // Retourner la liste des utilisateurs actifs
+  res.json({
+    online: Array.from(activeUsers.values())
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`✓ Dashboard V2 Server running on port ${PORT}`);
   console.log(`✓ Guild ID: ${GUILD}`);
   console.log(`✓ Config file: ${CONFIG}`);
   console.log(`✓ Access: http://localhost:${PORT}`);
   console.log(`✓ Discord API integration enabled`);
+  console.log(`✓ Staff Chat API enabled`);
 });

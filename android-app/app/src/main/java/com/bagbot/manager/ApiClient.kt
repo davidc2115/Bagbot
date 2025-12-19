@@ -62,5 +62,19 @@ class ApiClient(private val store: SettingsStore) {
         if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${response.body?.string()}")
         return response.body?.string() ?: "{}"
     }
+    
+    fun patchJson(path: String, body: String): String {
+        val url = "${store.getBaseUrl()}$path"
+        val requestBody = body.toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url(url)
+            .patch(requestBody)
+            .apply { authHeader()?.let { addHeader("Authorization", it) } }
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${response.body?.string()}")
+        return response.body?.string() ?: "{}"
+    }
 
 }

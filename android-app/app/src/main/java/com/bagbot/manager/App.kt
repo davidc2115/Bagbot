@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -45,53 +48,38 @@ private const val TAG = "BAG_APP"
 
 
 // ============================================
-// CONFIGURATION PAR GROUPES v2.1.3
+// CATÉGORIES DU DASHBOARD v2.5.2 - TOUTES LES 20 CATÉGORIES
 // ============================================
 
-data class ConfigGroup(
+data class DashboardCategory(
     val id: String,
     val name: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val color: Color,
-    val sections: List<String>
+    val description: String
 )
 
-val configGroups = listOf(
-    ConfigGroup(
-        "messages",
-        "👋 Messages & Bienvenue",
-        Icons.Default.EmojiPeople,
-        Color(0xFF4CAF50),
-        listOf("welcome", "goodbye")
-    ),
-    ConfigGroup(
-        "moderation",
-        "👮 Modération & Sécurité",
-        Icons.Default.Security,
-        Color(0xFFE53935),
-        listOf("logs", "autokick", "inactivity", "staffRoleIds", "quarantineRoleId")
-    ),
-    ConfigGroup(
-        "gamification",
-        "🎮 Gamification & Fun",
-        Icons.Default.Gamepad,
-        Color(0xFF9C27B0),
-        listOf("economy", "levels", "truthdare")
-    ),
-    ConfigGroup(
-        "features",
-        "🛠️ Fonctionnalités",
-        Icons.Default.Extension,
-        Color(0xFF2196F3),
-        listOf("tickets", "confess", "counting", "disboard", "autothread")
-    ),
-    ConfigGroup(
-        "customization",
-        "🎨 Personnalisation",
-        Icons.Default.Palette,
-        Color(0xFFFF9800),
-        listOf("categoryBanners", "footerLogoUrl", "geo")
-    )
+val dashboardCategories = listOf(
+    DashboardCategory("dashboard", "📊 Dashboard", Icons.Default.Dashboard, Color(0xFF5865F2), "Vue d'ensemble du serveur"),
+    DashboardCategory("economy", "💰 Économie", Icons.Default.AttachMoney, Color(0xFF57F287), "Gestion des coins et boutique"),
+    DashboardCategory("levels", "📈 Niveaux", Icons.Default.TrendingUp, Color(0xFFFEE75C), "Système XP et récompenses"),
+    DashboardCategory("booster", "🚀 Booster", Icons.Default.Rocket, Color(0xFFEB459E), "Configuration des boosters"),
+    DashboardCategory("counting", "🔢 Comptage", Icons.Default.Pin, Color(0xFF00D4FF), "Jeu de comptage"),
+    DashboardCategory("truthdare", "🎲 Action/Vérité", Icons.Default.Casino, Color(0xFF9B59B6), "Prompts SFW/NSFW"),
+    DashboardCategory("logs", "📝 Logs", Icons.Default.Description, Color(0xFF95A5A6), "Journaux de modération"),
+    DashboardCategory("tickets", "🎫 Tickets", Icons.Default.ConfirmationNumber, Color(0xFFE67E22), "Système de tickets"),
+    DashboardCategory("confess", "💬 Confessions", Icons.Default.Chat, Color(0xFFE91E63), "Confessions anonymes"),
+    DashboardCategory("welcome", "👋 Welcome", Icons.Default.EmojiPeople, Color(0xFF3498DB), "Messages de bienvenue"),
+    DashboardCategory("goodbye", "👋 Goodbye", Icons.Default.ExitToApp, Color(0xFF8B4513), "Messages d'au revoir"),
+    DashboardCategory("staff", "👥 Staff", Icons.Default.AdminPanelSettings, Color(0xFFFFD700), "Gestion du staff"),
+    DashboardCategory("autokick", "👢 AutoKick", Icons.Default.RemoveCircle, Color(0xFFDC143C), "Kick automatique"),
+    DashboardCategory("inactivity", "⏰ Inactivité", Icons.Default.Timer, Color(0xFFFF69B4), "Kick inactivité"),
+    DashboardCategory("autothread", "🧵 AutoThread", Icons.Default.Forum, Color(0xFF20B2AA), "Fils automatiques"),
+    DashboardCategory("disboard", "📢 Disboard", Icons.Default.Campaign, Color(0xFF4169E1), "Rappels Disboard"),
+    DashboardCategory("geo", "🌍 Géolocalisation", Icons.Default.Map, Color(0xFF32CD32), "Carte des membres"),
+    DashboardCategory("actions", "🎬 Actions (GIFs)", Icons.Default.Gif, Color(0xFFE91E63), "GIFs de réaction"),
+    DashboardCategory("backups", "💾 Backups", Icons.Default.Backup, Color(0xFF607D8B), "Sauvegardes"),
+    DashboardCategory("botcontrol", "🎮 Contrôle Bot", Icons.Default.Settings, Color(0xFFFF5722), "Contrôle du bot")
 )
 
 
@@ -113,7 +101,8 @@ fun EconomyFullScreen(
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    members: Map<String, String>
+    members: Map<String, String>,
+    onBack: (() -> Unit)? = null
 ) {
     var balances by remember { mutableStateOf<List<UserBalance>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -161,6 +150,12 @@ fun EconomyFullScreen(
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFA726))) {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
                     Icon(Icons.Default.AttachMoney, null, tint = Color.White, modifier = Modifier.size(32.dp))
                     Spacer(Modifier.width(12.dp))
                     Column {
@@ -337,32 +332,69 @@ fun LevelsFullScreen(
     }
 }
 
-// ---------------- FUN SCREEN (GIFs + Prompts) ----------------
+// ---------------- FUN SCREEN (GIFs + Prompts) avec SFW/NSFW ----------------
+data class TruthDarePrompt(
+    val id: Int,
+    val text: String,
+    val type: String // "truth" or "dare"
+)
+
+data class TruthDareCategory(
+    val mode: String, // "sfw" or "nsfw"
+    val prompts: List<TruthDarePrompt>
+)
+
 @Composable
 fun FunFullScreen(
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
-    snackbar: SnackbarHostState
+    snackbar: SnackbarHostState,
+    onBack: (() -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    var truthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
-    var darePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedCategory by remember { mutableStateOf("sfw") } // "sfw" or "nsfw"
+    var selectedType by remember { mutableStateOf("truth") } // "truth" or "dare"
+    var sfwData by remember { mutableStateOf<TruthDareCategory?>(null) }
+    var nsfwData by remember { mutableStateOf<TruthDareCategory?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var newPrompt by remember { mutableStateOf("") }
-    var selectedMode by remember { mutableStateOf("truth") }
+    var editingPrompt by remember { mutableStateOf<TruthDarePrompt?>(null) }
+    var editText by remember { mutableStateOf("") }
+    var showEditDialog by remember { mutableStateOf(false) }
     
     fun loadPrompts() {
         scope.launch {
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val response = api.getJson("/api/truthdare/prompts")
-                    val data = json.parseToJsonElement(response).jsonObject
-                    val prompts = data["prompts"]?.jsonObject
+                    // Load SFW
+                    val sfwResponse = api.getJson("/api/truthdare/sfw")
+                    val sfwJson = json.parseToJsonElement(sfwResponse).jsonObject
+                    val sfwPrompts = sfwJson["prompts"]?.jsonArray?.map {
+                        val p = it.jsonObject
+                        TruthDarePrompt(
+                            id = p["id"]?.jsonPrimitive?.int ?: 0,
+                            text = p["text"]?.jsonPrimitive?.content ?: "",
+                            type = p["type"]?.jsonPrimitive?.content ?: "truth"
+                        )
+                    } ?: emptyList()
+                    
+                    // Load NSFW
+                    val nsfwResponse = api.getJson("/api/truthdare/nsfw")
+                    val nsfwJson = json.parseToJsonElement(nsfwResponse).jsonObject
+                    val nsfwPrompts = nsfwJson["prompts"]?.jsonArray?.map {
+                        val p = it.jsonObject
+                        TruthDarePrompt(
+                            id = p["id"]?.jsonPrimitive?.int ?: 0,
+                            text = p["text"]?.jsonPrimitive?.content ?: "",
+                            type = p["type"]?.jsonPrimitive?.content ?: "truth"
+                        )
+                    } ?: emptyList()
+                    
                     withContext(Dispatchers.Main) {
-                        truthPrompts = prompts?.get("truth")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-                        darePrompts = prompts?.get("dare")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        sfwData = TruthDareCategory("sfw", sfwPrompts)
+                        nsfwData = TruthDareCategory("nsfw", nsfwPrompts)
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
@@ -383,10 +415,10 @@ fun FunFullScreen(
             withContext(Dispatchers.IO) {
                 try {
                     val body = buildJsonObject {
-                        put("mode", selectedMode)
+                        put("type", selectedType)
                         put("text", newPrompt)
                     }
-                    api.postJson("/api/truthdare/prompt", body.toString())
+                    api.postJson("/api/truthdare/$selectedCategory", body.toString())
                     withContext(Dispatchers.Main) {
                         newPrompt = ""
                         loadPrompts()
@@ -401,54 +433,298 @@ fun FunFullScreen(
         }
     }
     
+    fun updatePrompt(category: String, id: Int, newText: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject {
+                        put("text", newText)
+                    }
+                    api.patchJson("/api/truthdare/$category/$id", body.toString())
+                    withContext(Dispatchers.Main) {
+                        showEditDialog = false
+                        editingPrompt = null
+                        loadPrompts()
+                        snackbar.showSnackbar("✅ Prompt modifié")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    fun deletePrompt(category: String, id: Int) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    api.deleteJson("/api/truthdare/$category/$id")
+                    withContext(Dispatchers.Main) {
+                        loadPrompts()
+                        snackbar.showSnackbar("✅ Prompt supprimé")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
     LaunchedEffect(Unit) { loadPrompts() }
     
+    // Dialog pour éditer un prompt
+    if (showEditDialog && editingPrompt != null) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Modifier le prompt") },
+            text = {
+                OutlinedTextField(
+                    value = editText,
+                    onValueChange = { editText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Texte du prompt") },
+                    minLines = 2
+                )
+            },
+            confirmButton = {
+                Button(onClick = { 
+                    editingPrompt?.let { updatePrompt(selectedCategory, it.id, editText) }
+                }) {
+                    Text("Enregistrer")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showEditDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
     Column(Modifier.fillMaxSize()) {
+        // Header avec bouton retour si fourni
+        if (onBack != null) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF9B59B6))) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            "🎲 Action ou Vérité",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Gestion des prompts SFW/NSFW",
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        }
+        
         TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("🎲 Prompts AouV") })
-            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("🎬 GIFs") })
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("🎲 Ajouter") })
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("📋 Gestion") })
+            Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("🎬 GIFs") })
         }
         
         when (selectedTab) {
             0 -> {
+                // Onglet Ajouter - Interface simplifiée
                 Column(Modifier.fillMaxSize()) {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("🎲 Action ou Vérité", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                            Spacer(Modifier.height(8.dp))
+                            Text("🎲 Ajouter un Prompt", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            
+                            // Sélection catégorie
+                            Text("Catégorie :", color = Color.White, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth()) {
-                                FilterChip(selected = selectedMode == "truth", onClick = { selectedMode = "truth" }, label = { Text("💭 Vérités (${truthPrompts.size})") })
-                                Spacer(Modifier.width(8.dp))
-                                FilterChip(selected = selectedMode == "dare", onClick = { selectedMode = "dare" }, label = { Text("🎯 Actions (${darePrompts.size})") })
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = newPrompt,
-                                    onValueChange = { newPrompt = it },
-                                    modifier = Modifier.weight(1f),
-                                    placeholder = { Text("Nouveau prompt...") },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                FilterChip(
+                                    selected = selectedCategory == "sfw",
+                                    onClick = { selectedCategory = "sfw" },
+                                    label = { Text("✅ SFW") }
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                IconButton(onClick = { addPrompt() }, enabled = newPrompt.isNotBlank()) {
-                                    Icon(Icons.Default.Add, "Ajouter", tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray)
-                                }
+                                FilterChip(
+                                    selected = selectedCategory == "nsfw",
+                                    onClick = { selectedCategory = "nsfw" },
+                                    label = { Text("🔞 NSFW") }
+                                )
                             }
-                        }
-                    }
-                    LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(if (selectedMode == "truth") truthPrompts else darePrompts) { prompt ->
-                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(prompt, modifier = Modifier.weight(1f), color = Color.White)
-                                }
+                            
+                            Spacer(Modifier.height(8.dp))
+                            
+                            // Sélection type
+                            Text("Type :", color = Color.White, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth()) {
+                                FilterChip(
+                                    selected = selectedType == "truth",
+                                    onClick = { selectedType = "truth" },
+                                    label = { Text("💭 Vérité") }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                FilterChip(
+                                    selected = selectedType == "dare",
+                                    onClick = { selectedType = "dare" },
+                                    label = { Text("🎯 Action") }
+                                )
+                            }
+                            
+                            Spacer(Modifier.height(12.dp))
+                            
+                            // Champ de texte
+                            OutlinedTextField(
+                                value = newPrompt,
+                                onValueChange = { newPrompt = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Nouveau prompt", color = Color.White) },
+                                minLines = 2,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            
+                            Spacer(Modifier.height(8.dp))
+                            
+                            Button(
+                                onClick = { addPrompt() },
+                                enabled = newPrompt.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                            ) {
+                                Icon(Icons.Default.Add, "Ajouter")
+                                Spacer(Modifier.width(8.dp))
+                                Text("Ajouter le prompt")
                             }
                         }
                     }
                 }
             }
             1 -> {
+                // Onglet Gestion - Liste des prompts avec édition/suppression
+                Column(Modifier.fillMaxSize().padding(16.dp)) {
+                    Text("📋 Gestion des Prompts", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Sélection de la catégorie
+                    Row(Modifier.fillMaxWidth()) {
+                        FilterChip(
+                            selected = selectedCategory == "sfw",
+                            onClick = { selectedCategory = "sfw" },
+                            label = { 
+                                val count = sfwData?.prompts?.size ?: 0
+                                Text("✅ SFW ($count)")
+                            }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(
+                            selected = selectedCategory == "nsfw",
+                            onClick = { selectedCategory = "nsfw" },
+                            label = { 
+                                val count = nsfwData?.prompts?.size ?: 0
+                                Text("🔞 NSFW ($count)")
+                            }
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    val currentData = if (selectedCategory == "sfw") sfwData else nsfwData
+                    val truthPrompts = currentData?.prompts?.filter { it.type == "truth" } ?: emptyList()
+                    val darePrompts = currentData?.prompts?.filter { it.type == "dare" } ?: emptyList()
+                    
+                    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        // Section Vérités
+                        item {
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF3F51B5))) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        "💭 Vérités (${truthPrompts.size})",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        items(truthPrompts) { prompt ->
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(prompt.text, modifier = Modifier.weight(1f), color = Color.White)
+                                    Row {
+                                        IconButton(onClick = {
+                                            editingPrompt = prompt
+                                            editText = prompt.text
+                                            showEditDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, "Modifier", tint = Color(0xFF2196F3))
+                                        }
+                                        IconButton(onClick = { deletePrompt(selectedCategory, prompt.id) }) {
+                                            Icon(Icons.Default.Delete, "Supprimer", tint = Color(0xFFE53935))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Section Actions
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        "🎯 Actions (${darePrompts.size})",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        items(darePrompts) { prompt ->
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(prompt.text, modifier = Modifier.weight(1f), color = Color.White)
+                                    Row {
+                                        IconButton(onClick = {
+                                            editingPrompt = prompt
+                                            editText = prompt.text
+                                            showEditDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, "Modifier", tint = Color(0xFF2196F3))
+                                        }
+                                        IconButton(onClick = { deletePrompt(selectedCategory, prompt.id) }) {
+                                            Icon(Icons.Default.Delete, "Supprimer", tint = Color(0xFFE53935))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Image, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
@@ -486,24 +762,36 @@ fun StaffChatScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSending by remember { mutableStateOf(false) }
     
+    var lastTimestamp by remember { mutableStateOf(0L) }
+    
     fun loadMessages() {
         scope.launch {
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val response = api.getJson("/api/staff/chat/messages")
+                    val response = api.getJson("/api/staff/messages?since=$lastTimestamp")
                     val data = json.parseToJsonElement(response).jsonObject
                     withContext(Dispatchers.Main) {
-                        messages = data["messages"]?.jsonArray?.map {
+                        val newMessages = data["messages"]?.jsonArray?.map {
                             val msg = it.jsonObject
                             StaffMessage(
                                 id = msg["id"]?.jsonPrimitive?.content ?: "",
                                 userId = msg["userId"]?.jsonPrimitive?.content ?: "",
                                 username = msg["username"]?.jsonPrimitive?.content ?: "Inconnu",
                                 message = msg["message"]?.jsonPrimitive?.content ?: "",
-                                timestamp = msg["timestamp"]?.jsonPrimitive?.content ?: ""
+                                timestamp = msg["timestamp"]?.jsonPrimitive?.longOrNull?.toString() ?: ""
                             )
                         } ?: emptyList()
+                        
+                        // Ajouter les nouveaux messages à la liste existante
+                        if (newMessages.isNotEmpty()) {
+                            messages = (messages + newMessages).distinctBy { it.id }
+                        }
+                        
+                        // Mettre à jour le timestamp
+                        data["currentTimestamp"]?.jsonPrimitive?.longOrNull?.let {
+                            lastTimestamp = it
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Load messages error: ${e.message}")
@@ -518,24 +806,25 @@ fun StaffChatScreen(
     
     fun sendMessage() {
         if (newMessage.isBlank()) return
+        val messageToSend = newMessage
         scope.launch {
             isSending = true
             withContext(Dispatchers.IO) {
                 try {
-                    val userId = userInfo?.get("id")?.jsonPrimitive?.content ?: "unknown"
-                    val username = userInfo?.get("username")?.jsonPrimitive?.content ?: "Inconnu"
                     val body = buildJsonObject {
-                        put("userId", userId)
-                        put("username", username)
-                        put("message", newMessage)
+                        put("message", messageToSend)
                     }
-                    api.postJson("/api/staff/chat/send", body.toString())
+                    api.postJson("/api/staff/messages", body.toString())
                     withContext(Dispatchers.Main) {
                         newMessage = ""
+                        // Charger immédiatement les nouveaux messages
                         loadMessages()
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Send error: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
                 } finally {
                     withContext(Dispatchers.Main) {
                         isSending = false
@@ -780,7 +1069,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         
         withContext(Dispatchers.IO) {
             try {
-                // 1. Informations utilisateur
+                // 1. Informations utilisateur et permissions
                 loadingMessage = "Récupération de votre profil..."
                 Log.d(TAG, "Fetching /api/me")
                 try {
@@ -790,9 +1079,10 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     withContext(Dispatchers.Main) {
                         userId = me["userId"]?.jsonPrimitive?.contentOrNull ?: ""
                         userName = me["username"]?.jsonPrimitive?.contentOrNull ?: ""
-                        isFounder = userId == "943487722738311219"
+                        isFounder = me["isFounder"]?.jsonPrimitive?.booleanOrNull ?: false
+                        isAdmin = me["isAdmin"]?.jsonPrimitive?.booleanOrNull ?: false
                     }
-                    Log.d(TAG, "User loaded: $userName ($userId)")
+                    Log.d(TAG, "User loaded: $userName ($userId) - Admin: $isAdmin, Founder: $isFounder")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/me: ${e.message}")
                     withContext(Dispatchers.Main) {
@@ -968,7 +1258,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.Settings, "Config") },
                                 label = { Text("Config") }
                             )
-                            if (isFounder) {
+                            if (isAdmin) {
                                 NavigationBarItem(
                                     selected = tab == 3,
                                     onClick = { tab = 3 },
@@ -1096,7 +1386,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 }
                             )
                         }
-                        tab == 3 && isFounder -> {
+                        tab == 3 && isAdmin -> {
                             StaffMainScreen(
                                 api = api,
                                 json = json,
@@ -1480,13 +1770,12 @@ fun ConfigGroupsScreen(
     isLoading: Boolean,
     onReloadConfig: () -> Unit
 ) {
-    var selectedGroup by remember { mutableStateOf<ConfigGroup?>(null) }
-    var expandedSection by remember { mutableStateOf<String?>(null) }
+    var selectedCategory by remember { mutableStateOf<DashboardCategory?>(null) }
     
-    if (selectedGroup != null) {
-        // Afficher les sections du groupe sélectionné
-        ConfigGroupDetailScreen(
-            group = selectedGroup!!,
+    if (selectedCategory != null) {
+        // Afficher l'écran détaillé de la catégorie
+        CategoryDetailScreen(
+            category = selectedCategory!!,
             configData = configData,
             members = members,
             channels = channels,
@@ -1495,112 +1784,151 @@ fun ConfigGroupsScreen(
             json = json,
             scope = scope,
             snackbar = snackbar,
-            expandedSection = expandedSection,
-            onExpandSection = { expandedSection = if (expandedSection == it) null else it },
-            onBack = { selectedGroup = null }
+            onBack = { selectedCategory = null }
         )
     } else {
-        // Afficher les vignettes de groupes
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF9C27B0))
-            }
-        } else if (configData != null) {
-            LazyColumn(
-                Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        // Afficher la grille de vignettes
+        Column(Modifier.fillMaxSize()) {
+            // Header
+            Card(
+                Modifier.fillMaxWidth().padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
             ) {
-                item {
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                    ) {
-                        Column(Modifier.padding(20.dp)) {
-                            Text(
-                                "🤖 Configuration du Bot",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text("Serveur: 💎 BAG", color = Color.White)
-                            Text("${members.size} membres • ${channels.size} salons", color = Color.Gray)
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                "💡 Sélectionnez un groupe pour configurer",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFFF1744),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "🤖 Configuration du Bot",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("Serveur: 💎 BAG", color = Color.White)
+                    Text("${members.size} membres • ${channels.size} salons • ${roles.size} rôles", color = Color.Gray)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "💡 Sélectionnez une catégorie pour configurer",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFFF1744),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                
-                items(configGroups) { group ->
-                    val sectionsInConfig = group.sections.count { configData.containsKey(it) }
-                    
-                    Card(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedGroup = group },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    Modifier
-                                        .size(48.dp)
-                                        .background(group.color.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        group.icon,
-                                        null,
-                                        tint = group.color,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        group.name,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Text(
-                                        "$sectionsInConfig/${group.sections.size} sections configurées",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.Gray
-                                    )
-                                }
-                            }
-                            Icon(Icons.Default.ChevronRight, null, tint = group.color)
-                        }
+            }
+            
+            if (isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF9C27B0))
+                }
+            } else {
+                // Grille de vignettes 2 colonnes
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(dashboardCategories) { category ->
+                        CategoryCard(
+                            category = category,
+                            onClick = { selectedCategory = category }
+                        )
                     }
                 }
             }
-        } else {
-            Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
-                    Spacer(Modifier.height(16.dp))
-                    Text("⚠️ Configuration non chargée", color = Color.White)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { onReloadConfig() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-                    ) {
-                        Icon(Icons.Default.Refresh, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Recharger")
-                    }
-                }
+        }
+    }
+}
+
+@Composable
+fun CategoryCard(category: DashboardCategory, onClick: () -> Unit) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .background(category.color.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    category.icon,
+                    contentDescription = null,
+                    tint = category.color,
+                    modifier = Modifier.size(32.dp)
+                )
             }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                category.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                category.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+fun CategoryDetailScreen(
+    category: DashboardCategory,
+    configData: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    onBack: () -> Unit
+) {
+    // Utiliser ConfigEditorScreen pour afficher le contenu réel de chaque catégorie
+    // au lieu d'afficher "en développement"
+    when (category.id) {
+        "economy" -> {
+            // Afficher l'écran d'économie complète avec bouton retour
+            EconomyFullScreen(api, json, scope, snackbar, members, onBack)
+        }
+        "truthdare" -> {
+            // Afficher l'écran Action/Vérité avec bouton retour
+            FunFullScreen(api, json, scope, snackbar, onBack)
+        }
+        else -> {
+            // Pour les autres catégories, utiliser ConfigEditorScreen
+            ConfigEditorScreen(
+                sectionKey = category.id,
+                configData = configData,
+                members = members,
+                channels = channels,
+                roles = roles,
+                api = api,
+                json = json,
+                scope = scope,
+                snackbar = snackbar,
+                onBack = onBack,
+                onConfigUpdated = {}
+            )
         }
     }
 }
@@ -1727,193 +2055,6 @@ fun renderKeyInfo(
     }
 }
 
-@Composable
-fun ConfigGroupDetailScreen(
-    group: ConfigGroup,
-    configData: JsonObject?,
-    members: Map<String, String>,
-    channels: Map<String, String>,
-    roles: Map<String, String>,
-    api: ApiClient,
-    json: Json,
-    scope: kotlinx.coroutines.CoroutineScope,
-    snackbar: SnackbarHostState,
-    expandedSection: String?,
-    onExpandSection: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
-    ) {
-        item {
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = group.color)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Icon(group.icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        group.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-        
-        items(group.sections) { sectionKey ->
-            if (configData?.containsKey(sectionKey) == true) {
-                val sectionData = configData[sectionKey]
-                val isExpanded = expandedSection == sectionKey
-                
-                Card(
-                    Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                ) {
-                    Column {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onExpandSection(sectionKey) }
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    getSectionDisplayName(sectionKey),
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    if (isExpanded) "Cliquez pour masquer" else "Cliquez pour afficher",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
-                            }
-                            Icon(
-                                if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                null,
-                                tint = group.color
-                            )
-                        }
-                        
-                        if (isExpanded && sectionData != null) {
-                            Divider(color = Color(0xFF2E2E2E))
-                            Column(Modifier.padding(16.dp)) {
-                                // Afficher les infos clés avec les vrais noms
-                                renderKeyInfo(sectionKey, sectionData, members, channels, roles)
-                                Spacer(Modifier.height(8.dp))
-
-                                var jsonText by remember { mutableStateOf(sectionData.toString()) }
-                                var isSaving by remember { mutableStateOf(false) }
-                                
-                                Text(
-                                    "Contenu JSON (modifiable):",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                
-                                OutlinedTextField(
-                                    value = jsonText,
-                                    onValueChange = { jsonText = it },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 150.dp, max = 300.dp),
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    ),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.LightGray
-                                    )
-                                )
-                                
-                                Spacer(Modifier.height(12.dp))
-                                
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            isSaving = true
-                                            withContext(Dispatchers.IO) {
-                                                try {
-                                                    val updates = json.parseToJsonElement(jsonText).jsonObject
-                                                    api.putJson("/api/configs/$sectionKey", updates.toString())
-                                                    withContext(Dispatchers.Main) {
-                                                        snackbar.showSnackbar("✅ $sectionKey sauvegardé")
-                                                    }
-                                                } catch (e: Exception) {
-                                                    withContext(Dispatchers.Main) {
-                                                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                                    }
-                                                } finally {
-                                                    withContext(Dispatchers.Main) {
-                                                        isSaving = false
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = group.color),
-                                    enabled = !isSaving
-                                ) {
-                                    if (isSaving) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    } else {
-                                        Icon(Icons.Default.Save, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Sauvegarder")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fun getSectionDisplayName(key: String): String {
-    return when (key) {
-        "economy" -> "💰 Économie"
-        "tickets" -> "🎫 Tickets"
-        "welcome" -> "👋 Bienvenue"
-        "goodbye" -> "👋 Au revoir"
-        "inactivity" -> "💤 Inactivité"
-        "levels" -> "📈 Niveaux/XP"
-        "logs" -> "📝 Logs"
-        "autokick" -> "🦶 Auto-kick"
-        "autothread" -> "🧵 Auto-thread"
-        "categoryBanners" -> "🎨 Bannières catégories"
-        "confess" -> "🤫 Confessions"
-        "counting" -> "🔢 Comptage"
-        "disboard" -> "📢 Disboard"
-        "footerLogoUrl" -> "🖼️ Logo footer"
-        "geo" -> "🌍 Géolocalisation"
-        "quarantineRoleId" -> "🔒 Rôle quarantaine"
-        "staffRoleIds" -> "👮 Rôles staff"
-        "truthdare" -> "🎲 Action ou vérité"
-        else -> "⚙️ $key"
-    }
-}
-
-// Partie 3 - AdminScreenWithAccess et ConfigEditorScreen
 
 @Composable
 fun AdminScreenWithAccess(
@@ -2574,5 +2715,4 @@ fun ConfigEditorScreen(
             }
         }
     }
-
 }
