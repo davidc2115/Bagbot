@@ -12,13 +12,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as itemsIndexedGrid
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -174,6 +168,33 @@ private fun CategoryCard(
     label: String,
     onClick: () -> Unit
 ) {
+    val icon = when (label) {
+        "🏠 Dashboard" -> Icons.Default.Dashboard
+        "💰 Économie" -> Icons.Default.MonetizationOn
+        "📊 Niveaux" -> Icons.Default.TrendingUp
+        "🚀 Booster" -> Icons.Default.Rocket
+        "🔢 Comptage" -> Icons.Default.Calculate
+        "🎲 Action ou Vérité" -> Icons.Default.Casino
+        "🎭 Actions" -> Icons.Default.SportsEsports
+        "🎟️ Tickets" -> Icons.Default.ConfirmationNumber
+        "📝 Logs" -> Icons.Default.Article
+        "🤫 Confessions" -> Icons.Default.Lock
+        "👋 Bienvenue" -> Icons.Default.WavingHand
+        "👋 Au revoir" -> Icons.Default.ExitToApp
+        "🌍 Géolocalisation" -> Icons.Default.Place
+        "🎵 Musique" -> Icons.Default.MusicNote
+        "💾 Backups" -> Icons.Default.Storage
+        "⚙️ Contrôle" -> Icons.Default.Settings
+        else -> Icons.Default.Settings
+    }
+    
+    val gradient = androidx.compose.ui.graphics.Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF2E2E2E),
+            Color(0xFF1A1A1A)
+        )
+    )
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -182,21 +203,48 @@ private fun CategoryCard(
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF1E1E1E)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
+                .background(gradient)
+                .padding(16.dp)
         ) {
-            Text(
-                text = label,
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Icon with background circle
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(
+                            color = Color(0xFF5865F2).copy(alpha = 0.2f),
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = Color(0xFF5865F2),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Text(
+                    text = label,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2
+                )
+            }
         }
     }
 }
@@ -545,7 +593,7 @@ private fun EconomyConfigTab(
     snackbar: SnackbarHostState
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique", "Karma")
+    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique", "Karma", "Actions", "GIFs")
     
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
@@ -814,54 +862,29 @@ private fun EconomyConfigTab(
                 }
             }
             3 -> {
-                // Boutique
-                var shopItems by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
-                var isLoading by remember { mutableStateOf(false) }
-                
-                fun loadShop() {
-                    scope.launch {
-                        isLoading = true
-                        withContext(Dispatchers.IO) {
-                            try {
-                                val resp = api.getJson("/api/economy/shop")
-                                val obj = json.parseToJsonElement(resp).jsonObject
-                                val items = obj["items"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
-                                withContext(Dispatchers.Main) {
-                                    shopItems = items
-                                }
-                            } catch (e: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                }
-                            } finally {
-                                withContext(Dispatchers.Main) { isLoading = false }
-                            }
-                        }
-                    }
+                // Boutique - using data from configData
+                val shopData = configData?.obj("shop")
+                val shopItems = remember(shopData) {
+                    shopData?.jsonObject?.values?.mapNotNull { it.jsonObject } ?: emptyList()
                 }
                 
-                LaunchedEffect(Unit) { loadShop() }
+                LaunchedEffect(Unit) {
+                    // Log for debugging
+                    Log.d(TAG, "Shop data: ${shopData?.toString()?.take(200)}")
+                    Log.d(TAG, "Shop items count: ${shopItems.size}")
+                }
                 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "🛒 Boutique",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            IconButton(onClick = { loadShop() }, enabled = !isLoading) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
-                            }
-                        }
+                        Text(
+                            "🛒 Boutique",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                         Text(
                             "${shopItems.size} objet(s)",
                             style = MaterialTheme.typography.bodyMedium,
@@ -869,13 +892,7 @@ private fun EconomyConfigTab(
                         )
                     }
                     
-                    if (isLoading) {
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        }
-                    } else {
+                    if (shopItems.isNotEmpty()) {
                         itemsIndexed(shopItems) { index, item ->
                             val emoji = item["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
                             val name = item["name"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -922,29 +939,27 @@ private fun EconomyConfigTab(
                                 }
                             }
                         }
-                        
-                        if (shopItems.isEmpty()) {
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    } else {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(40.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth().padding(40.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(
-                                                "🛒",
-                                                style = MaterialTheme.typography.displayLarge
-                                            )
-                                            Spacer(Modifier.height(16.dp))
-                                            Text(
-                                                "Aucun objet dans la boutique",
-                                                color = Color.Gray,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "🛒",
+                                            style = MaterialTheme.typography.displayLarge
+                                        )
+                                        Spacer(Modifier.height(16.dp))
+                                        Text(
+                                            "Aucun objet dans la boutique",
+                                            color = Color.Gray,
+                                            textAlign = TextAlign.Center
+                                        )
                                     }
                                 }
                             }
@@ -953,28 +968,15 @@ private fun EconomyConfigTab(
                 }
             }
             4 -> {
-                // Karma
-                var karmaEnabled by remember { mutableStateOf(false) }
-                var karmaDay by remember { mutableIntStateOf(0) }
-                var isSaving by remember { mutableStateOf(false) }
-                
-                LaunchedEffect(Unit) {
-                    // Load karma config
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            try {
-                                val resp = api.getJson("/api/economy/karma")
-                                val obj = json.parseToJsonElement(resp).jsonObject
-                                withContext(Dispatchers.Main) {
-                                    karmaEnabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                                    karmaDay = obj["day"]?.jsonPrimitive?.intOrNull ?: 0
-                                }
-                            } catch (e: Exception) {
-                                // Ignore if not configured
-                            }
-                        }
-                    }
+                // Karma - using data from configData
+                val karmaData = configData?.obj("karma")
+                var karmaEnabled by remember(karmaData) { 
+                    mutableStateOf(karmaData?.get("enabled")?.jsonPrimitive?.booleanOrNull ?: false) 
                 }
+                var karmaDay by remember(karmaData) { 
+                    mutableIntStateOf(karmaData?.get("day")?.jsonPrimitive?.intOrNull ?: 0) 
+                }
+                var isSaving by remember { mutableStateOf(false) }
                 
                 val usersWithCharm = eco?.values?.count { 
                     it.jsonObject["charm"]?.jsonPrimitive?.intOrNull?.let { it > 0 } ?: false 
@@ -1087,7 +1089,7 @@ private fun EconomyConfigTab(
                                                 put("enabled", karmaEnabled)
                                                 put("day", karmaDay)
                                             }
-                                            api.postJson("/api/economy/karma", json.encodeToString(JsonObject.serializer(), body))
+                                            api.postJson("/api/configs/karma", json.encodeToString(JsonObject.serializer(), body))
                                             withContext(Dispatchers.Main) {
                                                 snackbar.showSnackbar("✅ Karma sauvegardé")
                                             }
@@ -1109,6 +1111,118 @@ private fun EconomyConfigTab(
                                 Icon(Icons.Default.Save, null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Sauvegarder Karma")
+                            }
+                        }
+                    }
+                }
+            }
+            5 -> {
+                // Actions - placeholder matching web
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text(
+                            "🎭 Actions Économiques",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Configuration des actions économiques interactives",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                    
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.SportsEsports,
+                                        contentDescription = null,
+                                        tint = Color.Gray.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        "Configuration disponible sur le dashboard web",
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "http://88.174.155.230:33002",
+                                        color = Color(0xFF5865F2),
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            6 -> {
+                // GIFs - placeholder matching web
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text(
+                            "🎬 Actions & GIFs",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Gérez les GIFs associés à chaque action économique",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+                    
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Gif,
+                                        contentDescription = null,
+                                        tint = Color.Gray.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        "Gestion des GIFs disponible sur le dashboard web",
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "http://88.174.155.230:33002",
+                                        color = Color(0xFF5865F2),
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                         }
                     }
@@ -3869,10 +3983,10 @@ private fun GeoConfigTab(
     }
     
     var selectedLocation by remember { mutableStateOf<Location?>(null) }
-    var showMap by remember { mutableStateOf(true) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(Modifier.fillMaxSize()) {
-        // Header with toggle
+        // Header
         Row(
             Modifier
                 .fillMaxWidth()
@@ -3893,83 +4007,46 @@ private fun GeoConfigTab(
                     color = Color.Gray
                 )
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { showMap = !showMap }) {
-                    Icon(
-                        if (showMap) Icons.Default.List else Icons.Default.Place,
-                        contentDescription = if (showMap) "Liste" else "Carte",
-                        tint = Color.White
-                    )
-                }
-            }
-        }
-
-        if (showMap) {
-            // Map view using AndroidView
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp)
-                    .padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Place,
-                            contentDescription = null,
-                            tint = Color(0xFF57F287),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "Carte Interactive",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "${locations.size} point(s) sur la carte",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "Carte OpenStreetMap",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray.copy(alpha = 0.6f)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Affichant les localisations des membres",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray.copy(alpha = 0.6f),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
         }
         
-        // List view
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            itemsIndexed(locations.sortedBy { members[it.userId] ?: it.userId }) { _, location ->
+        // Tabs
+        TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.List, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Membres")
+                    }
+                }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Place, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Carte")
+                    }
+                }
+            )
+        }
+
+        when (selectedTab) {
+            0 -> {
+                // List view
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item { Spacer(Modifier.height(8.dp)) }
+                    
+                    itemsIndexed(locations.sortedBy { members[it.userId] ?: it.userId }) { _, location ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4087,6 +4164,65 @@ private fun GeoConfigTab(
                             }
                         }
                     }
+                }
+                    }
+                }
+            }
+            1 -> {
+                // Map view with OSMDroid
+                if (locations.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Place,
+                                contentDescription = null,
+                                tint = Color.Gray.copy(alpha = 0.5f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Aucune localisation à afficher",
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                } else {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { context ->
+                            org.osmdroid.views.MapView(context).apply {
+                                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                                setMultiTouchControls(true)
+                                controller.setZoom(6.0)
+                                
+                                // Calculate center of all locations
+                                val avgLat = locations.map { it.lat }.average()
+                                val avgLon = locations.map { it.lon }.average()
+                                controller.setCenter(org.osmdroid.util.GeoPoint(avgLat, avgLon))
+                                
+                                // Add markers for each location
+                                locations.forEach { location ->
+                                    val marker = org.osmdroid.views.overlay.Marker(this).apply {
+                                        position = org.osmdroid.util.GeoPoint(location.lat, location.lon)
+                                        title = members[location.userId] ?: "Membre inconnu"
+                                        snippet = location.city.ifBlank { "Ville inconnue" }
+                                        setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM)
+                                    }
+                                    overlays.add(marker)
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    )
                 }
             }
         }
