@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -57,18 +60,37 @@ jobs:
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
           ### ✨ Nouvelles fonctionnalités
-          - 🎨 Nouveau design violet/rose
-          - 🚀 Écran de chargement animé
-          - 🔐 Interface d'administration
-          - 👥 Sélecteur de membres
-          - 📱 Navigation Material 3
-          - 🔒 Gestion des accès
+          
+          #### 🔐 Administration
+          - **Correction des droits admin**: Les administrateurs sont maintenant correctement détectés via les rôles staff
+          - **Accès au chat staff**: Les admins ont désormais accès au chat staff
+          - **Onglet Sessions**: Nouvel onglet affichant les membres connectés avec leurs rôles (Fondateur/Admin/Membre)
+          - **Révocation permanente**: Possibilité de retirer définitivement l'accès à un membre
+          
+          #### 📊 Configuration (Vignettes)
+          - **Dashboard**: Affichage des statistiques et membres connectés
+          - **Économie**: Gestion complète (Karma, Boutique, Utilisateurs)
+          - **Niveaux**: Configuration XP, Récompenses, Cartes
+          - **Tickets**: Panel de configuration des tickets
+          - **Géo**: Carte interactive des membres (OSMDroid)
+          
+          #### 🎨 Interface
+          - Design violet/rose moderne
+          - Écran de chargement animé
+          - Navigation Material 3
+          - Sélecteurs de membres, canaux et rôles
           
           ### 📥 Installation
-          1. Téléchargez l'APK
-          2. Activez "Sources inconnues"
-          3. Installez et profitez !
+          1. Téléchargez l'APK ci-dessous
+          2. Activez "Sources inconnues" dans les paramètres Android
+          3. Installez et connectez-vous !
           
-          ### 🔗 URL: http://88.174.155.230:33002
+          ### 🔗 Dashboard Web
+          http://88.174.155.230:33002
+          
+          ### 🐛 Corrections de bugs
+          - Détection des rôles admin via `staffRoleIds`
+          - Vérification des droits au démarrage
+          - Gestion correcte des sessions utilisateurs
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
