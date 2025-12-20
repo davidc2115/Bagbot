@@ -2898,6 +2898,90 @@ app.post('/api/admin/dashboard-url', (req, res) => {
   }
 });
 
+// GET /api/admin/logs/:service - Récupérer les logs d'un service (bot ou dashboard)
+app.get('/api/admin/logs/:service', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData || userData.userId !== '943487722738311219') {
+    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  }
+  
+  try {
+    const { service } = req.params;
+    if (service !== 'bot' && service !== 'dashboard') {
+      return res.status(400).json({ error: 'Invalid service (must be bot or dashboard)' });
+    }
+    
+    const { exec } = require('child_process');
+    const command = `pm2 logs ${service === 'bot' ? 'bagbot' : 'dashboard-v2'} --lines 100 --nostream`;
+    
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error getting logs for ${service}:`, error);
+        return res.status(500).json({ error: 'Failed to get logs', details: stderr });
+      }
+      
+      res.json({ 
+        service,
+        logs: stdout || stderr || 'No logs available'
+      });
+    });
+  } catch (err) {
+    console.error('Error in /api/admin/logs:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/restart/:service - Redémarrer un service PM2
+app.post('/api/admin/restart/:service', express.json(), (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData || userData.userId !== '943487722738311219') {
+    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  }
+  
+  try {
+    const { service } = req.params;
+    if (service !== 'bot' && service !== 'dashboard') {
+      return res.status(400).json({ error: 'Invalid service (must be bot or dashboard)' });
+    }
+    
+    const { exec } = require('child_process');
+    const pm2Name = service === 'bot' ? 'bagbot' : 'dashboard-v2';
+    const command = `pm2 restart ${pm2Name}`;
+    
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error restarting ${service}:`, error);
+        return res.status(500).json({ error: 'Failed to restart service', details: stderr });
+      }
+      
+      console.log(`✅ Service ${service} restarted by ${userData.username}`);
+      res.json({ 
+        success: true,
+        service,
+        message: `Service ${service} restarted successfully`,
+        output: stdout
+      });
+    });
+  } catch (err) {
+    console.error('Error in /api/admin/restart:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✓ Dashboard V2 Server running on port ${PORT}`);
   console.log(`✓ Guild ID: ${GUILD}`);

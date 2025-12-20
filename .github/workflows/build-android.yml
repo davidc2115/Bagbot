@@ -61,6 +61,14 @@ jobs:
           
           ### ✨ Nouvelles fonctionnalités
           
+          #### 🎛️ Contrôle Bot (NOUVEAU!)
+          - **Onglet Statut**: Vue d'ensemble du bot et du serveur
+          - **Onglet Logs**: Consultation des logs Bot et Dashboard en temps réel
+          - **Onglet Actions** (Fondateur uniquement): 
+            - 🔄 Redémarrage Bot PM2
+            - 🔄 Redémarrage Dashboard PM2
+          - **Interface intuitive**: Navigation par tabs avec icônes
+          
           #### 🎵 Musique
           - **Upload depuis APK**: Uploadez des fichiers audio directement depuis l'application
           - **Lecteur audio intégré**: Écoutez vos musiques avec boutons Play/Stop
@@ -73,11 +81,10 @@ jobs:
           - **Compteurs dynamiques**: Affichage séparé par catégorie
           - **Ajout contextualisé**: Ajouter des prompts SFW ou NSFW
           
-          #### 🔧 Corrections & Améliorations
-          - **Fix erreur 404**: Correction de l'erreur dans l'onglet "Membres connectés"
-          - **7 nouveaux endpoints**: API complète pour économie, niveaux, truthdare, staff chat
-          - **Configurations améliorées**: 18/18 sections avec infos clés détaillées
-          - **IDs → Noms**: Remplacement automatique des IDs par noms lisibles
+          #### 🔧 API Backend (NOUVEAU!)
+          - **GET /api/admin/logs/:service**: Récupérer les logs (bot ou dashboard)
+          - **POST /api/admin/restart/:service**: Redémarrer un service PM2
+          - **Sécurité**: Accès réservé au fondateur uniquement
           
           #### 🔐 Administration
           - **Sessions actives**: Voir qui est connecté en temps réel
@@ -107,7 +114,7 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 4.1.2 (versionCode 412)
+          - **Version**: 4.1.3 (versionCode 413)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
