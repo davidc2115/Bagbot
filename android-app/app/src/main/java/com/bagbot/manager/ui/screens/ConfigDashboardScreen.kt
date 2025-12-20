@@ -1042,34 +1042,56 @@ private fun EconomyConfigTab(
                 }
             }
             3 -> {
-                // Boutique - using data from economy.shop
+                // Boutique - Ajout/Modif/Suppression d'objets
                 val shopData = eco?.obj("shop")
-                val shopItems = remember(shopData) {
-                    shopData?.arr("items")?.mapNotNull { it.jsonObject } ?: emptyList()
+                var shopItems by remember(shopData) {
+                    mutableStateOf(shopData?.arr("items")?.mapNotNull { it.jsonObject }?.toMutableList() ?: mutableListOf())
                 }
                 
-                LaunchedEffect(Unit) {
-                    // Log for debugging
-                    Log.d(TAG, "Shop data: ${shopData?.toString()?.take(200)}")
-                    Log.d(TAG, "Shop items count: ${shopItems.size}")
-                }
+                var showAddDialog by remember { mutableStateOf(false) }
+                var editingIndex by remember { mutableStateOf<Int?>(null) }
+                var newItemId by remember { mutableStateOf("") }
+                var newItemName by remember { mutableStateOf("") }
+                var newItemPrice by remember { mutableStateOf("") }
+                var newItemEmoji by remember { mutableStateOf("") }
+                var savingShop by remember { mutableStateOf(false) }
                 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        Text(
-                            "🛒 Boutique",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "${shopItems.size} objet(s)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    "🛒 Boutique",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "${shopItems.size} objet(s)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray
+                                )
+                            }
+                            Button(onClick = {
+                                newItemId = ""
+                                newItemName = ""
+                                newItemPrice = ""
+                                newItemEmoji = ""
+                                editingIndex = null
+                                showAddDialog = true
+                            }) {
+                                Icon(Icons.Default.Add, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Ajouter")
+                            }
+                        }
                     }
                     
                     if (shopItems.isNotEmpty()) {
@@ -1083,142 +1105,256 @@ private fun EconomyConfigTab(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                             ) {
-                                Column(Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                emoji,
-                                                style = MaterialTheme.typography.displaySmall
-                                            )
-                                            Column {
-                                                Text(
-                                                    name,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                                Text(
-                                                    "ID: $itemId",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = Color.Gray
-                                                )
-                                            }
+                                        Text(emoji, style = MaterialTheme.typography.headlineMedium)
+                                        Column {
+                                            Text(name, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Text("ID: $itemId", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                            Text("$price $currencyName", color = Color(0xFF57F287), fontWeight = FontWeight.SemiBold)
                                         }
-                                        Text(
-                                            "$price $currencyName",
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF57F287)
-                                        )
+                                    }
+                                    Row {
+                                        IconButton(onClick = {
+                                            newItemId = itemId
+                                            newItemName = name
+                                            newItemPrice = price.toString()
+                                            newItemEmoji = emoji
+                                            editingIndex = index
+                                            showAddDialog = true
+                                        }) {
+                                            Icon(Icons.Default.Edit, null, tint = Color(0xFF5865F2))
+                                        }
+                                        IconButton(onClick = { shopItems.removeAt(index) }) {
+                                            Icon(Icons.Default.Delete, null, tint = Color(0xFFED4245))
+                                        }
                                     }
                                 }
                             }
                         }
                     } else {
                         item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(40.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            "🛒",
-                                            style = MaterialTheme.typography.displayLarge
-                                        )
+                                        Text("🛒", style = MaterialTheme.typography.displayLarge)
                                         Spacer(Modifier.height(16.dp))
-                                        Text(
-                                            "Aucun objet dans la boutique",
-                                            color = Color.Gray,
-                                            textAlign = TextAlign.Center
-                                        )
+                                        Text("Aucun objet dans la boutique", color = Color.Gray, textAlign = TextAlign.Center)
                                     }
                                 }
                             }
                         }
                     }
+                    
+                    // Save button
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    savingShop = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("shop", buildJsonObject {
+                                                    put("items", JsonArray(shopItems.map { buildJsonObject {
+                                                        put("id", it["id"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                        put("name", it["name"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                        put("price", it["price"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                        put("emoji", it["emoji"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                    }}))
+                                                    put("roles", JsonArray(emptyList()))
+                                                    put("grants", buildJsonObject {})
+                                                })
+                                            }
+                                            api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Boutique sauvegardée") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { savingShop = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !savingShop
+                        ) {
+                            if (savingShop) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Boutique")
+                            }
+                        }
+                    }
+                }
+                
+                // Dialog Add/Edit
+                if (showAddDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showAddDialog = false },
+                        title = { Text(if (editingIndex != null) "Modifier l'objet" else "Ajouter un objet") },
+                        text = {
+                            Column {
+                                OutlinedTextField(newItemId, { newItemId = it }, label = { Text("ID (ex: item-1)") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(newItemName, { newItemName = it }, label = { Text("Nom") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    newItemPrice, { newItemPrice = it }, label = { Text("Prix") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(newItemEmoji, { newItemEmoji = it }, label = { Text("Emoji") }, modifier = Modifier.fillMaxWidth())
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                val newItem = buildJsonObject {
+                                    put("id", newItemId)
+                                    put("name", newItemName)
+                                    put("price", newItemPrice.toIntOrNull() ?: 0)
+                                    put("emoji", newItemEmoji)
+                                }
+                                if (editingIndex != null) {
+                                    shopItems[editingIndex!!] = newItem
+                                } else {
+                                    shopItems.add(newItem)
+                                }
+                                showAddDialog = false
+                            }, enabled = newItemId.isNotBlank() && newItemName.isNotBlank()) {
+                                Text(if (editingIndex != null) "Modifier" else "Ajouter")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAddDialog = false }) {
+                                Text("Annuler")
+                            }
+                        }
+                    )
                 }
             }
             4 -> {
-                // Karma - using data from configData
-                val karmaData = configData?.obj("karma")
-                var karmaEnabled by remember(karmaData) { 
-                    mutableStateOf(karmaData?.get("enabled")?.jsonPrimitive?.booleanOrNull ?: false) 
-                }
-                var karmaDay by remember(karmaData) { 
-                    mutableIntStateOf(karmaData?.get("day")?.jsonPrimitive?.intOrNull ?: 0) 
-                }
-                var isSaving by remember { mutableStateOf(false) }
+                // Karma - Configuration complète
+                val karmaModifiers = eco?.obj("karmaModifiers")
+                val karmaReset = eco?.obj("karmaReset")
                 
-                val usersWithCharm = eco?.values?.count { 
-                    it.jsonObject["charm"]?.jsonPrimitive?.intOrNull?.let { it > 0 } ?: false 
-                } ?: 0
+                var resetEnabled by remember { mutableStateOf(karmaReset?.bool("enabled") ?: false) }
+                var resetDay by remember { mutableStateOf(karmaReset?.int("day")?.toString() ?: "1") }
                 
-                val usersWithPerversion = eco?.values?.count { 
-                    it.jsonObject["perversion"]?.jsonPrimitive?.intOrNull?.let { it > 0 } ?: false 
-                } ?: 0
+                var selectedKarmaTab by remember { mutableIntStateOf(0) }
+                var savingKarma by remember { mutableStateOf(false) }
                 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        Text(
-                            "🔄 Karma",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "Configuration du système Karma",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
+                        Text("💫 Karma", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Configuration des modificateurs et reset", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                     }
                     
+                    // Reset auto
                     item {
-                        SectionCard(
-                            title = "🔄 Reset Automatique",
-                            subtitle = if (karmaEnabled) "Actif" else "Inactif"
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Activer le reset automatique", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                Switch(checked = karmaEnabled, onCheckedChange = { karmaEnabled = it })
+                        SectionCard(title = "🔄 Reset Automatique", subtitle = if (resetEnabled) "Actif" else "Inactif") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Reset automatique", color = Color.White)
+                                Switch(checked = resetEnabled, onCheckedChange = { resetEnabled = it })
                             }
-                            
-                            if (karmaEnabled) {
-                                Spacer(Modifier.height(16.dp))
-                                Text("Jour de reset", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            if (resetEnabled) {
                                 Spacer(Modifier.height(8.dp))
-                                
-                                val days = listOf("Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi")
-                                Column {
-                                    days.forEachIndexed { index, day ->
-                                        Row(
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .clickable { karmaDay = index }
-                                                .padding(vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            RadioButton(
-                                                selected = karmaDay == index,
-                                                onClick = { karmaDay = index }
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(day, color = Color.White)
+                                OutlinedTextField(
+                                    resetDay, { resetDay = it }, label = { Text("Jour du mois (1-28)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Tabs pour modifiers
+                    item {
+                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))) {
+                            Column {
+                                TabRow(selectedTabIndex = selectedKarmaTab, containerColor = Color.Transparent) {
+                                    Tab(selected = selectedKarmaTab == 0, onClick = { selectedKarmaTab = 0 }) { Text("Boutique", Modifier.padding(12.dp)) }
+                                    Tab(selected = selectedKarmaTab == 1, onClick = { selectedKarmaTab = 1 }) { Text("Actions", Modifier.padding(12.dp)) }
+                                    Tab(selected = selectedKarmaTab == 2, onClick = { selectedKarmaTab = 2 }) { Text("Grants", Modifier.padding(12.dp)) }
+                                }
+                            }
+                        }
+                    }
+                    
+                    when (selectedKarmaTab) {
+                        0 -> {
+                            // Shop modifiers
+                            val shopMods = remember(karmaModifiers) {
+                                karmaModifiers?.arr("shop")?.mapNotNull { it.jsonObject } ?: emptyList()
+                            }
+                            item {
+                                Text("🛒 Modificateurs Boutique", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                Text("${shopMods.size} modificateurs configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            }
+                            itemsIndexed(shopMods) { i, m ->
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(m.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Condition: ${m.str("condition")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("${m.int("percent") ?: 0}%", color = if ((m.int("percent") ?: 0) >= 0) Color(0xFF57F287) else Color(0xFFED4245), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        1 -> {
+                            // Actions modifiers
+                            val actionMods = remember(karmaModifiers) {
+                                karmaModifiers?.arr("actions")?.mapNotNull { it.jsonObject } ?: emptyList()
+                            }
+                            item {
+                                Text("🎭 Modificateurs Actions", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                Text("${actionMods.size} modificateurs configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            }
+                            itemsIndexed(actionMods) { i, m ->
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(m.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Condition: ${m.str("condition")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("${m.int("percent") ?: 0}%", color = if ((m.int("percent") ?: 0) >= 0) Color(0xFF57F287) else Color(0xFFED4245), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        2 -> {
+                            // Grants
+                            val grants = remember(karmaModifiers) {
+                                karmaModifiers?.arr("grants")?.mapNotNull { it.jsonObject } ?: emptyList()
+                            }
+                            item {
+                                Text("🎁 Grants (Bonus seuils)", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                Text("${grants.size} grants configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            }
+                            itemsIndexed(grants) { i, g ->
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(g.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Text(g.str("description") ?: "", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                        Spacer(Modifier.height(4.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Condition: ${g.str("condition")}", color = Color(0xFF5865F2), style = MaterialTheme.typography.bodySmall)
+                                            Text("+${g.int("money") ?: 0} $currencyName", color = Color(0xFF57F287), fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -1226,71 +1362,49 @@ private fun EconomyConfigTab(
                         }
                     }
                     
-                    item {
-                        SectionCard(
-                            title = "📊 Statistiques",
-                            subtitle = "Utilisateurs actifs"
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Utilisateurs avec charme 🫦", color = Color.White)
-                                    Text(
-                                        usersWithCharm.toString(),
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFEB459E)
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Utilisateurs avec perversion 😈", color = Color.White)
-                                    Text(
-                                        usersWithPerversion.toString(),
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF9B59B6)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
+                    // Save button (pour le reset uniquement)
                     item {
                         Button(
                             onClick = {
                                 scope.launch {
-                                    isSaving = true
+                                    savingKarma = true
                                     withContext(Dispatchers.IO) {
                                         try {
                                             val body = buildJsonObject {
-                                                put("enabled", karmaEnabled)
-                                                put("day", karmaDay)
+                                                put("karmaReset", buildJsonObject {
+                                                    put("enabled", resetEnabled)
+                                                    put("day", resetDay.toIntOrNull() ?: 1)
+                                                })
                                             }
-                                            api.postJson("/api/configs/karma", json.encodeToString(JsonObject.serializer(), body))
-                                            withContext(Dispatchers.Main) {
-                                                snackbar.showSnackbar("✅ Karma sauvegardé")
-                                            }
+                                            api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Reset Karma sauvegardé") }
                                         } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) {
-                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                            }
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
                                         } finally {
-                                            withContext(Dispatchers.Main) { isSaving = false }
+                                            withContext(Dispatchers.Main) { savingKarma = false }
                                         }
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            enabled = !isSaving
+                            enabled = !savingKarma
                         ) {
-                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            if (savingKarma) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
                             else {
                                 Icon(Icons.Default.Save, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Sauvegarder Karma")
+                                Text("Sauvegarder Reset")
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E).copy(alpha = 0.5f))) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("ℹ️ Modificateurs Karma", fontWeight = FontWeight.Bold, color = Color(0xFF5865F2))
+                                Spacer(Modifier.height(8.dp))
+                                Text("Les modificateurs (Boutique, Actions, Grants) sont consultables ici.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Text("Pour les éditer, contactez l'administrateur via le dashboard web ou le bot Discord.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                             }
                         }
                     }
