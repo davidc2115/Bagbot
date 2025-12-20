@@ -709,99 +709,268 @@ private fun EconomyConfigTab(
                 }
             }
             1 -> {
-                // Actions (cooldowns for now, full edit in next version)
+                // Actions - Configuration complète
+                val actionsList = eco?.obj("actions")?.obj("list")
+                val actionsKeys = remember(actionsList) {
+                    actionsList?.jsonObject?.keys?.toList()?.sorted() ?: emptyList()
+                }
+                
+                var selectedActionKey by remember { mutableStateOf(actionsKeys.firstOrNull() ?: "") }
+                val selectedAction = remember(selectedActionKey, actionsList) {
+                    actionsList?.obj(selectedActionKey)
+                }
+                
+                // États pour l'action sélectionnée
+                var label by remember(selectedActionKey) { mutableStateOf(selectedAction?.str("label") ?: "") }
+                var image by remember(selectedActionKey) { mutableStateOf(selectedAction?.str("image") ?: "") }
+                var moneyMin by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("moneyMin")?.toString() ?: "0") }
+                var moneyMax by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("moneyMax")?.toString() ?: "0") }
+                var karma by remember(selectedActionKey) { mutableStateOf(selectedAction?.str("karma") ?: "none") }
+                var karmaDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("karmaDelta")?.toString() ?: "0") }
+                var xpDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("xpDelta")?.toString() ?: "0") }
+                var successRate by remember(selectedActionKey) { mutableStateOf(selectedAction?.double("successRate")?.toString() ?: "1.0") }
+                var failMoneyMin by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failMoneyMin")?.toString() ?: "0") }
+                var failMoneyMax by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failMoneyMax")?.toString() ?: "0") }
+                var failKarmaDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failKarmaDelta")?.toString() ?: "0") }
+                var failXpDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failXpDelta")?.toString() ?: "0") }
+                var partnerMoney by remember(selectedActionKey) { mutableStateOf(((selectedAction?.double("partnerMoneyShare") ?: 0.0) * 100).toString()) }
+                var partnerKarma by remember(selectedActionKey) { mutableStateOf(((selectedAction?.double("partnerKarmaShare") ?: 0.0) * 100).toString()) }
+                var partnerXp by remember(selectedActionKey) { mutableStateOf(((selectedAction?.double("partnerXpShare") ?: 0.0) * 100).toString()) }
+                var cooldown by remember(selectedActionKey) { mutableStateOf(cooldowns[selectedActionKey]?.toString() ?: "0") }
+                
+                var savingAction by remember { mutableStateOf(false) }
+                
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        SectionCard(
-                            title = "🎭 Actions - Cooldowns",
-                            subtitle = "${cooldowns.size} actions configurées"
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                         ) {
-                            cooldowns.entries.sortedBy { it.key }.forEach { (k, v) ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(k, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                        Text("$v secondes", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Column(Modifier.padding(16.dp)) {
+                                Text("🎭 Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(8.dp))
+                                
+                                var expanded by remember { mutableStateOf(false) }
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { expanded = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(label.ifBlank { selectedActionKey }, modifier = Modifier.weight(1f))
+                                        Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
                                     }
-                                    IconButton(onClick = { cooldowns = cooldowns - k }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = Color(0xFFE53935))
+                                    androidx.compose.material3.DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false },
+                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                    ) {
+                                        actionsKeys.forEach { key ->
+                                            androidx.compose.material3.DropdownMenuItem(
+                                                text = { Text(actionsList?.obj(key)?.str("label") ?: key) },
+                                                onClick = {
+                                                    selectedActionKey = key
+                                                    expanded = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
-                                Divider(color = Color(0xFF2A2A2A))
                             }
-
-                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                    
+                    // Infos de base
+                    item {
+                        SectionCard(title = "📝 Informations", subtitle = "Label & Image") {
+                            OutlinedTextField(label, { label = it }, label = { Text("Label") }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(image, { image = it }, label = { Text("URL Image/GIF") }, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    
+                    // Gains succès
+                    item {
+                        SectionCard(title = "✅ Gains Succès") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    moneyMin, { moneyMin = it }, label = { Text("Argent Min") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                OutlinedTextField(
+                                    moneyMax, { moneyMax = it }, label = { Text("Argent Max") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
                             OutlinedTextField(
-                                value = newCooldownKey,
-                                onValueChange = { newCooldownKey = it },
-                                label = { Text("Clé") },
-                                modifier = Modifier.fillMaxWidth()
+                                xpDelta, { xpDelta = it }, label = { Text("XP") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        }
+                    }
+                    
+                    // Karma
+                    item {
+                        SectionCard(title = "💫 Karma") {
+                            Text("Type de Karma", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("none" to "Aucun", "charm" to "Charme", "perversion" to "Perversion").forEach { (value, label) ->
+                                    FilterChip(
+                                        selected = karma == value,
+                                        onClick = { karma = value },
+                                        label = { Text(label) }
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                karmaDelta, { karmaDelta = it }, label = { Text("Karma Δ") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        }
+                    }
+                    
+                    // Taux succès
+                    item {
+                        SectionCard(title = "🎯 Taux de Succès") {
+                            OutlinedTextField(
+                                successRate, { successRate = it }, label = { Text("Taux (0.0 à 1.0)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                            )
+                            Text("Ex: 0.8 = 80% de réussite", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    
+                    // Gains échec
+                    item {
+                        SectionCard(title = "❌ Gains Échec") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    failMoneyMin, { failMoneyMin = it }, label = { Text("Argent Min") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                OutlinedTextField(
+                                    failMoneyMax, { failMoneyMax = it }, label = { Text("Argent Max") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    failKarmaDelta, { failKarmaDelta = it }, label = { Text("Karma Δ") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                OutlinedTextField(
+                                    failXpDelta, { failXpDelta = it }, label = { Text("XP") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Parts partenaire
+                    item {
+                        SectionCard(title = "👥 Parts Partenaire (%)") {
+                            OutlinedTextField(
+                                partnerMoney, { partnerMoney = it }, label = { Text("Argent %") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
                             Spacer(Modifier.height(8.dp))
                             OutlinedTextField(
-                                value = newCooldownValue,
-                                onValueChange = { newCooldownValue = it },
-                                label = { Text("Valeur (sec)") },
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Button(
-                                onClick = {
-                                    val k = newCooldownKey.trim()
-                                    val v = newCooldownValue.trim().toIntOrNull()
-                                    if (k.isNotBlank() && v != null) {
-                                        cooldowns = cooldowns + (k to v)
-                                        newCooldownKey = ""
-                                        newCooldownValue = ""
-                                    }
-                                },
+                                partnerKarma, { partnerKarma = it }, label = { Text("Karma %") },
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = newCooldownKey.isNotBlank() && newCooldownValue.toIntOrNull() != null
-                            ) { Text("➕ Ajouter / Modifier") }
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                partnerXp, { partnerXp = it }, label = { Text("XP %") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
                         }
                     }
-
+                    
+                    // Cooldown
+                    item {
+                        SectionCard(title = "⏱️ Cooldown") {
+                            OutlinedTextField(
+                                cooldown, { cooldown = it }, label = { Text("Secondes") },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        }
+                    }
+                    
+                    // Save
                     item {
                         Button(
                             onClick = {
                                 scope.launch {
-                                    isSaving = true
+                                    savingAction = true
                                     withContext(Dispatchers.IO) {
                                         try {
+                                            val actionData = buildJsonObject {
+                                                put("label", label)
+                                                put("image", image)
+                                                put("moneyMin", moneyMin.toIntOrNull() ?: 0)
+                                                put("moneyMax", moneyMax.toIntOrNull() ?: 0)
+                                                put("karma", karma)
+                                                put("karmaDelta", karmaDelta.toIntOrNull() ?: 0)
+                                                put("xpDelta", xpDelta.toIntOrNull() ?: 0)
+                                                put("successRate", successRate.toDoubleOrNull() ?: 1.0)
+                                                put("failMoneyMin", failMoneyMin.toIntOrNull() ?: 0)
+                                                put("failMoneyMax", failMoneyMax.toIntOrNull() ?: 0)
+                                                put("failKarmaDelta", failKarmaDelta.toIntOrNull() ?: 0)
+                                                put("failXpDelta", failXpDelta.toIntOrNull() ?: 0)
+                                                put("partnerMoneyShare", (partnerMoney.toDoubleOrNull() ?: 0.0) / 100.0)
+                                                put("partnerKarmaShare", (partnerKarma.toDoubleOrNull() ?: 0.0) / 100.0)
+                                                put("partnerXpShare", (partnerXp.toDoubleOrNull() ?: 0.0) / 100.0)
+                                            }
+                                            
                                             val body = buildJsonObject {
-                                                put("settings", buildJsonObject {
-                                                    put("emoji", emoji)
-                                                    put("cooldowns", buildJsonObject {
-                                                        cooldowns.forEach { (k, v) -> put(k, v) }
+                                                put("actions", buildJsonObject {
+                                                    put("list", buildJsonObject {
+                                                        put(selectedActionKey, actionData)
                                                     })
                                                 })
-                                                put("currency", buildJsonObject { put("name", currencyName) })
+                                                put("settings", buildJsonObject {
+                                                    put("cooldowns", buildJsonObject {
+                                                        put(selectedActionKey, cooldown.toIntOrNull() ?: 0)
+                                                    })
+                                                })
                                             }
+                                            
                                             api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
-                                            withContext(Dispatchers.Main) {
-                                                snackbar.showSnackbar("✅ Cooldowns sauvegardés")
-                                            }
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Action sauvegardée") }
                                         } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) {
-                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                                            }
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
                                         } finally {
-                                            withContext(Dispatchers.Main) { isSaving = false }
+                                            withContext(Dispatchers.Main) { savingAction = false }
                                         }
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            enabled = !isSaving
+                            enabled = !savingAction
                         ) {
-                            if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            if (savingAction) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
                             else {
                                 Icon(Icons.Default.Save, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Sauvegarder Actions")
+                                Text("Sauvegarder Action")
                             }
                         }
                     }
