@@ -3183,6 +3183,24 @@ private fun MusicTab(
                             }
                         }
                     }
+                    
+                    // Info message pour upload de playlists
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E).copy(alpha = 0.5f))
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("ℹ️ Upload & Création", fontWeight = FontWeight.Bold, color = Color(0xFF5865F2))
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Pour uploader des fichiers ou créer de nouvelles playlists, utilisez le dashboard web ou le bot Discord.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
                 }
                 
                 // Delete playlist confirmation
@@ -3309,6 +3327,24 @@ private fun MusicTab(
                                         Icon(Icons.Default.Delete, null, tint = Color(0xFFED4245))
                                     }
                                 }
+                            }
+                        }
+                    }
+                    
+                    // Info message pour upload de fichiers
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E).copy(alpha = 0.5f))
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("ℹ️ Upload de Fichiers", fontWeight = FontWeight.Bold, color = Color(0xFF5865F2))
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Pour uploader de nouveaux fichiers audio, utilisez le dashboard web ou le bot Discord.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
                             }
                         }
                     }
