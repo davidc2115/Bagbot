@@ -20,12 +20,15 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.bagbot.manager.ApiClient
 import com.bagbot.manager.ui.components.ChannelSelector
 import com.bagbot.manager.ui.components.MemberSelector
@@ -599,7 +602,7 @@ private fun EconomyConfigTab(
     snackbar: SnackbarHostState
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    val subTabs = listOf("Settings", "Cooldowns", "Users", "Boutique", "Karma")
+    val subTabs = listOf("Settings", "Actions", "Users", "Boutique", "Karma")
     
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
@@ -706,15 +709,15 @@ private fun EconomyConfigTab(
                 }
             }
             1 -> {
-                // Cooldowns
+                // Actions (cooldowns for now, full edit in next version)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
                         SectionCard(
-                            title = "⏱️ Cooldowns",
-                            subtitle = "${cooldowns.size} entrées"
+                            title = "🎭 Actions - Cooldowns",
+                            subtitle = "${cooldowns.size} actions configurées"
                         ) {
                             cooldowns.entries.sortedBy { it.key }.forEach { (k, v) ->
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -798,7 +801,7 @@ private fun EconomyConfigTab(
                             else {
                                 Icon(Icons.Default.Save, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Sauvegarder Cooldowns")
+                                Text("Sauvegarder Actions")
                             }
                         }
                     }
@@ -806,6 +809,8 @@ private fun EconomyConfigTab(
             }
             2 -> {
                 // Users list (read-only for now)
+                val balances = eco?.obj("balances")
+                
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -819,13 +824,13 @@ private fun EconomyConfigTab(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "${eco?.size ?: 0} utilisateurs actifs",
+                            "${balances?.jsonObject?.size ?: 0} utilisateurs actifs",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.Gray
                         )
                     }
                     
-                    eco?.entries?.sortedByDescending { 
+                    balances?.jsonObject?.entries?.sortedByDescending { 
                         it.value.jsonObject["amount"]?.jsonPrimitive?.intOrNull ?: 0 
                     }?.forEach { (userId, userData) ->
                         item {
@@ -868,10 +873,10 @@ private fun EconomyConfigTab(
                 }
             }
             3 -> {
-                // Boutique - using data from configData
-                val shopData = configData?.obj("shop")
+                // Boutique - using data from economy.shop
+                val shopData = eco?.obj("shop")
                 val shopItems = remember(shopData) {
-                    shopData?.jsonObject?.values?.mapNotNull { it.jsonObject } ?: emptyList()
+                    shopData?.arr("items")?.mapNotNull { it.jsonObject } ?: emptyList()
                 }
                 
                 LaunchedEffect(Unit) {
@@ -1937,10 +1942,15 @@ private fun ActionGifsTab(
                                 contentAlignment = Alignment.Center
                             ) {
                                 AsyncImage(
-                                    model = url,
+                                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                        .data(url)
+                                        .crossfade(true)
+                                        .build(),
                                     contentDescription = "GIF ${index + 1}",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
+                                    contentScale = ContentScale.Fit,
+                                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(Color.DarkGray),
+                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Red.copy(alpha = 0.3f))
                                 )
                             }
                             
@@ -2031,10 +2041,15 @@ private fun ActionGifsTab(
                                 contentAlignment = Alignment.Center
                             ) {
                                 AsyncImage(
-                                    model = url,
+                                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                        .data(url)
+                                        .crossfade(true)
+                                        .build(),
                                     contentDescription = "GIF ${index + 1}",
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
+                                    contentScale = ContentScale.Fit,
+                                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(Color.DarkGray),
+                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Red.copy(alpha = 0.3f))
                                 )
                             }
                             
