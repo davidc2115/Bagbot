@@ -1,0 +1,92 @@
+# 🔧 v4.1.7 - Correction endpoint sessions
+
+## ✅ Modifications
+
+### 1. Endpoint `/api/admin/sessions` créé
+**Fichier**: `dashboard-v2/server-v2.js`
+
+L'endpoint manquait complètement ! C'est pour ça qu'aucun membre connecté ne s'affichait.
+
+**Fonctionnalités**:
+- Liste tous les membres avec session active
+- Affiche `userId`, `username`, `role`
+- Rôles possibles: **Fondateur** / **Admin** / **Membre**
+- Authentification requise (fondateur ou admin)
+- Vérification des `staffRoleIds` pour détecter les admins
+
+### 2. Détection fondateur/admin
+**Fondateur**: ID hardcodé `943487722738311219`
+**Admins**: Vérifiés via `staffRoleIds` dans la config
+
+Le code de détection était déjà en place dans `App.kt` lignes 906-927 :
+```kotlin
+val userRoles = memberRoles[userId] ?: emptyList()
+val staffRoles = configData?.get("staffRoleIds")?.jsonArray?.mapNotNull { 
+    it.jsonPrimitive.contentOrNull 
+} ?: emptyList()
+
+isAdmin = isFounder || userRoles.any { it in staffRoles }
+```
+
+### 3. Debug message musique
+Ajout d'un message d'erreur plus explicite pour identifier le problème HTTP 404.
+
+---
+
+## 🔍 Diagnostic de l'erreur "logs/dashboard" dans Musique
+
+L'utilisateur voit cette erreur dans l'onglet Musique :
+```
+X Erreur logs: HTTP 404:<!DOCTYPE html>
+Cannot GET /api/admin/logs/dashboard
+```
+
+**C'EST BIZARRE** car :
+- `MusicScreen` appelle `/api/music/uploads` (ligne 1740)
+- Pas `/api/admin/logs/dashboard`
+
+**Hypothèses**:
+1. L'utilisateur clique peut-être sur l'onglet Admin > Logs qui appelle `/api/admin/logs/dashboard`
+2. Cache de l'app ou confusion d'onglets
+3. L'erreur s'affiche dans le snackbar global qui est partagé
+
+**Solution pour tester**:
+- Message d'erreur maintenant préfixé "Erreur musique:"
+- Log Android `Log.e("MusicScreen", ...)`
+
+---
+
+## 📋 Checklist utilisateur
+
+Pour que tout fonctionne, vérifier :
+
+### Votre profil
+- [ ] Êtes-vous bien détecté comme fondateur ?
+  - Votre userId doit être `943487722738311219`
+  - Vérifiable dans les logs Android
+
+### Onglet Admin
+- [ ] L'onglet Admin apparaît-il dans la barre de navigation ?
+  - Seulement si `isFounder = true`
+  - Position : Accueil | App | Config | **Admin** | Musique
+
+### Membres connectés
+- [ ] La carte "👥 Membres Connectés" s'affiche sur l'accueil ?
+  - Nouveau : Avec rôles colorés (👑 🔴 🟢)
+  - Bouton rafraîchir
+
+### Configuration serveur
+- [ ] Le fichier de config contient-il `staffRoleIds` ?
+  - Vérifier dans `data/configs.json`
+  - Format: `"staffRoleIds": ["roleId1", "roleId2"]`
+
+---
+
+## 🚀 Prochaine étape
+
+**Tester v4.1.7** et nous dire :
+1. L'onglet Admin apparaît-il ?
+2. Les membres connectés s'affichent-ils ?
+3. Quel message d'erreur exact dans Musique ?
+
+Lien: https://github.com/mel805/Bagbot/releases/tag/v4.1.7
