@@ -2884,6 +2884,55 @@ fun renderKeyInfo(
                 val userCount = obj["users"]?.jsonObject?.size ?: 0
                 keyInfos.add("📈 Utilisateurs avec XP" to "$userCount")
             }
+            "truthdare" -> {
+                val obj = sectionData.jsonObject
+                val truthCount = obj["truths"]?.jsonArray?.size ?: 0
+                val dareCount = obj["dares"]?.jsonArray?.size ?: 0
+                val channelCount = obj["channels"]?.jsonArray?.size ?: 0
+                keyInfos.add("✅ Questions vérité" to "$truthCount")
+                keyInfos.add("💪 Défis action" to "$dareCount")
+                keyInfos.add("📢 Canaux actifs" to "$channelCount")
+            }
+            "confess" -> {
+                val obj = sectionData.jsonObject
+                obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+            }
+            "counting" -> {
+                val obj = sectionData.jsonObject
+                val channelCount = obj["channels"]?.jsonArray?.size ?: 0
+                keyInfos.add("🔢 Canaux de comptage" to "$channelCount")
+                obj["currentCount"]?.jsonPrimitive?.intOrNull?.let { count ->
+                    keyInfos.add("📊 Compteur actuel" to "$count")
+                }
+            }
+            "disboard" -> {
+                val obj = sectionData.jsonObject
+                obj["bumpChannelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal bump" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+            }
+            "autokick" -> {
+                val obj = sectionData.jsonObject
+                obj["inactivityKick"]?.jsonObject?.let { kick ->
+                    kick["kickAfterDays"]?.jsonPrimitive?.intOrNull?.let { days ->
+                        keyInfos.add("⏰ Kick après" to "$days jours")
+                    }
+                    val trackingCount = obj["inactivityTracking"]?.jsonObject?.size ?: 0
+                    keyInfos.add("👥 Membres suivis" to "$trackingCount")
+                }
+            }
+            "autothread" -> {
+                val obj = sectionData.jsonObject
+                val forumCount = obj["forumChannels"]?.jsonArray?.size ?: 0
+                keyInfos.add("🧵 Forums actifs" to "$forumCount")
+            }
+            "geo" -> {
+                val obj = sectionData.jsonObject
+                val userCount = obj["users"]?.jsonObject?.size ?: 0
+                keyInfos.add("📍 Utilisateurs géolocalisés" to "$userCount")
+            }
         }
     } catch (e: Exception) {
         Log.e(TAG, "Error rendering key info for $sectionKey: ${e.message}")

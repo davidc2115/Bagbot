@@ -293,6 +293,176 @@ app.get('/api/bot/status', (req, res) => {
   }
 });
 
+// GET /api/economy/balances - Récupérer les soldes économiques
+app.get('/api/economy/balances', (req, res) => {
+  try {
+    const economyPath = path.join(__dirname, '../data/economy.json');
+    if (!fs.existsSync(economyPath)) {
+      return res.json({ users: [] });
+    }
+    
+    const economyData = JSON.parse(fs.readFileSync(economyPath, 'utf8'));
+    const users = Object.entries(economyData).map(([userId, data]) => ({
+      userId,
+      balance: data.balance || 0,
+      bank: data.bank || 0,
+      total: (data.balance || 0) + (data.bank || 0)
+    })).sort((a, b) => b.total - a.total);
+    
+    res.json({ users });
+  } catch (err) {
+    console.error('Error reading economy data:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/levels/leaderboard - Récupérer le classement des niveaux
+app.get('/api/levels/leaderboard', (req, res) => {
+  try {
+    const levelsPath = path.join(__dirname, '../data/levels.json');
+    if (!fs.existsSync(levelsPath)) {
+      return res.json({ users: [] });
+    }
+    
+    const levelsData = JSON.parse(fs.readFileSync(levelsPath, 'utf8'));
+    const users = Object.entries(levelsData).map(([userId, data]) => ({
+      userId,
+      level: data.level || 0,
+      xp: data.xp || 0,
+      totalXp: data.totalXp || 0
+    })).sort((a, b) => {
+      if (b.level !== a.level) return b.level - a.level;
+      return b.xp - a.xp;
+    });
+    
+    res.json({ users });
+  } catch (err) {
+    console.error('Error reading levels data:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/truthdare/prompts - Récupérer toutes les questions vérité/action
+app.get('/api/truthdare/prompts', (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const truthdare = guildConfig.truthdare || { truths: [], dares: [], channels: [] };
+    
+    res.json({
+      truths: truthdare.truths || [],
+      dares: truthdare.dares || [],
+      channels: truthdare.channels || []
+    });
+  } catch (err) {
+    console.error('Error reading truthdare data:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/truthdare/prompt - Ajouter une question vérité ou action
+app.post('/api/truthdare/prompt', express.json(), (req, res) => {
+  try {
+    const { type, text } = req.body;
+    if (!type || !text || (type !== 'truth' && type !== 'dare')) {
+      return res.status(400).json({ error: 'Invalid type or text' });
+    }
+    
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const truthdare = guildConfig.truthdare || { truths: [], dares: [], channels: [] };
+    
+    if (type === 'truth') {
+      truthdare.truths.push(text);
+    } else {
+      truthdare.dares.push(text);
+    }
+    
+    guildConfig.truthdare = truthdare;
+    config.guilds[GUILD] = guildConfig;
+    writeConfig(config);
+    
+    res.json({ success: true, truthdare });
+  } catch (err) {
+    console.error('Error adding truthdare prompt:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/staff/chat/messages - Récupérer les messages du chat staff
+app.get('/api/staff/chat/messages', (req, res) => {
+  try {
+    const messagesPath = path.join(__dirname, '../data/staff-chat.json');
+    if (!fs.existsSync(messagesPath)) {
+      fs.writeFileSync(messagesPath, JSON.stringify({ messages: [] }, null, 2));
+      return res.json({ messages: [] });
+    }
+    
+    const data = JSON.parse(fs.readFileSync(messagesPath, 'utf8'));
+    res.json({ messages: data.messages || [] });
+  } catch (err) {
+    console.error('Error reading staff chat:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/staff/chat/send - Envoyer un message dans le chat staff
+app.post('/api/staff/chat/send', express.json(), (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  // Vérifier que l'utilisateur est autorisé
+  if (!allowedUsers.has(userData.userId)) {
+    return res.status(403).json({ error: 'Forbidden - Not authorized for staff chat' });
+  }
+  
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message cannot be empty' });
+    }
+    
+    const messagesPath = path.join(__dirname, '../data/staff-chat.json');
+    let data = { messages: [] };
+    
+    if (fs.existsSync(messagesPath)) {
+      data = JSON.parse(fs.readFileSync(messagesPath, 'utf8'));
+    }
+    
+    const newMessage = {
+      id: Date.now().toString(),
+      userId: userData.userId,
+      username: userData.username,
+      avatar: userData.avatar,
+      message: message.trim(),
+      timestamp: Date.now()
+    };
+    
+    data.messages.push(newMessage);
+    
+    // Garder seulement les 500 derniers messages
+    if (data.messages.length > 500) {
+      data.messages = data.messages.slice(-500);
+    }
+    
+    fs.writeFileSync(messagesPath, JSON.stringify(data, null, 2));
+    
+    res.json({ success: true, message: newMessage });
+  } catch (err) {
+    console.error('Error sending staff chat message:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Route pour servir les GIFs hébergés localement
 app.use('/gifs', express.static(path.join(__dirname, 'public/gifs')));
 
