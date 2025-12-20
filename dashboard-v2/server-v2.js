@@ -349,11 +349,33 @@ app.get('/api/truthdare/prompts', (req, res) => {
     const guildConfig = config.guilds?.[GUILD] || {};
     const truthdare = guildConfig.truthdare || { truths: [], dares: [], channels: [] };
     
-    res.json({
-      truths: truthdare.truths || [],
-      dares: truthdare.dares || [],
+    // Nouvelle structure avec SFW/NSFW
+    // Si l'ancienne structure existe (simple array), on la convertit
+    let response = {
+      sfw: {
+        truths: [],
+        dares: []
+      },
+      nsfw: {
+        truths: [],
+        dares: []
+      },
       channels: truthdare.channels || []
-    });
+    };
+    
+    // Si nouvelle structure existe
+    if (truthdare.sfw || truthdare.nsfw) {
+      response.sfw.truths = truthdare.sfw?.truths || [];
+      response.sfw.dares = truthdare.sfw?.dares || [];
+      response.nsfw.truths = truthdare.nsfw?.truths || [];
+      response.nsfw.dares = truthdare.nsfw?.dares || [];
+    } else {
+      // Ancienne structure - on met tout en SFW par défaut
+      response.sfw.truths = truthdare.truths || [];
+      response.sfw.dares = truthdare.dares || [];
+    }
+    
+    res.json(response);
   } catch (err) {
     console.error('Error reading truthdare data:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -363,19 +385,48 @@ app.get('/api/truthdare/prompts', (req, res) => {
 // POST /api/truthdare/prompt - Ajouter une question vérité ou action
 app.post('/api/truthdare/prompt', express.json(), (req, res) => {
   try {
-    const { type, text } = req.body;
+    const { type, text, category } = req.body;
     if (!type || !text || (type !== 'truth' && type !== 'dare')) {
       return res.status(400).json({ error: 'Invalid type or text' });
     }
     
+    const cat = category || 'sfw'; // Par défaut SFW
+    if (cat !== 'sfw' && cat !== 'nsfw') {
+      return res.status(400).json({ error: 'Invalid category (must be sfw or nsfw)' });
+    }
+    
     const config = readConfig();
     const guildConfig = config.guilds[GUILD] || {};
-    const truthdare = guildConfig.truthdare || { truths: [], dares: [], channels: [] };
+    let truthdare = guildConfig.truthdare || { sfw: { truths: [], dares: [] }, nsfw: { truths: [], dares: [] }, channels: [] };
     
+    // Migrer l'ancienne structure si nécessaire
+    if (truthdare.truths && !truthdare.sfw) {
+      truthdare = {
+        sfw: {
+          truths: truthdare.truths || [],
+          dares: truthdare.dares || []
+        },
+        nsfw: {
+          truths: [],
+          dares: []
+        },
+        channels: truthdare.channels || []
+      };
+    }
+    
+    // S'assurer que la structure existe
+    if (!truthdare.sfw) truthdare.sfw = { truths: [], dares: [] };
+    if (!truthdare.nsfw) truthdare.nsfw = { truths: [], dares: [] };
+    if (!truthdare.sfw.truths) truthdare.sfw.truths = [];
+    if (!truthdare.sfw.dares) truthdare.sfw.dares = [];
+    if (!truthdare.nsfw.truths) truthdare.nsfw.truths = [];
+    if (!truthdare.nsfw.dares) truthdare.nsfw.dares = [];
+    
+    // Ajouter le prompt
     if (type === 'truth') {
-      truthdare.truths.push(text);
+      truthdare[cat].truths.push(text);
     } else {
-      truthdare.dares.push(text);
+      truthdare[cat].dares.push(text);
     }
     
     guildConfig.truthdare = truthdare;

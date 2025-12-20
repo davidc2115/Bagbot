@@ -349,8 +349,16 @@ fun FunFullScreen(
     snackbar: SnackbarHostState
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    var truthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
-    var darePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedCategory by remember { mutableStateOf(0) } // 0=SFW, 1=NSFW
+    
+    // SFW prompts
+    var sfwTruthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var sfwDarePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    // NSFW prompts
+    var nsfwTruthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var nsfwDarePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    
     var isLoading by remember { mutableStateOf(false) }
     var newPrompt by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf("truth") }
@@ -362,10 +370,17 @@ fun FunFullScreen(
                 try {
                     val response = api.getJson("/api/truthdare/prompts")
                     val data = json.parseToJsonElement(response).jsonObject
-                    val prompts = data["prompts"]?.jsonObject
+                    
                     withContext(Dispatchers.Main) {
-                        truthPrompts = prompts?.get("truth")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-                        darePrompts = prompts?.get("dare")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        // SFW
+                        val sfw = data["sfw"]?.jsonObject
+                        sfwTruthPrompts = sfw?.get("truths")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        sfwDarePrompts = sfw?.get("dares")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        
+                        // NSFW
+                        val nsfw = data["nsfw"]?.jsonObject
+                        nsfwTruthPrompts = nsfw?.get("truths")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        nsfwDarePrompts = nsfw?.get("dares")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
@@ -385,9 +400,11 @@ fun FunFullScreen(
         scope.launch {
             withContext(Dispatchers.IO) {
                 try {
+                    val category = if (selectedCategory == 0) "sfw" else "nsfw"
                     val body = buildJsonObject {
-                        put("mode", selectedMode)
+                        put("type", selectedMode)
                         put("text", newPrompt)
+                        put("category", category)
                     }
                     api.postJson("/api/truthdare/prompt", body.toString())
                     withContext(Dispatchers.Main) {
@@ -415,14 +432,62 @@ fun FunFullScreen(
         when (selectedTab) {
             0 -> {
                 Column(Modifier.fillMaxSize()) {
+                    // Onglets SFW/NSFW
+                    TabRow(
+                        selectedTabIndex = selectedCategory,
+                        containerColor = Color(0xFFE91E63),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Tab(
+                            selected = selectedCategory == 0,
+                            onClick = { selectedCategory = 0 },
+                            text = { 
+                                Text(
+                                    "✅ SFW",
+                                    color = Color.White,
+                                    fontWeight = if (selectedCategory == 0) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+                        Tab(
+                            selected = selectedCategory == 1,
+                            onClick = { selectedCategory = 1 },
+                            text = { 
+                                Text(
+                                    "🔞 NSFW",
+                                    color = Color.White,
+                                    fontWeight = if (selectedCategory == 1) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+                    }
+                    
+                    // Récupérer les prompts selon la catégorie
+                    val currentTruths = if (selectedCategory == 0) sfwTruthPrompts else nsfwTruthPrompts
+                    val currentDares = if (selectedCategory == 0) sfwDarePrompts else nsfwDarePrompts
+                    val categoryLabel = if (selectedCategory == 0) "SFW" else "NSFW"
+                    
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("🎲 Action ou Vérité", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                "🎲 Action ou Vérité - $categoryLabel",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth()) {
-                                FilterChip(selected = selectedMode == "truth", onClick = { selectedMode = "truth" }, label = { Text("💭 Vérités (${truthPrompts.size})") })
+                                FilterChip(
+                                    selected = selectedMode == "truth",
+                                    onClick = { selectedMode = "truth" },
+                                    label = { Text("💭 Vérités (${currentTruths.size})") }
+                                )
                                 Spacer(Modifier.width(8.dp))
-                                FilterChip(selected = selectedMode == "dare", onClick = { selectedMode = "dare" }, label = { Text("🎯 Actions (${darePrompts.size})") })
+                                FilterChip(
+                                    selected = selectedMode == "dare",
+                                    onClick = { selectedMode = "dare" },
+                                    label = { Text("🎯 Actions (${currentDares.size})") }
+                                )
                             }
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth()) {
@@ -430,21 +495,78 @@ fun FunFullScreen(
                                     value = newPrompt,
                                     onValueChange = { newPrompt = it },
                                     modifier = Modifier.weight(1f),
-                                    placeholder = { Text("Nouveau prompt...") },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                    placeholder = { Text("Nouveau prompt $categoryLabel...") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    )
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 IconButton(onClick = { addPrompt() }, enabled = newPrompt.isNotBlank()) {
-                                    Icon(Icons.Default.Add, "Ajouter", tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray)
+                                    Icon(
+                                        Icons.Default.Add,
+                                        "Ajouter",
+                                        tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray
+                                    )
                                 }
                             }
                         }
                     }
-                    LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(if (selectedMode == "truth") truthPrompts else darePrompts) { prompt ->
-                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(prompt, modifier = Modifier.weight(1f), color = Color.White)
+                    
+                    if (isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Color(0xFFE91E63))
+                        }
+                    } else {
+                        LazyColumn(
+                            Modifier.fillMaxSize().padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val prompts = if (selectedMode == "truth") currentTruths else currentDares
+                            
+                            if (prompts.isEmpty()) {
+                                item {
+                                    Card(
+                                        Modifier.fillMaxWidth().padding(32.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                                    ) {
+                                        Box(
+                                            Modifier.fillMaxWidth().padding(40.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    if (selectedMode == "truth") "💭" else "🎯",
+                                                    style = MaterialTheme.typography.headlineLarge
+                                                )
+                                                Spacer(Modifier.height(8.dp))
+                                                Text(
+                                                    "Aucun prompt $categoryLabel",
+                                                    color = Color.Gray,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(prompts) { prompt ->
+                                    Card(
+                                        Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                                    ) {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                prompt,
+                                                modifier = Modifier.weight(1f),
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -464,6 +586,7 @@ fun FunFullScreen(
         }
     }
 }
+
 
 
 
