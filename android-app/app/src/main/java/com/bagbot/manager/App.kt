@@ -1076,7 +1076,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 api = api,
                                 json = json,
                                 scope = scope,
-                                snackbar = snackbarHostState,
+                                snackbar = snackbar,
                                 botOnline = botOnline,
                                 botStats = botStats,
                                 members = members,
