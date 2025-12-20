@@ -2723,7 +2723,7 @@ private fun MusicTab(
                             }
                         }
                     } else {
-                        items(playlists) { p ->
+                        itemsIndexed(playlists) { index, p ->
                             val name = p["name"]?.jsonPrimitive?.contentOrNull ?: "?"
                             val trackCount = p["trackCount"]?.jsonPrimitive?.intOrNull ?: 0
                             val updatedAt = p["updatedAt"]?.jsonPrimitive?.longOrNull ?: 0L
@@ -2849,7 +2849,7 @@ private fun MusicTab(
                             }
                         }
                     } else {
-                        items(uploads) { u ->
+                        itemsIndexed(uploads) { index, u ->
                             val fn = u["filename"]?.jsonPrimitive?.contentOrNull ?: "?"
                             val size = u["size"]?.jsonPrimitive?.longOrNull ?: 0L
                             val uploadedAt = u["uploadedAt"]?.jsonPrimitive?.longOrNull ?: 0L
