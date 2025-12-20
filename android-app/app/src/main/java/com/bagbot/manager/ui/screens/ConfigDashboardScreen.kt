@@ -1254,6 +1254,17 @@ private fun EconomyConfigTab(
                 var selectedKarmaTab by remember { mutableIntStateOf(0) }
                 var savingKarma by remember { mutableStateOf(false) }
                 
+                // Pré-calculer toutes les listes AVANT LazyColumn
+                val shopMods = remember(karmaModifiers) {
+                    karmaModifiers?.arr("shop")?.mapNotNull { it.jsonObject } ?: emptyList()
+                }
+                val actionMods = remember(karmaModifiers) {
+                    karmaModifiers?.arr("actions")?.mapNotNull { it.jsonObject } ?: emptyList()
+                }
+                val grants = remember(karmaModifiers) {
+                    karmaModifiers?.arr("grants")?.mapNotNull { it.jsonObject } ?: emptyList()
+                }
+                
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1296,9 +1307,6 @@ private fun EconomyConfigTab(
                     
                     // Shop modifiers
                     if (selectedKarmaTab == 0) {
-                        val shopMods = remember(karmaModifiers) {
-                            karmaModifiers?.arr("shop")?.mapNotNull { it.jsonObject } ?: emptyList()
-                        }
                         item {
                             Text("🛒 Modificateurs Boutique", style = MaterialTheme.typography.titleMedium, color = Color.White)
                             Text("${shopMods.size} modificateurs configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
@@ -1318,9 +1326,6 @@ private fun EconomyConfigTab(
                     
                     // Actions modifiers
                     if (selectedKarmaTab == 1) {
-                        val actionMods = remember(karmaModifiers) {
-                            karmaModifiers?.arr("actions")?.mapNotNull { it.jsonObject } ?: emptyList()
-                        }
                         item {
                             Text("🎭 Modificateurs Actions", style = MaterialTheme.typography.titleMedium, color = Color.White)
                             Text("${actionMods.size} modificateurs configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
@@ -1340,9 +1345,6 @@ private fun EconomyConfigTab(
                     
                     // Grants
                     if (selectedKarmaTab == 2) {
-                        val grants = remember(karmaModifiers) {
-                            karmaModifiers?.arr("grants")?.mapNotNull { it.jsonObject } ?: emptyList()
-                        }
                         item {
                             Text("🎁 Grants (Bonus seuils)", style = MaterialTheme.typography.titleMedium, color = Color.White)
                             Text("${grants.size} grants configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
