@@ -2399,6 +2399,72 @@ app.get('/api/dashboard/stats', async (req, res) => {
   }
 });
 
+// GET /api/admin/sessions - Liste des membres connectés avec leurs rôles
+app.get('/api/admin/sessions', (req, res) => {
+  // Authentification
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const token = auth.slice(7);
+  if (!activeSessions.has(token)) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+  
+  const requestingUserId = activeSessions.get(token);
+  
+  // Vérifier que c'est le fondateur ou un admin
+  if (requestingUserId !== FOUNDER_ID) {
+    // Vérifier si c'est un admin
+    const configs = readConfigs();
+    const staffRoleIds = configs.staffRoleIds || [];
+    
+    const guild = client.guilds.cache.get(GUILD);
+    if (guild) {
+      const member = guild.members.cache.get(requestingUserId);
+      const isAdmin = member && staffRoleIds.some(roleId => member.roles.cache.has(roleId));
+      
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Forbidden - Admin only' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Forbidden - Admin only' });
+    }
+  }
+  
+  // Récupérer toutes les sessions actives
+  const guild = client.guilds.cache.get(GUILD);
+  const sessions = [];
+  
+  for (const [sessionToken, userId] of activeSessions) {
+    const member = guild ? guild.members.cache.get(userId) : null;
+    const username = member ? member.user.username : 'Inconnu';
+    
+    // Déterminer le rôle
+    let role = 'Membre';
+    if (userId === FOUNDER_ID) {
+      role = 'Fondateur';
+    } else if (member) {
+      const configs = readConfigs();
+      const staffRoleIds = configs.staffRoleIds || [];
+      const isAdmin = staffRoleIds.some(roleId => member.roles.cache.has(roleId));
+      if (isAdmin) {
+        role = 'Admin';
+      }
+    }
+    
+    sessions.push({
+      userId,
+      username,
+      role,
+      lastSeen: new Date().toISOString() // Pour l'instant, toutes les sessions sont actives
+    });
+  }
+  
+  res.json({ sessions });
+});
+
 // GET /api/admin/logs/:service - Récupérer les logs d'un service (bot ou dashboard)
 app.get('/api/admin/logs/:service', (req, res) => {
   const authHeader = req.headers['authorization'];
