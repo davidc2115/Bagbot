@@ -300,7 +300,12 @@ app.use(express.static('.'));
 
 
 const CONFIG = path.join(__dirname, '../data/config.json');
-const GUILD = '1360897918504271882';
+const GUILD = process.env.GUILD_ID || '1360897918504271882';
+const FOUNDER_ID = process.env.FOUNDER_ID || '661256714779426859';
+
+console.log('🔧 Configuration serveur:');
+console.log('📋 GUILD_ID:', GUILD);
+console.log('👑 FOUNDER_ID:', FOUNDER_ID);
 const BACKUP_DIR = '/var/data/backups';
 
 // Discord API credentials
@@ -2202,7 +2207,7 @@ app.get('/api/me', (req, res) => {
 // ============================================
 
 // Stockage des utilisateurs autorisés (en mémoire - à remplacer par DB si nécessaire)
-const allowedUsers = new Set(['943487722738311219']); // Fondateur par défaut
+const allowedUsers = new Set([FOUNDER_ID]); // Fondateur par défaut
 
 // GET /api/admin/allowed-users - Récupérer la liste
 app.get('/api/admin/allowed-users', (req, res) => {
@@ -2214,7 +2219,7 @@ app.get('/api/admin/allowed-users', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
+  if (!userData || userData.userId !== FOUNDER_ID) {
     return res.status(403).json({ error: 'Forbidden - Admin only' });
   }
   
@@ -2231,7 +2236,7 @@ app.post('/api/admin/allowed-users', express.json(), (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
+  if (!userData || userData.userId !== FOUNDER_ID) {
     return res.status(403).json({ error: 'Forbidden - Admin only' });
   }
   
@@ -2255,13 +2260,13 @@ app.delete('/api/admin/allowed-users/:userId', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
+  if (!userData || userData.userId !== FOUNDER_ID) {
     return res.status(403).json({ error: 'Forbidden - Admin only' });
   }
   
   const { userId } = req.params;
   
-  if (userId === '943487722738311219') {
+  if (userId === FOUNDER_ID) {
     return res.status(400).json({ error: 'Cannot remove founder' });
   }
   
@@ -2475,7 +2480,7 @@ app.get('/api/admin/logs/:service', (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
+  if (!userData || userData.userId !== FOUNDER_ID) {
     return res.status(403).json({ error: 'Forbidden - Admin only' });
   }
   
@@ -2515,7 +2520,7 @@ app.post('/api/admin/restart/:service', express.json(), (req, res) => {
   const token = authHeader.substring(7);
   const userData = appTokens.get('token_' + token);
   
-  if (!userData || userData.userId !== '943487722738311219') {
+  if (!userData || userData.userId !== FOUNDER_ID) {
     return res.status(403).json({ error: 'Forbidden - Admin only' });
   }
   
