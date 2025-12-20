@@ -1090,64 +1090,19 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 0 -> {
-                            BotControlScreen(
-                                api = api,
-                                json = json,
-                                scope = scope,
-                                snackbar = snackbar,
-                                botOnline = botOnline,
-                                botStats = botStats,
-                                members = members,
-                                channels = channels,
-                                roles = roles,
-                                isFounder = isFounder
-                            )
-                            
-                            // DEBUG CARD en bas
-                            if (userId.isNotEmpty()) {
-                                LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
-                                    item { Spacer(Modifier.height(500.dp)) }
-                                    item {
-                                        Card(
-                                            Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFF5722))
-                                        ) {
-                                            Column(Modifier.padding(16.dp)) {
-                                                Text(
-                                                    "🔍 DEBUG - Détection Fondateur",
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                                Spacer(Modifier.height(8.dp))
-                                                Text("Votre userId: $userId", color = Color.White, style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
-                                                Text("isFounder: $isFounder", color = if (isFounder) Color.Green else Color.Red, fontWeight = FontWeight.Bold)
-                                                Text("isAdmin: $isAdmin", color = if (isAdmin) Color.Green else Color.Red)
-                                                Spacer(Modifier.height(8.dp))
-                                                Button(
-                                                    onClick = {
-                                                        scope.launch {
-                                                            withContext(Dispatchers.IO) {
-                                                                try {
-                                                                    val debugJson = api.getJson("/api/debug/me")
-                                                                    withContext(Dispatchers.Main) {
-                                                                        snackbar.showSnackbar("Debug: $debugJson")
-                                                                    }
-                                                                } catch (e: Exception) {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        snackbar.showSnackbar("Erreur debug: ${e.message}")
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    },
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    Text("🔍 Tester /api/debug/me")
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                            Column(Modifier.fillMaxSize()) {
+                                BotControlScreen(
+                                    api = api,
+                                    json = json,
+                                    scope = scope,
+                                    snackbar = snackbar,
+                                    botOnline = botOnline,
+                                    botStats = botStats,
+                                    members = members,
+                                    channels = channels,
+                                    roles = roles,
+                                    isFounder = isFounder
+                                )
                             }
                         }
                         tab == 1 -> {
@@ -1315,6 +1270,33 @@ fun BotControlScreen(
     roles: Map<String, String>,
     isFounder: Boolean
 ) {
+    // Récupérer userId et isAdmin depuis le scope parent
+    var debugInfo by remember { mutableStateOf("Chargement...") }
+    var localUserId by remember { mutableStateOf("") }
+    var localIsFounder by remember { mutableStateOf(false) }
+    var localIsAdmin by remember { mutableStateOf(false) }
+    
+    // Charger les infos de debug
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val meJson = api.getJson("/api/me")
+                val me = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.parseToJsonElement(meJson).jsonObject
+                val userId = me["userId"]?.jsonPrimitive?.contentOrNull ?: ""
+                localUserId = userId
+                localIsFounder = userId == "661256714779426859"
+                
+                withContext(Dispatchers.Main) {
+                    debugInfo = "UserId: $userId"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    debugInfo = "Erreur: ${e.message}"
+                }
+            }
+        }
+    }
+    
     // Charger les membres connectés
     var connectedUsers by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // userId, username, role
     var isLoadingConnected by remember { mutableStateOf(false) }
@@ -1530,6 +1512,51 @@ fun BotControlScreen(
                                 Divider(color = Color(0xFF2E2E2E), modifier = Modifier.padding(vertical = 4.dp))
                             }
                         }
+                    }
+                }
+            }
+        }
+        
+        // DEBUG CARD
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFF5722))
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "🔍 DEBUG - Détection Fondateur",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(debugInfo, color = Color.White, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
+                    Spacer(Modifier.height(8.dp))
+                    Text("isFounder dans code: $localIsFounder", color = if (localIsFounder) Color.Green else Color.Red, fontWeight = FontWeight.Bold)
+                    Text("isFounder param: $isFounder", color = if (isFounder) Color.Green else Color.Red, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    try {
+                                        val response = api.getJson("/api/debug/me")
+                                        withContext(Dispatchers.Main) {
+                                            snackbar.showSnackbar("✅ $response")
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            snackbar.showSnackbar("❌ ${e.message}")
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF))
+                    ) {
+                        Text("🔍 Appeler /api/debug/me", color = Color.Black)
                     }
                 }
             }
