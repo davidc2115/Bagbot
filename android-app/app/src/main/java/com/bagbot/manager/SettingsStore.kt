@@ -28,6 +28,7 @@ class SettingsStore private constructor(context: Context) {
     
     fun getToken(): String? = prefs.getString("token", null)
     fun setToken(token: String) = prefs.edit().putString("token", token).apply()
+    fun clearToken() = prefs.edit().remove("token").apply()
     
     fun clear() = prefs.edit().clear().apply()
 }
