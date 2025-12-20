@@ -1310,12 +1310,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 userId = userId,
                                 isFounder = isFounder,
                                 memberRoles = memberRoles,
-                                errorMessage = errorMessage,
-                                api = api,
-                                json = json,
-                                scope = scope,
-                                snackbar = snackbar,
-                                configData = configData
+                                errorMessage = errorMessage
                             )
                         }
                         tab == 1 -> {
@@ -1949,12 +1944,7 @@ fun HomeScreen(
     userId: String,
     isFounder: Boolean,
     memberRoles: Map<String, List<String>>,
-    errorMessage: String?,
-    api: ApiClient,
-    json: Json,
-    scope: kotlinx.coroutines.CoroutineScope,
-    snackbar: SnackbarHostState,
-    configData: JsonObject?
+    errorMessage: String?
 ) {
     if (isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -2120,13 +2110,6 @@ fun HomeScreen(
                 }
             }
             
-            // Section Utilisateurs de l'App - FONDATEUR UNIQUEMENT
-            if (isFounder) {
-                item {
-                    AppUsersSection(api, json, scope, snackbar, configData)
-                }
-            }
-            
             errorMessage?.let { error ->
                 item {
                     Card(
@@ -2158,12 +2141,14 @@ fun HomeScreen(
 }
 
 @Composable
-fun AppUsersSection(
+fun AppUsersManagementSection(
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    configData: JsonObject?
+    configData: JsonObject?,
+    members: Map<String, String>,
+    memberRoles: Map<String, List<String>>
 ) {
     var appUsers by remember { mutableStateOf<List<AppUser>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -2262,110 +2247,121 @@ fun AppUsersSection(
         )
     }
     
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.PhoneAndroid,
-                        null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
+    Column(Modifier.padding(16.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.PhoneAndroid,
+                    null,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "📱 Utilisateurs de l'App",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        Text(
-                            "${appUsers.size} utilisateur(s)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFFBBDEFB)
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.Star,
+                            "Fondateur uniquement",
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                }
-                IconButton(onClick = { loadAppUsers() }, enabled = !isLoading) {
-                    Icon(Icons.Default.Refresh, "Recharger", tint = Color.White)
+                    Text(
+                        "${appUsers.size} utilisateur(s) connecté(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFBBDEFB)
+                    )
                 }
             }
-            
-            Spacer(Modifier.height(16.dp))
-            
-            if (isLoading) {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White)
-                }
-            } else if (appUsers.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    Text("Aucun utilisateur", color = Color.White)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    appUsers.forEach { user ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (user.isFounder) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
-                            )
+            IconButton(onClick = { loadAppUsers() }, enabled = !isLoading) {
+                Icon(Icons.Default.Refresh, "Recharger", tint = Color.White)
+            }
+        }
+        
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "👑 Gérer les utilisateurs ayant accès à l'application mobile",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFE3F2FD)
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        if (isLoading) {
+            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color.White)
+            }
+        } else if (appUsers.isEmpty()) {
+            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                Text("Aucun utilisateur", color = Color.White)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                appUsers.forEach { user ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (user.isFounder) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        if (user.isFounder) Icons.Default.Star else Icons.Default.Person,
-                                        null,
-                                        tint = when {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (user.isFounder) Icons.Default.Star else Icons.Default.Person,
+                                    null,
+                                    tint = when {
+                                        user.isFounder -> Color(0xFFFFD700)
+                                        user.isAdmin -> Color(0xFF5865F2)
+                                        else -> Color.Gray
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        user.username,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        user.roleLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = when {
                                             user.isFounder -> Color(0xFFFFD700)
                                             user.isAdmin -> Color(0xFF5865F2)
                                             else -> Color.Gray
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            user.username,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            user.roleLabel,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = when {
-                                                user.isFounder -> Color(0xFFFFD700)
-                                                user.isAdmin -> Color(0xFF5865F2)
-                                                else -> Color.Gray
-                                            }
-                                        )
-                                    }
-                                }
-                                
-                                if (!user.isFounder) {
-                                    IconButton(
-                                        onClick = {
-                                            userToRemove = user
-                                            showRemoveDialog = true
                                         }
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            "Retirer l'accès",
-                                            tint = Color(0xFFE53935)
-                                        )
+                                    )
+                                }
+                            }
+                            
+                            if (!user.isFounder) {
+                                IconButton(
+                                    onClick = {
+                                        userToRemove = user
+                                        showRemoveDialog = true
                                     }
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        "Retirer l'accès",
+                                        tint = Color(0xFFE53935)
+                                    )
                                 }
                             }
                         }
@@ -3283,6 +3279,16 @@ fun AdminScreenWithAccess(
                             color = Color(0xFFE3F2FD)
                         )
                     }
+                }
+            }
+            
+            // Section Gestion des Utilisateurs de l'App - FONDATEUR UNIQUEMENT
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
+                ) {
+                    AppUsersManagementSection(api, json, scope, snackbar, configData, members, memberRoles)
                 }
             }
             
