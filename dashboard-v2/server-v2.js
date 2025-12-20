@@ -459,14 +459,16 @@ async function fetchDiscordMembers() {
           const members = JSON.parse(data);
           const memberMap = {};
           const memberRolesMap = {};
+          const memberBotsMap = {};
           members.forEach(m => {
             // Prioriser: nick > global_name > username
             const displayName = m.nick || m.user?.global_name || m.user?.username || `User-${m.user?.id?.slice(-4)}`;
             memberMap[m.user?.id] = displayName;
             memberRolesMap[m.user?.id] = m.roles || [];
+            memberBotsMap[m.user?.id] = m.user?.bot || false;
           });
           console.log('✅ Membres Discord récupérés:', Object.keys(memberMap).length);
-          resolve({ names: memberMap, roles: memberRolesMap });
+          resolve({ names: memberMap, roles: memberRolesMap, bots: memberBotsMap });
         } else {
           console.error('❌ Discord API error:', response.statusCode);
           reject(new Error(`Discord API error: ${response.statusCode}`));
@@ -491,14 +493,14 @@ async function getMembers() {
   
   try {
     const fetchedData = await fetchDiscordMembers();
-    // Rétro-compatibilité : si c'est le nouveau format avec names/roles
+    // Rétro-compatibilité : si c'est le nouveau format avec names/roles/bots
     if (fetchedData && fetchedData.names) {
-      membersCache = fetchedData; // IMPORTANT: cacher TOUT l'objet (names + roles)
+      membersCache = fetchedData; // IMPORTANT: cacher TOUT l'objet (names + roles + bots)
       membersCacheTime = now;
-      return fetchedData; // Retourner tout l'objet pour avoir names ET roles
+      return fetchedData; // Retourner tout l'objet pour avoir names, roles ET bots
     } else {
       // Ancien format (juste les noms)
-      const dataWithRoles = { names: fetchedData, roles: {} };
+      const dataWithRoles = { names: fetchedData, roles: {}, bots: {} };
       membersCache = dataWithRoles;
       membersCacheTime = now;
       return dataWithRoles;
@@ -639,6 +641,42 @@ app.get('/api/discord/members', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/discord/members:', err);
     res.status(500).json({ error: 'Failed to fetch members' });
+  }
+});
+
+// Get dashboard stats - NEW ENDPOINT
+app.get('/api/dashboard/stats', async (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const membersData = await getMembers();
+    
+    const allMembers = Object.keys(membersData.names || {});
+    const botMap = membersData.bots || {};
+    
+    // Count bots vs humans
+    const totalMembers = allMembers.length;
+    const totalBots = allMembers.filter(id => botMap[id] === true).length;
+    const totalHumans = totalMembers - totalBots;
+    
+    // Count economy users
+    const ecoBalances = guildConfig.economy?.balances || {};
+    const ecoUsers = Object.keys(ecoBalances).length;
+    
+    // Count level users
+    const levelsData = guildConfig.levels?.data || guildConfig.levels?.users || {};
+    const levelUsers = Object.keys(levelsData).length;
+    
+    res.json({
+      totalMembers,
+      totalHumans,
+      totalBots,
+      ecoUsers,
+      levelUsers
+    });
+  } catch (err) {
+    console.error('Error in /api/dashboard/stats:', err);
+    res.status(500).json({ error: 'Failed to fetch dashboard stats' });
   }
 });
 
@@ -2317,6 +2355,52 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
   } catch (error) {
     console.error('❌ Config update error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ Dashboard URL Configuration ============
+
+// Get dashboard URL
+app.get('/api/admin/dashboard-url', (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    const dashboardUrl = guildConfig.dashboardUrl || `http://82.67.65.98:${PORT}`;
+    res.json({ dashboardUrl });
+  } catch (err) {
+    console.error('Error in GET /api/admin/dashboard-url:', err);
+    res.status(500).json({ error: 'Failed to fetch dashboard URL' });
+  }
+});
+
+// Update dashboard URL
+app.post('/api/admin/dashboard-url', (req, res) => {
+  try {
+    const { dashboardUrl } = req.body;
+    if (!dashboardUrl || typeof dashboardUrl !== 'string') {
+      return res.status(400).json({ error: 'Invalid dashboard URL' });
+    }
+
+    // Validate URL format
+    try {
+      new URL(dashboardUrl);
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+
+    const config = readConfig();
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+    config.guilds[GUILD].dashboardUrl = dashboardUrl.trim();
+
+    if (writeConfig(config)) {
+      console.log(`✅ Dashboard URL configurée: ${dashboardUrl}`);
+      res.json({ success: true, dashboardUrl: config.guilds[GUILD].dashboardUrl });
+    } else {
+      res.status(500).json({ error: 'Failed to save config' });
+    }
+  } catch (err) {
+    console.error('Error in POST /api/admin/dashboard-url:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

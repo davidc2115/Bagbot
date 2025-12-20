@@ -640,6 +640,8 @@ fun StaffMainScreen(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
     members: Map<String, String>,
+    memberRoles: Map<String, List<String>>,
+    configData: JsonObject?,
     userInfo: JsonObject?,
     isFounder: Boolean,
     isAdmin: Boolean  // Vérification admin pour chat
@@ -703,7 +705,7 @@ fun StaffMainScreen(
         }
         when (selectedStaffTab) {
             0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
-            1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
+            1 -> AdminScreenWithAccess(members, memberRoles, configData, api, json, scope, snackbar)
         }
     }
 }
@@ -1149,6 +1151,8 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 scope = scope,
                                 snackbar = snackbar,
                                 members = members,
+                                memberRoles = memberRoles,
+                                configData = configData,
                                 userInfo = userInfo,
                                 isFounder = isFounder,
                                 isAdmin = isAdmin
@@ -1964,6 +1968,8 @@ fun getSectionDisplayName(key: String): String {
 @Composable
 fun AdminScreenWithAccess(
     members: Map<String, String>,
+    memberRoles: Map<String, List<String>>,
+    configData: JsonObject?,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -1973,6 +1979,70 @@ fun AdminScreenWithAccess(
     var isLoading by remember { mutableStateOf(false) }
     var selectedMember by remember { mutableStateOf<String?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    
+    // Dashboard URL configuration
+    var dashboardUrl by remember { mutableStateOf("") }
+    var showDashboardUrlDialog by remember { mutableStateOf(false) }
+    var dashboardUrlInput by remember { mutableStateOf("") }
+    var isLoadingUrl by remember { mutableStateOf(false) }
+    
+    // Extraire les rôles staff et fondateurs de la config
+    val staffRoleIds = remember(configData) {
+        configData?.get("staffRoleIds")?.jsonArray?.mapNotNull { 
+            it.jsonPrimitive.contentOrNull 
+        } ?: emptyList()
+    }
+    val founderIds = listOf("943487722738311219") // Hardcoded pour l'instant
+    
+    // Fonction pour déterminer le rôle d'un utilisateur
+    fun getUserRole(userId: String): Pair<String, Color> {
+        return when {
+            userId in founderIds -> "👑 Fondateur" to Color(0xFFFFD700)
+            (memberRoles[userId] ?: emptyList()).any { it in staffRoleIds } -> "⚡ Admin" to Color(0xFF5865F2)
+            else -> "👤 Membre" to Color.Gray
+        }
+    }
+    
+    // Charger l'URL du dashboard
+    fun loadDashboardUrl() {
+        scope.launch {
+            isLoadingUrl = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/admin/dashboard-url")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        dashboardUrl = data["dashboardUrl"]?.jsonPrimitive?.contentOrNull ?: ""
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading dashboard URL: ${e.message}")
+                } finally {
+                    withContext(Dispatchers.Main) { isLoadingUrl = false }
+                }
+            }
+        }
+    }
+    
+    // Sauvegarder l'URL du dashboard
+    fun saveDashboardUrl() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject { put("dashboardUrl", dashboardUrlInput) }
+                    api.postJson("/api/admin/dashboard-url", body.toString())
+                    withContext(Dispatchers.Main) {
+                        dashboardUrl = dashboardUrlInput
+                        showDashboardUrlDialog = false
+                        snackbar.showSnackbar("✅ URL du dashboard configurée")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
     
     // Charger la liste des utilisateurs autorisés
     LaunchedEffect(Unit) {
@@ -1998,6 +2068,8 @@ fun AdminScreenWithAccess(
                 }
             }
         }
+        // Charger aussi l'URL du dashboard
+        loadDashboardUrl()
     }
     
     fun removeUser(userId: String) {
@@ -2043,6 +2115,46 @@ fun AdminScreenWithAccess(
         }
     }
     
+    if (showDashboardUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showDashboardUrlDialog = false },
+            title = { Text("Configurer l'URL du Dashboard") },
+            text = {
+                Column {
+                    Text("Entrez l'URL publique du dashboard")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Cette URL sera partagée automatiquement via la commande /dashboard du bot.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = dashboardUrlInput,
+                        onValueChange = { dashboardUrlInput = it },
+                        label = { Text("URL du Dashboard") },
+                        placeholder = { Text("http://exemple.com:3002") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { saveDashboardUrl() },
+                    enabled = dashboardUrlInput.isNotBlank()
+                ) {
+                    Text("Enregistrer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDashboardUrlDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
@@ -2057,6 +2169,34 @@ fun AdminScreenWithAccess(
                         onMemberSelected = { selectedMember = it },
                         label = "Membre"
                     )
+                    // Afficher le rôle du membre sélectionné
+                    selectedMember?.let { userId ->
+                        Spacer(Modifier.height(12.dp))
+                        val (roleLabel, roleColor) = getUserRole(userId)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    null,
+                                    tint = roleColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Rôle: $roleLabel",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = roleColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -2112,6 +2252,83 @@ fun AdminScreenWithAccess(
             }
         }
         
+        // Dashboard URL Configuration Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Link,
+                                null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "🔗 URL du Dashboard",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                if (isLoadingUrl) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else if (dashboardUrl.isNotBlank()) {
+                                    Text(
+                                        dashboardUrl,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFBBDEFB)
+                                    )
+                                } else {
+                                    Text(
+                                        "Non configurée",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFFFCDD2)
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = {
+                            dashboardUrlInput = dashboardUrl
+                            showDashboardUrlDialog = true
+                        }) {
+                            Icon(
+                                Icons.Default.Edit,
+                                "Modifier l'URL",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Cette URL est utilisée par la commande /dashboard du bot Discord",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFE3F2FD)
+                    )
+                }
+            }
+        }
+        
+        item {
+            Divider(
+                color = Color(0xFF2A2A2A),
+                thickness = 2.dp,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+        
         item {
             Button(
                 onClick = { showAddDialog = true },
@@ -2133,12 +2350,13 @@ fun AdminScreenWithAccess(
         } else {
             items(allowedUsers) { userId ->
                 val memberName = members[userId] ?: "Utilisateur $userId"
-                val isFounder = userId == "943487722738311219"
+                val isFounderUser = userId in founderIds
+                val (roleLabel, roleColor) = getUserRole(userId)
                 
                 Card(
                     Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isFounder) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
+                        containerColor = if (isFounderUser) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
                     )
                 ) {
                     Row(
@@ -2148,9 +2366,9 @@ fun AdminScreenWithAccess(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                if (isFounder) Icons.Default.Star else Icons.Default.Person,
+                                if (isFounderUser) Icons.Default.Star else Icons.Default.Person,
                                 null,
-                                tint = if (isFounder) Color(0xFFFFD700) else Color(0xFF9C27B0),
+                                tint = if (isFounderUser) Color(0xFFFFD700) else Color(0xFF9C27B0),
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(Modifier.width(12.dp))
@@ -2160,15 +2378,16 @@ fun AdminScreenWithAccess(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
-                                if (isFounder) {
+                                // Afficher le rôle du membre
+                                Text(
+                                    roleLabel,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = roleColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (!isFounderUser) {
                                     Text(
-                                        "👑 Fondateur (non supprimable)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFFFD700)
-                                    )
-                                } else {
-                                    Text(
-                                        "ID: $userId",
+                                        "ID: ${userId.takeLast(8)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color.Gray
                                     )
@@ -2176,7 +2395,7 @@ fun AdminScreenWithAccess(
                             }
                         }
                         
-                        if (!isFounder) {
+                        if (!isFounderUser) {
                             IconButton(
                                 onClick = { removeUser(userId) }
                             ) {
