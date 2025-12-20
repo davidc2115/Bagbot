@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    
+    <!-- Cercle de fond avec dégradé -->
+    <path
+        android:fillColor="#9B59B6"
+        android:pathData="M100,0 A100,100 0 1,1 100,200 A100,100 0 1,1 100,0 Z"/>
+    
+    <!-- Lettre B stylisée -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,60 L60,140 L90,140 Q110,140 110,125 Q110,115 100,110 Q110,105 110,95 Q110,80 90,80 L60,80 Z M75,90 L85,90 Q95,90 95,100 Q95,110 85,110 L75,110 Z M75,115 L88,115 Q98,115 98,125 Q98,135 88,135 L75,135 Z"/>
+    
+    <!-- Accent rose -->
+    <path
+        android:fillColor="#E91E63"
+        android:pathData="M120,100 Q140,80 150,100 L150,140 L135,140 L135,110 Q130,100 120,110 Z"/>
+</vector>

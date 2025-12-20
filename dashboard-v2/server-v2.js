@@ -31,7 +31,7 @@ const app = express();
 //   debug: false
 // }));
 
-const PORT = 3002;
+const PORT = 33002;
 
 app.use(express.json({limit: '50mb'}));
 app.use(express.urlencoded({limit: '50mb', extended: true}));
@@ -2004,6 +2004,318 @@ app.post('/api/upload-gif-from-browser', async (req, res) => {
     res.json({ success: true, url: localUrl });
   } catch (error) {
     console.error('❌ Erreur upload navigateur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ============================================
+// ROUTES OAUTH POUR L'APPLICATION MOBILE
+// ============================================
+
+const crypto = require('crypto');
+
+// Stockage des tokens en mémoire
+const appTokens = new Map();
+
+// Génération de token
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Route de démarrage OAuth mobile
+app.get('/auth/mobile/start', (req, res) => {
+  const OAUTH_CLIENT_ID = process.env.DISCORD_OAUTH_CLIENT_ID || process.env.CLIENT_ID || '1414216173809307780';
+  const REDIRECT_URI = encodeURIComponent('http://88.174.155.230:33002/auth/mobile/callback');
+  const app_redirect = req.query.app_redirect || 'bagbot://auth';
+  
+  const state = generateToken().substring(0, 16);
+  appTokens.set('state_' + state, { app_redirect, timestamp: Date.now() });
+  
+  const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${OAUTH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=identify&state=${state}`;
+  
+  console.log('🔐 Mobile auth started');
+  res.redirect(discordAuthUrl);
+});
+
+// Callback OAuth Discord mobile
+app.get('/auth/mobile/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  if (!code || !state) {
+    return res.status(400).send('Missing code or state');
+  }
+  
+  const stateData = appTokens.get('state_' + state);
+  if (!stateData) {
+    return res.status(400).send('Invalid state');
+  }
+  
+  const app_redirect = stateData.app_redirect;
+  appTokens.delete('state_' + state);
+  
+  try {
+    const OAUTH_CLIENT_ID = process.env.DISCORD_OAUTH_CLIENT_ID || '1414216173809307780';
+    const OAUTH_CLIENT_SECRET = process.env.DISCORD_OAUTH_CLIENT_SECRET || '_LnfeJDT77TZ3qcBs7SsjFOcT_nvWB-o';
+    const REDIRECT_URI = 'http://88.174.155.230:33002/auth/mobile/callback';
+    
+    // Échanger code contre access token
+    const https = require('https');
+    const tokenData = await new Promise((resolve, reject) => {
+      const postData = new URLSearchParams({
+        client_id: OAUTH_CLIENT_ID,
+        client_secret: OAUTH_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI
+      }).toString();
+      
+      const options = {
+        hostname: 'discord.com',
+        port: 443,
+        path: '/api/oauth2/token',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
+      
+      const req = https.request(options, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => resolve(JSON.parse(data)));
+      });
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
+    });
+    
+    if (!tokenData.access_token) {
+      throw new Error('No access token');
+    }
+    
+    // Récupérer infos utilisateur
+    const userData = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'discord.com',
+        port: 443,
+        path: '/api/users/@me',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`
+        }
+      };
+      
+      const req = https.request(options, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => resolve(JSON.parse(data)));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    
+    // Générer token app
+    const appToken = generateToken();
+    appTokens.set('token_' + appToken, {
+      userId: userData.id,
+      username: userData.username,
+      discriminator: userData.discriminator,
+      avatar: userData.avatar,
+      timestamp: Date.now()
+    });
+    
+    console.log('✅ Mobile auth successful for', userData.username, '(' + userData.id + ')');
+    
+    const redirectUrl = `${app_redirect}?token=${appToken}`;
+    
+    res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Connexion réussie</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      height: 100vh; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    .container { text-align: center; }
+    h1 { font-size: 2em; margin-bottom: 20px; }
+    p { font-size: 1.2em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✅ Connexion réussie !</h1>
+    <p>Redirection vers l'application...</p>
+  </div>
+  <script>
+    setTimeout(() => {
+      window.location.href = '${redirectUrl}';
+    }, 1000);
+  </script>
+</body>
+</html>`);
+  } catch (error) {
+    console.error('❌ OAuth error:', error);
+    res.status(500).send('Authentication failed: ' + error.message);
+  }
+});
+
+// Route /api/me
+app.get('/api/me', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  if (Date.now() - userData.timestamp > 24 * 60 * 60 * 1000) {
+    appTokens.delete('token_' + token);
+    return res.status(401).json({ error: 'Token expired' });
+  }
+  
+  res.json({
+    userId: userData.userId,
+    username: userData.username,
+    discriminator: userData.discriminator,
+    avatar: userData.avatar
+  });
+});
+
+
+// ============================================
+// ROUTES API ADMIN - GESTION DES ACCÈS
+// ============================================
+
+// Stockage des utilisateurs autorisés (en mémoire - à remplacer par DB si nécessaire)
+const allowedUsers = new Set(['943487722738311219']); // Fondateur par défaut
+
+// GET /api/admin/allowed-users - Récupérer la liste
+app.get('/api/admin/allowed-users', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData || userData.userId !== '943487722738311219') {
+    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  }
+  
+  res.json({ allowedUsers: Array.from(allowedUsers) });
+});
+
+// POST /api/admin/allowed-users - Ajouter un utilisateur
+app.post('/api/admin/allowed-users', express.json(), (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData || userData.userId !== '943487722738311219') {
+    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  }
+  
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'Missing userId' });
+  }
+  
+  allowedUsers.add(userId);
+  console.log('✅ User added to allowed list:', userId);
+  res.json({ success: true, allowedUsers: Array.from(allowedUsers) });
+});
+
+// DELETE /api/admin/allowed-users/:userId - Retirer un utilisateur
+app.delete('/api/admin/allowed-users/:userId', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData || userData.userId !== '943487722738311219') {
+    return res.status(403).json({ error: 'Forbidden - Admin only' });
+  }
+  
+  const { userId } = req.params;
+  
+  if (userId === '943487722738311219') {
+    return res.status(400).json({ error: 'Cannot remove founder' });
+  }
+  
+  allowedUsers.delete(userId);
+  console.log('✅ User removed from allowed list:', userId);
+  res.json({ success: true, allowedUsers: Array.from(allowedUsers) });
+});
+
+// ============================================
+// ROUTES API CONFIG - MISE À JOUR
+// ============================================
+
+// PUT /api/configs/:section - Mettre à jour une section
+app.put('/api/configs/:section', express.json(), (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token' });
+  }
+  
+  const token = authHeader.substring(7);
+  const userData = appTokens.get('token_' + token);
+  
+  if (!userData) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  const { section } = req.params;
+  const updates = req.body;
+  
+  try {
+    const fs = require('fs');
+    const configPath = CONFIG || './data/guild-config.json';
+    
+    // Lire la config actuelle
+    let config = {};
+    if (fs.existsSync(configPath)) {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+    
+    // Mettre à jour la section
+    if (!config[section]) {
+      config[section] = {};
+    }
+    
+    // Merger les updates
+    config[section] = { ...config[section], ...updates };
+    
+    // Sauvegarder
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    
+    console.log(`✅ Config section '${section}' updated by ${userData.username}`);
+    res.json({ success: true, section, config: config[section] });
+  } catch (error) {
+    console.error('❌ Config update error:', error);
     res.status(500).json({ error: error.message });
   }
 });
