@@ -36,6 +36,10 @@ jobs:
       working-directory: android-app
       run: chmod +x gradlew || true
       
+    - name: Clean build
+      working-directory: android-app
+      run: ./gradlew clean --stacktrace
+      
     - name: Build APK
       working-directory: android-app
       run: ./gradlew assembleRelease --stacktrace
