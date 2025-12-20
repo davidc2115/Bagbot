@@ -3548,6 +3548,7 @@ private fun TruthDareConfigTab(
     snackbar: SnackbarHostState
 ) {
     var mode by remember { mutableStateOf("sfw") }
+    var promptTab by remember { mutableIntStateOf(0) } // 0=vérités, 1=actions
     var isLoading by remember { mutableStateOf(false) }
     var prompts by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
     var channelIds by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -3578,6 +3579,37 @@ private fun TruthDareConfigTab(
     }
 
     LaunchedEffect(mode) { load() }
+    
+    // Sync newPromptType avec promptTab
+    LaunchedEffect(promptTab) {
+        newPromptType = if (promptTab == 0) "v" else "a"
+    }
+    
+    // Filtrer par type selon l'onglet actif
+    val filteredPrompts = prompts.filter { 
+        val type = it["type"]?.jsonPrimitive?.contentOrNull ?: "v"
+        if (promptTab == 0) type == "v" else type == "a"
+    }
+    val veritesCount = prompts.count { it["type"]?.jsonPrimitive?.contentOrNull == "v" }
+    val actionsCount = prompts.count { it["type"]?.jsonPrimitive?.contentOrNull == "a" }
+
+    Column(Modifier.fillMaxSize()) {
+        // TabRow Vérités/Actions EN HAUT
+        TabRow(
+            selectedTabIndex = promptTab,
+            containerColor = Color(0xFF1E1E1E)
+        ) {
+            Tab(
+                selected = promptTab == 0,
+                onClick = { promptTab = 0 },
+                text = { Text("🤔 Vérités ($veritesCount)") }
+            )
+            Tab(
+                selected = promptTab == 1,
+                onClick = { promptTab = 1 },
+                text = { Text("🎭 Actions ($actionsCount)") }
+            )
+        }
 
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -3650,11 +3682,30 @@ private fun TruthDareConfigTab(
         }
 
         item {
-            SectionCard(title = "🧠 Prompts (${prompts.size})", subtitle = "Édition rapide (texte) + suppression") {
+            SectionCard(title = if (promptTab == 0) "🤔 Vérités (${filteredPrompts.size})" else "🎭 Actions (${filteredPrompts.size})", subtitle = "Édition rapide (texte) + suppression") {
                 if (isLoading) {
                     CircularProgressIndicator()
                 } else {
-                    prompts.sortedBy { it["id"]?.jsonPrimitive?.intOrNull ?: 0 }.forEach { p ->
+                    if (filteredPrompts.isEmpty()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                if (promptTab == 0) Icons.Default.Help else Icons.Default.DirectionsRun,
+                                null,
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.Gray
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Aucun${if (promptTab == 0) "e vérité" else "e action"}",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    } else {
+                        filteredPrompts.sortedBy { it["id"]?.jsonPrimitive?.intOrNull ?: 0 }.forEach { p ->
                         val id = p["id"]?.jsonPrimitive?.intOrNull ?: 0
                         val type = p["type"]?.jsonPrimitive?.contentOrNull ?: "v"
                         var text by remember(id, mode) { mutableStateOf(p["text"]?.jsonPrimitive?.contentOrNull ?: "") }
@@ -3713,21 +3764,22 @@ private fun TruthDareConfigTab(
                         Spacer(Modifier.height(10.dp))
                     }
                 }
+                }
 
                 Divider(color = Color(0xFF2A2A2A))
                 Spacer(Modifier.height(12.dp))
-                Text("➕ Ajouter un prompt", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("➕ Ajouter ${if (promptTab == 0) "une vérité" else "une action"}", color = Color.White, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(
-                        onClick = { newPromptType = "v" },
+                        onClick = { newPromptType = "v"; promptTab = 0 },
                         label = { Text("Vérité") },
                         colors = AssistChipDefaults.assistChipColors(
                             containerColor = if (newPromptType == "v") Color(0xFF2E7D32) else Color(0xFF2A2A2A)
                         )
                     )
                     AssistChip(
-                        onClick = { newPromptType = "a" },
+                        onClick = { newPromptType = "a"; promptTab = 1 },
                         label = { Text("Action") },
                         colors = AssistChipDefaults.assistChipColors(
                             containerColor = if (newPromptType == "a") Color(0xFFB71C1C) else Color(0xFF2A2A2A)
@@ -3771,6 +3823,7 @@ private fun TruthDareConfigTab(
                 ) { Text("➕ Ajouter prompt") }
             }
         }
+    }
     }
 }
 

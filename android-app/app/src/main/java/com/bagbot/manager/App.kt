@@ -1026,12 +1026,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.Settings, "Config") },
                                 label = { Text("Config") }
                             )
-                            NavigationBarItem(
-                                selected = tab == 4,
-                                onClick = { tab = 4 },
-                                icon = { Icon(Icons.Default.MusicNote, "Musique") },
-                                label = { Text("Musique") }
-                            )
                             if (isFounder) {
                                 NavigationBarItem(
                                     selected = tab == 3,
@@ -1040,6 +1034,12 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                     label = { Text("Admin") }
                                 )
                             }
+                            NavigationBarItem(
+                                selected = tab == 4,
+                                onClick = { tab = 4 },
+                                icon = { Icon(Icons.Default.MusicNote, "Musique") },
+                                label = { Text("Musique") }
+                            )
                         }
                     }
                 }
@@ -1268,6 +1268,42 @@ fun BotControlScreen(
     roles: Map<String, String>,
     isFounder: Boolean
 ) {
+    // Charger les membres connectés
+    var connectedUsers by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // userId, username, role
+    var isLoadingConnected by remember { mutableStateOf(false) }
+    
+    fun loadConnectedUsers() {
+        scope.launch {
+            isLoadingConnected = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val resp = api.getJson("/api/admin/sessions")
+                    val obj = json.parseToJsonElement(resp).jsonObject
+                    val sessions = obj["sessions"]?.jsonArray?.mapNotNull {
+                        val session = it.jsonObject
+                        val userId = session["userId"]?.jsonPrimitive?.contentOrNull
+                        val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                        val role = session["role"]?.jsonPrimitive?.contentOrNull ?: "Membre"
+                        if (userId != null) Triple(userId, username, role) else null
+                    } ?: emptyList()
+                    withContext(Dispatchers.Main) {
+                        connectedUsers = sessions
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        connectedUsers = emptyList()
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) { isLoadingConnected = false }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) {
+        loadConnectedUsers()
+    }
+    
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1347,6 +1383,105 @@ fun BotControlScreen(
                         }
                         stats["version"]?.jsonPrimitive?.contentOrNull?.let {
                             Text("📦 Version: $it", color = Color.Gray)
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Membres connectés
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.People,
+                                null,
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "👥 Membres Connectés",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        IconButton(onClick = { loadConnectedUsers() }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                "Rafraîchir",
+                                tint = Color(0xFF9C27B0)
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    if (isLoadingConnected) {
+                        Box(
+                            Modifier.fillMaxWidth().height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF9C27B0))
+                        }
+                    } else if (connectedUsers.isEmpty()) {
+                        Text(
+                            "Aucun membre connecté",
+                            color = Color.Gray,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    } else {
+                        connectedUsers.forEach { (userId, username, role) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.AccountCircle,
+                                        null,
+                                        tint = when(role) {
+                                            "Fondateur" -> Color(0xFFFFD700)
+                                            "Admin" -> Color(0xFFFF1744)
+                                            else -> Color(0xFF4CAF50)
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            username,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            role,
+                                            color = when(role) {
+                                                "Fondateur" -> Color(0xFFFFD700)
+                                                "Admin" -> Color(0xFFFF1744)
+                                                else -> Color.Gray
+                                            },
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                            if (connectedUsers.last() != Triple(userId, username, role)) {
+                                Divider(color = Color(0xFF2E2E2E), modifier = Modifier.padding(vertical = 4.dp))
+                            }
                         }
                     }
                 }
