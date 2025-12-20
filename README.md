@@ -1,10 +1,61 @@
 # 🎮 Bag Bot V2
 
-Bot Discord communautaire complet avec système économique, jeux multiples, modération avancée et dashboard web intégré.
+Bot Discord communautaire complet avec système économique, jeux multiples, modération avancée, dashboard web et application mobile Android.
 
 [![Discord](https://img.shields.io/badge/Discord-Bot-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/your-invite)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Android](https://img.shields.io/badge/Android-4.1.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](android-app/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+
+---
+
+## 📱 **NOUVEAU - Version 4.1.0**
+
+### ⭐ Fonctionnalités Ajoutées
+
+- ✅ **Détection automatique des admins** - Accès instantané au chat staff
+- ✅ **Gestion des utilisateurs depuis l'app** - Section dédiée dans l'écran d'accueil
+- ✅ **Suppression d'accès simplifiée** - Révocation en un clic avec protection du fondateur
+- ✅ **Architecture séparée** - Backend API unifié et scalable
+- ✅ **Documentation complète** - 6 guides détaillés
+
+### 📚 Documentation v4.1.0
+
+- 📖 [Récapitulatif Final](docs/RECAPITULATIF_FINAL.md) - Vue d'ensemble complète
+- 🏗️ [Séparation Architecture](docs/SEPARATION_COMPLETE.md) - Nouvelle architecture
+- 📱 [Modifications Android](docs/ANDROID_APP_MODIFICATIONS.md) - Détails de l'app
+- 🔄 [Guide de Migration](docs/GUIDE_MIGRATION.md) - Migration pas à pas
+- 🧪 [Guide de Test](docs/GUIDE_TEST_COMPLET.md) - 24 tests de validation
+- 🚀 [Déploiement Backend](backend/DEPLOYMENT.md) - Mise en production
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐
+│   Bot Discord   │ ◄──┐
+└────────┬────────┘    │
+         │             │
+         ▼             │
+┌─────────────────────┐│
+│  config.json        ││  Source unique
+└─────────────────────┘│  de vérité
+         ▲             │
+         │             │
+┌────────┴────────────┐│
+│  Backend API        ││
+│  (Port 3002)        ││
+└─────────────────────┘┘
+    ▲              ▲
+    │              │
+┌───┴──────┐  ┌───┴──────┐
+│Dashboard │  │   App    │
+│   Web    │  │ Android  │
+└──────────┘  └──────────┘
+```
+
+---
 
 ## ✨ Fonctionnalités
 
@@ -43,11 +94,33 @@ Bot Discord communautaire complet avec système économique, jeux multiples, mod
 - Carte des membres avec géolocalisation
 - Lecteur de musique intégré
 
-## 🚀 Installation
+### 📱 Application Mobile Android (v4.1.0)
+- Interface native Material Design 3
+- Authentification OAuth Discord
+- Accès complet aux fonctionnalités du bot
+- Chat staff avec détection automatique des admins
+- Gestion des utilisateurs de l'app (fondateur)
+- Configuration en temps réel
+- Mode sombre
 
-### Prérequis
-- Node.js 18+ 
-- npm ou yarn
+---
+
+## 🚀 Installation Rapide
+
+### Backend API (Nouveau)
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Éditer .env avec vos tokens Discord
+npm start
+```
+
+### Bot Discord
+
+```bash
+npm install
 - Un token Discord Bot
 - PM2 (recommandé pour la production)
 

@@ -31,6 +31,20 @@ const app = express();
 //   debug: false
 // }));
 
+// Configuration CORS pour permettre l'accès depuis dashboard web et app mobile
+const cors = require('cors');
+app.use(cors({
+  origin: [
+    'http://localhost:3002',           // Dev local
+    'http://82.67.65.98:3002',         // Prod dashboard
+    'bagbot://auth',                   // App Android OAuth callback
+    '*'                                // Autoriser tous pour dev (à restreindre en prod)
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 const PORT = 33002;
 
 app.use(express.json({limit: '50mb'}));
@@ -516,9 +530,6 @@ app.post('/api/staff/chat/send', express.json(), (req, res) => {
 
 // Route pour servir les GIFs hébergés localement
 app.use('/gifs', express.static(path.join(__dirname, 'public/gifs')));
-
-// Route pour servir les fichiers audio uploadés
-app.use('/uploads', express.static(path.join(__dirname, '../data/uploads')));
 
 app.use(express.static('.'));
 

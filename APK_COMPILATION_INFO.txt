@@ -1,0 +1,184 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║              📱 COMPILATION APK - INFORMATIONS 📱                    ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+⚠️  IMPORTANT
+═══════════════════════════════════════════════════════════════════════
+
+Le SDK Android n'est pas disponible dans l'environnement cloud actuel.
+
+Vous devez compiler l'APK sur votre machine locale qui dispose 
+d'Android Studio ou du SDK Android.
+
+═══════════════════════════════════════════════════════════════════════
+
+📥 TÉLÉCHARGER LE CODE SOURCE
+═══════════════════════════════════════════════════════════════════════
+
+Option 1 : Depuis la release GitHub
+https://github.com/mel805/Bagbot/releases/tag/v4.1.1
+
+Cliquer sur "Source code (zip)" ou "Source code (tar.gz)"
+
+Option 2 : Clone Git
+git clone https://github.com/mel805/Bagbot.git
+cd Bagbot
+git checkout v4.1.1
+
+═══════════════════════════════════════════════════════════════════════
+
+🚀 COMPILATION RAPIDE (Avec Android Studio)
+═══════════════════════════════════════════════════════════════════════
+
+1. Installer Android Studio
+   https://developer.android.com/studio
+
+2. Ouvrir le projet
+   Android Studio > Open > Sélectionner /android-app/
+
+3. Attendre la synchronisation Gradle
+   (Téléchargement automatique des dépendances)
+
+4. Compiler
+   Menu : Build > Build Bundle(s) / APK(s) > Build APK(s)
+
+5. Récupérer l'APK
+   android-app/app/build/outputs/apk/debug/app-debug.apk
+
+═══════════════════════════════════════════════════════════════════════
+
+⚡ COMPILATION LIGNE DE COMMANDE
+═══════════════════════════════════════════════════════════════════════
+
+Prérequis : SDK Android installé
+
+cd Bagbot/android-app
+
+# Configurer le SDK (si nécessaire)
+echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+# Compiler en mode debug (plus rapide)
+./gradlew assembleDebug
+
+# APK généré
+app/build/outputs/apk/debug/app-debug.apk
+
+═══════════════════════════════════════════════════════════════════════
+
+📲 INSTALLER L'APK
+═══════════════════════════════════════════════════════════════════════
+
+Option 1 : Via USB (Débogage USB activé)
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+Option 2 : Transfert manuel
+- Copier l'APK sur le téléphone
+- Ouvrir avec le gestionnaire de fichiers
+- Installer (autoriser sources inconnues si demandé)
+
+Option 3 : Depuis Android Studio
+- Connecter l'appareil
+- Cliquer sur "Run" (▶️)
+
+═══════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION COMPLÈTE
+═══════════════════════════════════════════════════════════════════════
+
+Guide détaillé disponible :
+/workspace/docs/COMPILATION_APK.md
+
+Ce guide contient :
+✓ Installation d'Android Studio
+✓ Configuration du SDK
+✓ Compilation debug et release
+✓ Signature de l'APK
+✓ Dépannage complet
+✓ Vérifications post-installation
+
+═══════════════════════════════════════════════════════════════════════
+
+🔗 LIENS UTILES
+═══════════════════════════════════════════════════════════════════════
+
+Release GitHub (code source) :
+https://github.com/mel805/Bagbot/releases/tag/v4.1.1
+
+Android Studio :
+https://developer.android.com/studio
+
+Documentation Android :
+https://developer.android.com/studio/build/building-cmdline
+
+═══════════════════════════════════════════════════════════════════════
+
+✅ VÉRIFICATIONS APRÈS INSTALLATION
+═══════════════════════════════════════════════════════════════════════
+
+1. Connexion au backend
+   ✓ L'app se connecte
+   ✓ Données du serveur chargées
+
+2. Icônes de configuration (v4.1.1)
+   ✓ Config > Groupe > Icônes visibles
+
+3. Gestion utilisateurs (Fondateur)
+   ✓ Admin > Section "Utilisateurs de l'App"
+
+4. Détection auto admins
+   ✓ Admins Discord auto-autorisés
+
+═══════════════════════════════════════════════════════════════════════
+
+🐛 PROBLÈMES COURANTS
+═══════════════════════════════════════════════════════════════════════
+
+"SDK location not found"
+→ Créer local.properties avec sdk.dir
+
+"Gradle version incompatible"
+→ ./gradlew wrapper --gradle-version=8.5
+
+"Build Tools manquants"
+→ Android Studio > SDK Manager > SDK Tools
+
+"Kotlin version incompatible"
+→ Vérifier la version dans build.gradle.kts
+
+═══════════════════════════════════════════════════════════════════════
+
+💡 ALTERNATIVE : APK PRÉ-COMPILÉ
+═══════════════════════════════════════════════════════════════════════
+
+Si vous ne pouvez pas compiler vous-même :
+
+1. Demandez à quelqu'un avec Android Studio de compiler
+2. Utilisez un service CI/CD (GitHub Actions)
+3. Utilisez une machine virtuelle avec Android SDK
+
+Note : Pour des raisons de sécurité, il est recommandé de 
+compiler vous-même l'APK plutôt que de télécharger un APK 
+pré-compilé d'une source tierce.
+
+═══════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║                   📱 RÉSUMÉ POUR VOUS 📱                             ║
+║                                                                      ║
+║  1. Télécharger le code : Release GitHub v4.1.1                     ║
+║  2. Installer Android Studio                                        ║
+║  3. Ouvrir /android-app/ dans Android Studio                        ║
+║  4. Build > Build APK                                               ║
+║  5. Récupérer l'APK et installer                                    ║
+║                                                                      ║
+║  Documentation complète : docs/COMPILATION_APK.md                   ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Date : 20 Décembre 2025
+Version : v4.1.1
+Statut : Code prêt, compilation requise localement
+

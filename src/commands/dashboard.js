@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { getLevelsConfig } = require('../storage/jsonStore');
 
 module.exports = {
   name: 'dashboard',
@@ -17,6 +18,24 @@ module.exports = {
       });
     }
     
+    // Récupérer l'URL du dashboard depuis la configuration
+    let dashboardUrl = 'http://82.67.65.98:3002'; // URL par défaut
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const configPath = path.join(process.cwd(), 'data', 'config.json');
+      if (fs.existsSync(configPath)) {
+        const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const guildConfig = configData.guilds?.[interaction.guild.id];
+        if (guildConfig?.dashboardUrl) {
+          dashboardUrl = guildConfig.dashboardUrl;
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération de l\'URL du dashboard:', error);
+      // Continuer avec l'URL par défaut
+    }
+    
     const embed = new EmbedBuilder()
       .setColor(0xFF69B4)
       .setTitle('📊 Dashboard du Bot')
@@ -24,7 +43,7 @@ module.exports = {
       .addFields(
         {
           name: '🔗 Lien d accès',
-          value: '[Cliquez ici pour ouvrir le dashboard](http://82.67.65.98:3002)',
+          value: `[Cliquez ici pour ouvrir le dashboard](${dashboardUrl})`,
           inline: false
         },
         {
@@ -49,7 +68,7 @@ module.exports = {
       .addComponents(
         new ButtonBuilder()
           .setLabel('🌐 Ouvrir le Dashboard')
-          .setURL('http://82.67.65.98:3002')
+          .setURL(dashboardUrl)
           .setStyle(ButtonStyle.Link)
       );
     

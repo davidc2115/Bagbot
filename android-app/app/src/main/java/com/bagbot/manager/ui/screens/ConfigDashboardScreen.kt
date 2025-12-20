@@ -344,19 +344,51 @@ private fun DashboardTab(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
-    val eco = configData?.obj("economy")
-    val levels = configData?.obj("levels")
-    val ecoBalances = eco?.obj("balances")
-    val levelsData = levels?.obj("data")
-    
-    val totalMembers = members.size
-    val totalHumans = members.count { !it.key.contains("bot") }
-    val totalBots = totalMembers - totalHumans
-    val ecoUsers = ecoBalances?.jsonObject?.size ?: 0
-    val levelUsers = levelsData?.jsonObject?.size ?: 0
+    // États pour les statistiques
+    var totalMembers by remember { mutableIntStateOf(0) }
+    var totalHumans by remember { mutableIntStateOf(0) }
+    var totalBots by remember { mutableIntStateOf(0) }
+    var ecoUsers by remember { mutableIntStateOf(0) }
+    var levelUsers by remember { mutableIntStateOf(0) }
+    var isLoadingStats by remember { mutableStateOf(false) }
     
     var connectedUsers by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var isLoadingUsers by remember { mutableStateOf(false) }
+    
+    fun loadStats() {
+        scope.launch {
+            isLoadingStats = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val resp = api.getJson("/api/dashboard/stats")
+                    val obj = json.parseToJsonElement(resp).jsonObject
+                    withContext(Dispatchers.Main) {
+                        totalMembers = obj["totalMembers"]?.jsonPrimitive?.intOrNull ?: 0
+                        totalHumans = obj["totalHumans"]?.jsonPrimitive?.intOrNull ?: 0
+                        totalBots = obj["totalBots"]?.jsonPrimitive?.intOrNull ?: 0
+                        ecoUsers = obj["ecoUsers"]?.jsonPrimitive?.intOrNull ?: 0
+                        levelUsers = obj["levelUsers"]?.jsonPrimitive?.intOrNull ?: 0
+                    }
+                } catch (e: Exception) {
+                    // Fallback aux anciennes méthodes si l'endpoint n'existe pas
+                    withContext(Dispatchers.Main) {
+                        val eco = configData?.obj("economy")
+                        val levels = configData?.obj("levels")
+                        val ecoBalances = eco?.obj("balances")
+                        val levelsData = levels?.obj("data")
+                        
+                        totalMembers = members.size
+                        totalHumans = members.size // Approximation sans info bot
+                        totalBots = 0
+                        ecoUsers = ecoBalances?.jsonObject?.size ?: 0
+                        levelUsers = levelsData?.jsonObject?.size ?: 0
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) { isLoadingStats = false }
+                }
+            }
+        }
+    }
     
     fun loadConnectedUsers() {
         scope.launch {
@@ -386,7 +418,10 @@ private fun DashboardTab(
         }
     }
     
-    LaunchedEffect(Unit) { loadConnectedUsers() }
+    LaunchedEffect(Unit) { 
+        loadStats()
+        loadConnectedUsers()
+    }
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -532,6 +567,7 @@ private fun DashboardTab(
                 onClick = {
                     scope.launch {
                         try {
+                            loadStats()
                             loadConnectedUsers()
                             snackbar.showSnackbar("🔄 Rechargé")
                         } catch (e: Exception) {

@@ -9,6 +9,8 @@ class ApiClient(private val store: SettingsStore) {
     private val client = OkHttpClient()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     
+    val baseUrl: String get() = store.getBaseUrl()
+    
     private fun authHeader(): String? = store.getToken()?.let { "Bearer $it" }
     
     fun getJson(path: String): String {
@@ -55,6 +57,29 @@ class ApiClient(private val store: SettingsStore) {
         val request = Request.Builder()
             .url(url)
             .delete()
+            .apply { authHeader()?.let { addHeader("Authorization", it) } }
+            .build()
+        
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${response.body?.string()}")
+        return response.body?.string() ?: "{}"
+    }
+    
+    fun uploadFile(path: String, filename: String, fileBytes: ByteArray): String {
+        val url = "${store.getBaseUrl()}$path"
+        
+        val requestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "audio",
+                filename,
+                fileBytes.toRequestBody("audio/*".toMediaType())
+            )
+            .build()
+        
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
             .apply { authHeader()?.let { addHeader("Authorization", it) } }
             .build()
         

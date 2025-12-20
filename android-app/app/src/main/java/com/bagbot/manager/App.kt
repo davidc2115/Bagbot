@@ -4,6 +4,8 @@ package com.bagbot.manager
 
 import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -347,8 +349,16 @@ fun FunFullScreen(
     snackbar: SnackbarHostState
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    var truthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
-    var darePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedCategory by remember { mutableStateOf(0) } // 0=SFW, 1=NSFW
+    
+    // SFW prompts
+    var sfwTruthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var sfwDarePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    // NSFW prompts
+    var nsfwTruthPrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var nsfwDarePrompts by remember { mutableStateOf<List<String>>(emptyList()) }
+    
     var isLoading by remember { mutableStateOf(false) }
     var newPrompt by remember { mutableStateOf("") }
     var selectedMode by remember { mutableStateOf("truth") }
@@ -360,10 +370,17 @@ fun FunFullScreen(
                 try {
                     val response = api.getJson("/api/truthdare/prompts")
                     val data = json.parseToJsonElement(response).jsonObject
-                    val prompts = data["prompts"]?.jsonObject
+                    
                     withContext(Dispatchers.Main) {
-                        truthPrompts = prompts?.get("truth")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-                        darePrompts = prompts?.get("dare")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        // SFW
+                        val sfw = data["sfw"]?.jsonObject
+                        sfwTruthPrompts = sfw?.get("truths")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        sfwDarePrompts = sfw?.get("dares")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        
+                        // NSFW
+                        val nsfw = data["nsfw"]?.jsonObject
+                        nsfwTruthPrompts = nsfw?.get("truths")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+                        nsfwDarePrompts = nsfw?.get("dares")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
@@ -383,9 +400,11 @@ fun FunFullScreen(
         scope.launch {
             withContext(Dispatchers.IO) {
                 try {
+                    val category = if (selectedCategory == 0) "sfw" else "nsfw"
                     val body = buildJsonObject {
-                        put("mode", selectedMode)
+                        put("type", selectedMode)
                         put("text", newPrompt)
+                        put("category", category)
                     }
                     api.postJson("/api/truthdare/prompt", body.toString())
                     withContext(Dispatchers.Main) {
@@ -413,14 +432,62 @@ fun FunFullScreen(
         when (selectedTab) {
             0 -> {
                 Column(Modifier.fillMaxSize()) {
+                    // Onglets SFW/NSFW
+                    TabRow(
+                        selectedTabIndex = selectedCategory,
+                        containerColor = Color(0xFFE91E63),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Tab(
+                            selected = selectedCategory == 0,
+                            onClick = { selectedCategory = 0 },
+                            text = { 
+                                Text(
+                                    "✅ SFW",
+                                    color = Color.White,
+                                    fontWeight = if (selectedCategory == 0) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+                        Tab(
+                            selected = selectedCategory == 1,
+                            onClick = { selectedCategory = 1 },
+                            text = { 
+                                Text(
+                                    "🔞 NSFW",
+                                    color = Color.White,
+                                    fontWeight = if (selectedCategory == 1) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+                    }
+                    
+                    // Récupérer les prompts selon la catégorie
+                    val currentTruths = if (selectedCategory == 0) sfwTruthPrompts else nsfwTruthPrompts
+                    val currentDares = if (selectedCategory == 0) sfwDarePrompts else nsfwDarePrompts
+                    val categoryLabel = if (selectedCategory == 0) "SFW" else "NSFW"
+                    
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("🎲 Action ou Vérité", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                "🎲 Action ou Vérité - $categoryLabel",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth()) {
-                                FilterChip(selected = selectedMode == "truth", onClick = { selectedMode = "truth" }, label = { Text("💭 Vérités (${truthPrompts.size})") })
+                                FilterChip(
+                                    selected = selectedMode == "truth",
+                                    onClick = { selectedMode = "truth" },
+                                    label = { Text("💭 Vérités (${currentTruths.size})") }
+                                )
                                 Spacer(Modifier.width(8.dp))
-                                FilterChip(selected = selectedMode == "dare", onClick = { selectedMode = "dare" }, label = { Text("🎯 Actions (${darePrompts.size})") })
+                                FilterChip(
+                                    selected = selectedMode == "dare",
+                                    onClick = { selectedMode = "dare" },
+                                    label = { Text("🎯 Actions (${currentDares.size})") }
+                                )
                             }
                             Spacer(Modifier.height(8.dp))
                             Row(Modifier.fillMaxWidth()) {
@@ -428,21 +495,78 @@ fun FunFullScreen(
                                     value = newPrompt,
                                     onValueChange = { newPrompt = it },
                                     modifier = Modifier.weight(1f),
-                                    placeholder = { Text("Nouveau prompt...") },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                                    placeholder = { Text("Nouveau prompt $categoryLabel...") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    )
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 IconButton(onClick = { addPrompt() }, enabled = newPrompt.isNotBlank()) {
-                                    Icon(Icons.Default.Add, "Ajouter", tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray)
+                                    Icon(
+                                        Icons.Default.Add,
+                                        "Ajouter",
+                                        tint = if (newPrompt.isNotBlank()) Color.White else Color.Gray
+                                    )
                                 }
                             }
                         }
                     }
-                    LazyColumn(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(if (selectedMode == "truth") truthPrompts else darePrompts) { prompt ->
-                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(prompt, modifier = Modifier.weight(1f), color = Color.White)
+                    
+                    if (isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Color(0xFFE91E63))
+                        }
+                    } else {
+                        LazyColumn(
+                            Modifier.fillMaxSize().padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val prompts = if (selectedMode == "truth") currentTruths else currentDares
+                            
+                            if (prompts.isEmpty()) {
+                                item {
+                                    Card(
+                                        Modifier.fillMaxWidth().padding(32.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                                    ) {
+                                        Box(
+                                            Modifier.fillMaxWidth().padding(40.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    if (selectedMode == "truth") "💭" else "🎯",
+                                                    style = MaterialTheme.typography.headlineLarge
+                                                )
+                                                Spacer(Modifier.height(8.dp))
+                                                Text(
+                                                    "Aucun prompt $categoryLabel",
+                                                    color = Color.Gray,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(prompts) { prompt ->
+                                    Card(
+                                        Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                                    ) {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                prompt,
+                                                modifier = Modifier.weight(1f),
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -462,6 +586,7 @@ fun FunFullScreen(
         }
     }
 }
+
 
 
 
@@ -634,12 +759,222 @@ fun StaffChatScreen(
 // Remplacer le StaffMainScreen existant par celui-ci:
 
 @Composable
+fun StaffConnectedUsersScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    members: Map<String, String>,
+    memberRoles: Map<String, List<String>>,
+    configData: JsonObject?
+) {
+    var sessions by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var staffRoleIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var founderIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    
+    fun loadSessions() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    // Charger les sessions
+                    val resp = api.getJson("/api/admin/sessions")
+                    val obj = json.parseToJsonElement(resp).jsonObject
+                    val sessionsList = obj["sessions"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                    
+                    // Charger la config pour les rôles staff
+                    val staffRoles = configData?.get("staffRoleIds")?.jsonArray?.mapNotNull { 
+                        it.jsonPrimitive.contentOrNull 
+                    } ?: emptyList()
+                    
+                    // Fondateurs
+                    val founders = listOf("943487722738311219")
+                    
+                    withContext(Dispatchers.Main) {
+                        sessions = sessionsList
+                        staffRoleIds = staffRoles
+                        founderIds = founders
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) { isLoading = false }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadSessions() }
+    
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.People,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                "👥 Utilisateurs Connectés au Chat Staff",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "${sessions.size} utilisateur(s) en ligne",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFFBBDEFB)
+                            )
+                        }
+                    }
+                    IconButton(onClick = { loadSessions() }, enabled = !isLoading) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
+                    }
+                }
+            }
+        }
+        
+        if (isLoading) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF5865F2))
+                }
+            }
+        } else if (sessions.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.People,
+                                contentDescription = null,
+                                tint = Color.Gray.copy(alpha = 0.5f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Aucune session active",
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (!isLoading && sessions.isNotEmpty()) {
+            items(sessions) { session ->
+                val userId = session["userId"]?.jsonPrimitive?.contentOrNull ?: ""
+                val userRolesList = session["roles"]?.jsonArray?.mapNotNull { 
+                    it.jsonPrimitive.contentOrNull 
+                } ?: emptyList()
+                val lastSeen = session["lastSeen"]?.jsonPrimitive?.contentOrNull ?: ""
+                val isOnline = session["isOnline"]?.jsonPrimitive?.booleanOrNull ?: false
+                
+                // Déterminer le rôle
+                val role = when {
+                    userId in founderIds -> "👑 Fondateur"
+                    userRolesList.any { it in staffRoleIds } -> "⚡ Admin"
+                    else -> "👤 Membre"
+                }
+                
+                val roleColor = when {
+                    userId in founderIds -> Color(0xFFFFD700)
+                    userRolesList.any { it in staffRoleIds } -> Color(0xFF5865F2)
+                    else -> Color.Gray
+                }
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isOnline) Color(0xFF1E1E1E) else Color(0xFF1E1E1E).copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(
+                                        if (isOnline) Color(0xFF57F287) 
+                                        else Color.Gray,
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    )
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    members[userId] ?: "Utilisateur inconnu",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "ID: ${userId.takeLast(8)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    role,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = roleColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (lastSeen.isNotBlank()) {
+                                    Text(
+                                        "Vu: $lastSeen",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun StaffMainScreen(
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
     members: Map<String, String>,
+    memberRoles: Map<String, List<String>>,
+    configData: JsonObject?,
     userInfo: JsonObject?,
     isFounder: Boolean,
     isAdmin: Boolean  // Vérification admin pour chat
@@ -695,6 +1030,13 @@ fun StaffMainScreen(
             })
             Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.People, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Connectés")
+                }
+            })
+            Tab(selected = selectedStaffTab == 2, onClick = { selectedStaffTab = 2 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Admin")
@@ -703,7 +1045,8 @@ fun StaffMainScreen(
         }
         when (selectedStaffTab) {
             0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
-            1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
+            1 -> StaffConnectedUsersScreen(api, json, scope, snackbar, members, memberRoles, configData)
+            2 -> AdminScreenWithAccess(members, memberRoles, configData, api, json, scope, snackbar, isFounder)
         }
     }
 }
@@ -1014,10 +1357,18 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.Settings, "Config") },
                                 label = { Text("Config") }
                             )
-                            if (isFounder) {
+                            if (isAdmin || isFounder) {
                                 NavigationBarItem(
                                     selected = tab == 3,
                                     onClick = { tab = 3 },
+                                    icon = { Icon(Icons.Default.MusicNote, "Musique") },
+                                    label = { Text("Musique") }
+                                )
+                            }
+                            if (isFounder) {
+                                NavigationBarItem(
+                                    selected = tab == 4,
+                                    onClick = { tab = 4 },
                                     icon = { Icon(Icons.Default.Security, "Admin") },
                                     label = { Text("Admin") }
                                 )
@@ -1072,19 +1423,17 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         tab == 0 -> {
-                            HomeScreen(
-                                isLoading = isLoading,
-                                loadingMessage = loadingMessage,
+                            BotControlScreen(
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbarHostState,
                                 botOnline = botOnline,
                                 botStats = botStats,
                                 members = members,
                                 channels = channels,
                                 roles = roles,
-                                userName = userName,
-                                userId = userId,
-                                isFounder = isFounder,
-                                memberRoles = memberRoles,
-                                errorMessage = errorMessage
+                                isFounder = isFounder
                             )
                         }
                         tab == 1 -> {
@@ -1142,13 +1491,23 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 }
                             )
                         }
-                        tab == 3 && isFounder -> {
+                        tab == 3 && (isAdmin || isFounder) -> {
+                            MusicScreen(
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbar
+                            )
+                        }
+                        tab == 4 && isFounder -> {
                             StaffMainScreen(
                                 api = api,
                                 json = json,
                                 scope = scope,
                                 snackbar = snackbar,
                                 members = members,
+                                memberRoles = memberRoles,
+                                configData = configData,
                                 userInfo = userInfo,
                                 isFounder = isFounder,
                                 isAdmin = isAdmin
@@ -1162,6 +1521,646 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 }
 
 // Partie 2 - Composables principaux
+
+@Composable
+fun MusicScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var playlists by remember { mutableStateOf<List<MusicPlaylist>>(emptyList()) }
+    var uploads by remember { mutableStateOf<List<MusicUpload>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    
+    fun loadMusicData() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/music")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    
+                    withContext(Dispatchers.Main) {
+                        playlists = data["playlists"]?.jsonArray?.mapNotNull {
+                            val obj = it.jsonObject
+                            MusicPlaylist(
+                                name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "",
+                                guildId = obj["guildId"]?.jsonPrimitive?.contentOrNull ?: "",
+                                trackCount = obj["trackCount"]?.jsonPrimitive?.intOrNull ?: 0,
+                                updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: 0L
+                            )
+                        } ?: emptyList()
+                        
+                        uploads = data["uploads"]?.jsonArray?.mapNotNull {
+                            val obj = it.jsonObject
+                            MusicUpload(
+                                filename = obj["filename"]?.jsonPrimitive?.contentOrNull ?: "",
+                                size = obj["size"]?.jsonPrimitive?.longOrNull ?: 0L
+                            )
+                        } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadMusicData() }
+    
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.QueueMusic, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Playlists")
+                }
+            })
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Upload, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Fichiers")
+                }
+            })
+        }
+        
+        when (selectedTab) {
+            0 -> PlaylistsTab(api, json, scope, snackbar, playlists, isLoading) { loadMusicData() }
+            1 -> UploadsTab(api, json, scope, snackbar, uploads, isLoading) { loadMusicData() }
+        }
+    }
+}
+
+data class MusicPlaylist(
+    val name: String,
+    val guildId: String,
+    val trackCount: Int,
+    val updatedAt: Long
+)
+
+data class MusicUpload(
+    val filename: String,
+    val size: Long
+)
+
+@Composable
+fun PlaylistsTab(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    playlists: List<MusicPlaylist>,
+    isLoading: Boolean,
+    onRefresh: () -> Unit
+) {
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("Créer une playlist") },
+            text = {
+                Column {
+                    Text("Entrez le nom de la nouvelle playlist")
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = newPlaylistName,
+                        onValueChange = { newPlaylistName = it },
+                        label = { Text("Nom de la playlist") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val body = buildJsonObject {
+                                        put("guildId", "GUILD_ID") // À remplacer dynamiquement
+                                        put("name", newPlaylistName.trim())
+                                    }
+                                    api.postJson("/api/music/playlist/create", body.toString())
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("✅ Playlist créée")
+                                        showCreateDialog = false
+                                        newPlaylistName = ""
+                                        onRefresh()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    enabled = newPlaylistName.isNotBlank()
+                ) {
+                    Text("Créer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF9C27B0))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.QueueMusic,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                "🎵 Playlists Musicales",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "${playlists.size} playlist(s)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFFE1BEE7)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onRefresh, enabled = !isLoading) {
+                        Icon(Icons.Default.Refresh, "Recharger", tint = Color.White)
+                    }
+                }
+            }
+        }
+        
+        item {
+            Button(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Créer une playlist")
+            }
+        }
+        
+        if (isLoading) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF9C27B0))
+                }
+            }
+        } else if (playlists.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Aucune playlist",
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+        
+        if (!isLoading && playlists.isNotEmpty()) {
+            items(playlists) { playlist ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.MusicNote,
+                                null,
+                                tint = Color(0xFF9C27B0),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    playlist.name,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "${playlist.trackCount} titre(s)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                        
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            api.deleteJson("/api/music/playlist/${playlist.guildId}/${playlist.name}")
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("✅ Playlist supprimée")
+                                                onRefresh()
+                                            }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                "Supprimer",
+                                tint = Color(0xFFE53935)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UploadsTab(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    uploads: List<MusicUpload>,
+    isLoading: Boolean,
+    onRefresh: () -> Unit
+) {
+    val context = LocalContext.current
+    var isUploading by remember { mutableStateOf(false) }
+    var currentlyPlaying by remember { mutableStateOf<String?>(null) }
+    var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    
+    // File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isUploading = true
+                withContext(Dispatchers.IO) {
+                    try {
+                        val contentResolver = context.contentResolver
+                        val inputStream = contentResolver.openInputStream(uri)
+                        if (inputStream == null) {
+                            withContext(Dispatchers.Main) {
+                                snackbar.showSnackbar("❌ Impossible de lire le fichier")
+                                isUploading = false
+                            }
+                            return@withContext
+                        }
+                        
+                        // Obtenir le nom du fichier
+                        val cursor = contentResolver.query(uri, null, null, null, null)
+                        var filename = "audio_${System.currentTimeMillis()}.mp3"
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                if (nameIndex >= 0) {
+                                    filename = it.getString(nameIndex)
+                                }
+                            }
+                        }
+                        
+                        // Upload vers le serveur
+                        val bytes = inputStream.readBytes()
+                        inputStream.close()
+                        
+                        api.uploadFile("/api/music/upload", filename, bytes)
+                        
+                        withContext(Dispatchers.Main) {
+                            snackbar.showSnackbar("✅ Fichier uploadé: $filename")
+                            isUploading = false
+                            onRefresh()
+                        }
+                    } catch (e: Exception) {
+                        withContext(Dispatchers.Main) {
+                            snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                            isUploading = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Permission launcher pour Android 13+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            filePickerLauncher.launch("audio/*")
+        } else {
+            scope.launch {
+                snackbar.showSnackbar("❌ Permission refusée")
+            }
+        }
+    }
+    
+    fun playAudio(filename: String) {
+        try {
+            // Stop le lecteur actuel
+            mediaPlayer?.release()
+            
+            // Créer un nouveau lecteur
+            val baseUrl = api.baseUrl.removeSuffix("/")
+            val audioUrl = "$baseUrl/uploads/$filename"
+            
+            mediaPlayer = android.media.MediaPlayer().apply {
+                setDataSource(audioUrl)
+                setOnPreparedListener {
+                    it.start()
+                    currentlyPlaying = filename
+                }
+                setOnCompletionListener {
+                    currentlyPlaying = null
+                    it.release()
+                }
+                setOnErrorListener { _, _, _ ->
+                    scope.launch {
+                        snackbar.showSnackbar("❌ Erreur de lecture")
+                    }
+                    currentlyPlaying = null
+                    true
+                }
+                prepareAsync()
+            }
+        } catch (e: Exception) {
+            scope.launch {
+                snackbar.showSnackbar("❌ Erreur: ${e.message}")
+            }
+        }
+    }
+    
+    fun stopAudio() {
+        mediaPlayer?.release()
+        mediaPlayer = null
+        currentlyPlaying = null
+    }
+    
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.AudioFile,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                "📂 Fichiers Uploadés",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "${uploads.size} fichier(s)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFFBBDEFB)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onRefresh, enabled = !isLoading && !isUploading) {
+                        Icon(Icons.Default.Refresh, "Recharger", tint = Color.White)
+                    }
+                }
+            }
+        }
+        
+        // Bouton Upload
+        item {
+            Button(
+                onClick = {
+                    // Vérifier et demander la permission
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        permissionLauncher.launch(android.Manifest.permission.READ_MEDIA_AUDIO)
+                    } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        permissionLauncher.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                    } else {
+                        filePickerLauncher.launch("audio/*")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                enabled = !isUploading && !isLoading
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Upload en cours...")
+                } else {
+                    Icon(Icons.Default.Upload, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("📤 Uploader un fichier audio")
+                }
+            }
+        }
+        
+        if (isLoading) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF2196F3))
+                }
+            }
+        } else if (uploads.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.AudioFile,
+                                null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Aucun fichier",
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (!isLoading && uploads.isNotEmpty()) {
+            items(uploads) { upload ->
+                val isPlaying = currentlyPlaying == upload.filename
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isPlaying) Color(0xFF4CAF50) else Color(0xFF1E1E1E)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                if (isPlaying) Icons.Default.PlayArrow else Icons.Default.AudioFile,
+                                null,
+                                tint = if (isPlaying) Color.White else Color(0xFF2196F3),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    upload.filename,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    String.format("%.2f MB", upload.size / 1024.0 / 1024.0),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isPlaying) Color(0xFFE0E0E0) else Color.Gray
+                                )
+                                if (isPlaying) {
+                                    Text(
+                                        "🎵 En lecture...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                        
+                        Row {
+                            // Bouton Play/Stop
+                            IconButton(
+                                onClick = {
+                                    if (isPlaying) {
+                                        stopAudio()
+                                    } else {
+                                        playAudio(upload.filename)
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    if (isPlaying) "Stop" else "Lire",
+                                    tint = if (isPlaying) Color.White else Color(0xFF4CAF50)
+                                )
+                            }
+                            
+                            // Bouton Delete
+                            IconButton(
+                                onClick = {
+                                    if (isPlaying) stopAudio()
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                api.deleteJson("/api/music/upload/${upload.filename}")
+                                                withContext(Dispatchers.Main) {
+                                                    snackbar.showSnackbar("✅ Fichier supprimé")
+                                                    onRefresh()
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    "Supprimer",
+                                    tint = Color(0xFFE53935)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Cleanup when leaving
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaPlayer?.release()
+        }
+    }
+}
 
 @Composable
 fun LoginScreen(
@@ -1226,6 +2225,394 @@ fun LoginScreen(
             Icon(Icons.Default.Login, null)
             Spacer(Modifier.width(8.dp))
             Text("Se connecter via Discord")
+        }
+    }
+}
+
+// BotControlScreen avec onglets (Statut, Logs, Actions)
+@Composable
+fun BotControlScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    botOnline: Boolean,
+    botStats: JsonObject?,
+    members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    isFounder: Boolean
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    var botLogs by remember { mutableStateOf("") }
+    var dashboardLogs by remember { mutableStateOf("") }
+    var isLoadingLogs by remember { mutableStateOf(false) }
+    var isRestarting by remember { mutableStateOf(false) }
+    
+    fun loadLogs(service: String) {
+        scope.launch {
+            isLoadingLogs = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/admin/logs/$service")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    val logs = data["logs"]?.jsonPrimitive?.contentOrNull ?: "Aucun log disponible"
+                    
+                    withContext(Dispatchers.Main) {
+                        if (service == "bot") {
+                            botLogs = logs
+                        } else {
+                            dashboardLogs = logs
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur logs: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoadingLogs = false
+                    }
+                }
+            }
+        }
+    }
+    
+    fun restartService(service: String) {
+        scope.launch {
+            isRestarting = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.postJson("/api/admin/restart/$service", "{}")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    val success = data["success"]?.jsonPrimitive?.booleanOrNull ?: false
+                    
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            snackbar.showSnackbar("✅ Service $service redémarré")
+                        } else {
+                            snackbar.showSnackbar("❌ Échec du redémarrage")
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isRestarting = false
+                    }
+                }
+            }
+        }
+    }
+    
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("📊 Statut") }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { 
+                    selectedTab = 1
+                    if (botLogs.isEmpty()) loadLogs("bot")
+                },
+                text = { Text("📝 Logs") }
+            )
+            if (isFounder) {
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("🔧 Actions") }
+                )
+            }
+        }
+        
+        when (selectedTab) {
+            0 -> {
+                // Onglet Statut
+                LazyColumn(
+                    Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Column(Modifier.padding(20.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        if (botOnline) Icons.Default.CheckCircle else Icons.Default.Error,
+                                        null,
+                                        tint = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            "Statut du Bot",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            if (botOnline) "✅ En ligne" else "❌ Hors ligne",
+                                            color = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935)
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(Modifier.height(16.dp))
+                                Divider(color = Color(0xFF2E2E2E))
+                                Spacer(Modifier.height(16.dp))
+                                
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceAround
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "${members.size}",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFF1744)
+                                        )
+                                        Text("Membres", color = Color.Gray)
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "${channels.size}",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF9C27B0)
+                                        )
+                                        Text("Salons", color = Color.Gray)
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "${roles.size}",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFFD700)
+                                        )
+                                        Text("Rôles", color = Color.Gray)
+                                    }
+                                }
+                                
+                                botStats?.let { stats ->
+                                    Spacer(Modifier.height(16.dp))
+                                    Divider(color = Color(0xFF2E2E2E))
+                                    Spacer(Modifier.height(16.dp))
+                                    
+                                    stats["commandCount"]?.jsonPrimitive?.intOrNull?.let {
+                                        Text("⚡ $it commandes disponibles", color = Color.White)
+                                    }
+                                    stats["version"]?.jsonPrimitive?.contentOrNull?.let {
+                                        Text("📦 Version: $it", color = Color.Gray)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            1 -> {
+                // Onglet Logs
+                Column(Modifier.fillMaxSize()) {
+                    TabRow(
+                        selectedTabIndex = if (botLogs.isNotEmpty()) 0 else 1,
+                        containerColor = Color(0xFF2196F3)
+                    ) {
+                        Tab(
+                            selected = true,
+                            onClick = { loadLogs("bot") },
+                            text = { Text("🤖 Bot", color = Color.White) }
+                        )
+                        Tab(
+                            selected = false,
+                            onClick = { loadLogs("dashboard") },
+                            text = { Text("📊 Dashboard", color = Color.White) }
+                        )
+                    }
+                    
+                    if (isLoadingLogs) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Color(0xFF2196F3))
+                        }
+                    } else {
+                        val logsToShow = if (botLogs.isNotEmpty()) botLogs else dashboardLogs
+                        
+                        LazyColumn(
+                            Modifier.fillMaxSize().padding(16.dp)
+                        ) {
+                            item {
+                                Card(
+                                    Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                                ) {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "📝 Logs Récents (100 lignes)",
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                            IconButton(
+                                                onClick = { 
+                                                    if (botLogs.isNotEmpty()) loadLogs("bot") 
+                                                    else loadLogs("dashboard") 
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.Refresh, "Recharger", tint = Color(0xFF2196F3))
+                                            }
+                                        }
+                                        
+                                        Spacer(Modifier.height(8.dp))
+                                        
+                                        Text(
+                                            logsToShow.ifBlank { "Aucun log disponible\nCliquez sur les onglets ci-dessus pour charger" },
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                            ),
+                                            color = Color.LightGray,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
+                // Onglet Actions (fondateur uniquement)
+                LazyColumn(
+                    Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFF5722))
+                        ) {
+                            Column(Modifier.padding(20.dp)) {
+                                Icon(
+                                    Icons.Default.Security,
+                                    null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "⚠️ Zone Fondateur",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Actions critiques - Utiliser avec précaution",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFFFCCBC)
+                                )
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Column(Modifier.padding(20.dp)) {
+                                Text(
+                                    "🤖 Redémarrer le Bot Discord",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Redémarre le processus PM2 du bot Discord sur la Freebox",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                
+                                Button(
+                                    onClick = { restartService("bot") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                                    enabled = !isRestarting
+                                ) {
+                                    if (isRestarting) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Redémarrage...")
+                                    } else {
+                                        Icon(Icons.Default.RestartAlt, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("🔄 Redémarrer le Bot")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Column(Modifier.padding(20.dp)) {
+                                Text(
+                                    "📊 Redémarrer le Dashboard",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Redémarre le processus PM2 du dashboard sur la Freebox",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                
+                                Button(
+                                    onClick = { restartService("dashboard") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                                    enabled = !isRestarting
+                                ) {
+                                    if (isRestarting) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Redémarrage...")
+                                    } else {
+                                        Icon(Icons.Default.RestartAlt, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("🔄 Redémarrer le Dashboard")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1438,6 +2825,246 @@ fun HomeScreen(
         }
     }
 }
+
+@Composable
+fun AppUsersManagementSection(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    configData: JsonObject?,
+    members: Map<String, String>,
+    memberRoles: Map<String, List<String>>
+) {
+    var appUsers by remember { mutableStateOf<List<AppUser>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var showRemoveDialog by remember { mutableStateOf(false) }
+    var userToRemove by remember { mutableStateOf<AppUser?>(null) }
+    
+    fun loadAppUsers() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/admin/app-users")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        appUsers = data["users"]?.jsonArray?.mapNotNull {
+                            val obj = it.jsonObject
+                            AppUser(
+                                userId = obj["userId"]?.jsonPrimitive?.contentOrNull ?: "",
+                                username = obj["username"]?.jsonPrimitive?.contentOrNull ?: "",
+                                roleLabel = obj["roleLabel"]?.jsonPrimitive?.contentOrNull ?: "Membre",
+                                isFounder = obj["isFounder"]?.jsonPrimitive?.booleanOrNull ?: false,
+                                isAdmin = obj["isAdmin"]?.jsonPrimitive?.booleanOrNull ?: false
+                            )
+                        } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    fun removeUser(user: AppUser) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject { put("userId", user.userId) }
+                    api.postJson("/api/admin/allowed-users/remove", body.toString())
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("✅ ${user.username} retiré de l'app")
+                        loadAppUsers()
+                        showRemoveDialog = false
+                        userToRemove = null
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) { loadAppUsers() }
+    
+    if (showRemoveDialog && userToRemove != null) {
+        AlertDialog(
+            onDismissRequest = { showRemoveDialog = false },
+            title = { Text("⚠️ Confirmation") },
+            text = {
+                Column {
+                    Text("Voulez-vous retirer l'accès à l'application pour :")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        userToRemove!!.username,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE53935)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Cette action révoquera uniquement l'accès à l'application mobile.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { removeUser(userToRemove!!) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                ) {
+                    Text("Retirer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
+    Column(Modifier.padding(16.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.PhoneAndroid,
+                    null,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "📱 Utilisateurs de l'App",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.Star,
+                            "Fondateur uniquement",
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Text(
+                        "${appUsers.size} utilisateur(s) connecté(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFBBDEFB)
+                    )
+                }
+            }
+            IconButton(onClick = { loadAppUsers() }, enabled = !isLoading) {
+                Icon(Icons.Default.Refresh, "Recharger", tint = Color.White)
+            }
+        }
+        
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "👑 Gérer les utilisateurs ayant accès à l'application mobile",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFE3F2FD)
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        if (isLoading) {
+            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color.White)
+            }
+        } else if (appUsers.isEmpty()) {
+            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                Text("Aucun utilisateur", color = Color.White)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                appUsers.forEach { user ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (user.isFounder) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (user.isFounder) Icons.Default.Star else Icons.Default.Person,
+                                    null,
+                                    tint = when {
+                                        user.isFounder -> Color(0xFFFFD700)
+                                        user.isAdmin -> Color(0xFF5865F2)
+                                        else -> Color.Gray
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        user.username,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        user.roleLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = when {
+                                            user.isFounder -> Color(0xFFFFD700)
+                                            user.isAdmin -> Color(0xFF5865F2)
+                                            else -> Color.Gray
+                                        }
+                                    )
+                                }
+                            }
+                            
+                            if (!user.isFounder) {
+                                IconButton(
+                                    onClick = {
+                                        userToRemove = user
+                                        showRemoveDialog = true
+                                    }
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        "Retirer l'accès",
+                                        tint = Color(0xFFE53935)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class AppUser(
+    val userId: String,
+    val username: String,
+    val roleLabel: String,
+    val isFounder: Boolean,
+    val isAdmin: Boolean
+)
 
 @Composable
 fun AppConfigScreen(
@@ -1655,6 +3282,41 @@ fun ConfigGroupsScreen(
 // AFFICHAGE DES VRAIS NOMS (v2.1.5)
 // ============================================
 
+fun getSectionIcon(sectionKey: String): androidx.compose.ui.graphics.vector.ImageVector {
+    return when (sectionKey) {
+        "welcome" -> Icons.Default.EmojiPeople
+        "goodbye" -> Icons.Default.DirectionsWalk
+        "logs" -> Icons.Default.Description
+        "autokick" -> Icons.Default.PersonRemove
+        "inactivity" -> Icons.Default.Bedtime
+        "staffRoleIds" -> Icons.Default.Shield
+        "quarantineRoleId" -> Icons.Default.Lock
+        "economy" -> Icons.Default.AttachMoney
+        "levels" -> Icons.Default.TrendingUp
+        "truthdare" -> Icons.Default.QuestionAnswer
+        "tickets" -> Icons.Default.ConfirmationNumber
+        "confess" -> Icons.Default.ChatBubble
+        "counting" -> Icons.Default.Numbers
+        "disboard" -> Icons.Default.Verified
+        "autothread" -> Icons.Default.Forum
+        "categoryBanners" -> Icons.Default.Image
+        "footerLogoUrl" -> Icons.Default.Photo
+        "geo" -> Icons.Default.LocationOn
+        else -> Icons.Default.Settings
+    }
+}
+
+fun getSectionColor(sectionKey: String): Color {
+    return when (sectionKey) {
+        "welcome", "goodbye" -> Color(0xFF4CAF50)
+        "logs", "autokick", "inactivity", "staffRoleIds", "quarantineRoleId" -> Color(0xFFE53935)
+        "economy", "levels", "truthdare" -> Color(0xFF9C27B0)
+        "tickets", "confess", "counting", "disboard", "autothread" -> Color(0xFF2196F3)
+        "categoryBanners", "footerLogoUrl", "geo" -> Color(0xFFFF9800)
+        else -> Color.Gray
+    }
+}
+
 @Composable
 fun renderKeyInfo(
     sectionKey: String,
@@ -1730,6 +3392,55 @@ fun renderKeyInfo(
                 val obj = sectionData.jsonObject
                 val userCount = obj["users"]?.jsonObject?.size ?: 0
                 keyInfos.add("📈 Utilisateurs avec XP" to "$userCount")
+            }
+            "truthdare" -> {
+                val obj = sectionData.jsonObject
+                val truthCount = obj["truths"]?.jsonArray?.size ?: 0
+                val dareCount = obj["dares"]?.jsonArray?.size ?: 0
+                val channelCount = obj["channels"]?.jsonArray?.size ?: 0
+                keyInfos.add("✅ Questions vérité" to "$truthCount")
+                keyInfos.add("💪 Défis action" to "$dareCount")
+                keyInfos.add("📢 Canaux actifs" to "$channelCount")
+            }
+            "confess" -> {
+                val obj = sectionData.jsonObject
+                obj["channelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+            }
+            "counting" -> {
+                val obj = sectionData.jsonObject
+                val channelCount = obj["channels"]?.jsonArray?.size ?: 0
+                keyInfos.add("🔢 Canaux de comptage" to "$channelCount")
+                obj["currentCount"]?.jsonPrimitive?.intOrNull?.let { count ->
+                    keyInfos.add("📊 Compteur actuel" to "$count")
+                }
+            }
+            "disboard" -> {
+                val obj = sectionData.jsonObject
+                obj["bumpChannelId"]?.jsonPrimitive?.contentOrNull?.let { id ->
+                    keyInfos.add("📢 Canal bump" to "${channels[id] ?: "Inconnu"} ($id)")
+                }
+            }
+            "autokick" -> {
+                val obj = sectionData.jsonObject
+                obj["inactivityKick"]?.jsonObject?.let { kick ->
+                    kick["kickAfterDays"]?.jsonPrimitive?.intOrNull?.let { days ->
+                        keyInfos.add("⏰ Kick après" to "$days jours")
+                    }
+                    val trackingCount = obj["inactivityTracking"]?.jsonObject?.size ?: 0
+                    keyInfos.add("👥 Membres suivis" to "$trackingCount")
+                }
+            }
+            "autothread" -> {
+                val obj = sectionData.jsonObject
+                val forumCount = obj["forumChannels"]?.jsonArray?.size ?: 0
+                keyInfos.add("🧵 Forums actifs" to "$forumCount")
+            }
+            "geo" -> {
+                val obj = sectionData.jsonObject
+                val userCount = obj["users"]?.jsonObject?.size ?: 0
+                keyInfos.add("📍 Utilisateurs géolocalisés" to "$userCount")
             }
         }
     } catch (e: Exception) {
@@ -1835,17 +3546,36 @@ fun ConfigGroupDetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(
-                                    getSectionDisplayName(sectionKey),
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    if (isExpanded) "Cliquez pour masquer" else "Cliquez pour afficher",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            getSectionColor(sectionKey).copy(alpha = 0.2f), 
+                                            RoundedCornerShape(8.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        getSectionIcon(sectionKey),
+                                        null,
+                                        tint = getSectionColor(sectionKey),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        getSectionDisplayName(sectionKey),
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        if (isExpanded) "Cliquez pour masquer" else "Cliquez pour afficher",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                             Icon(
                                 if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -1964,15 +3694,93 @@ fun getSectionDisplayName(key: String): String {
 @Composable
 fun AdminScreenWithAccess(
     members: Map<String, String>,
+    memberRoles: Map<String, List<String>>,
+    configData: JsonObject?,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
-    snackbar: SnackbarHostState
+    snackbar: SnackbarHostState,
+    isFounder: Boolean  // Ajout du paramètre isFounder
 ) {
     var allowedUsers by remember { mutableStateOf<List<String>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var selectedMember by remember { mutableStateOf<String?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    
+    // Dashboard URL configuration
+    var dashboardUrl by remember { mutableStateOf("") }
+    var showDashboardUrlDialog by remember { mutableStateOf(false) }
+    var dashboardUrlInput by remember { mutableStateOf("") }
+    var isLoadingUrl by remember { mutableStateOf(false) }
+    
+    // Extraire les rôles staff et fondateurs de la config
+    val staffRoleIds = remember(configData) {
+        configData?.get("staffRoleIds")?.jsonArray?.mapNotNull { 
+            it.jsonPrimitive.contentOrNull 
+        } ?: emptyList()
+    }
+    val founderIds = listOf("943487722738311219") // Hardcoded pour l'instant
+    
+    // Fonction pour déterminer le rôle d'un utilisateur
+    fun getUserRole(userId: String): Pair<String, Color> {
+        return when {
+            userId in founderIds -> "👑 Fondateur" to Color(0xFFFFD700)
+            (memberRoles[userId] ?: emptyList()).any { it in staffRoleIds } -> "⚡ Admin" to Color(0xFF5865F2)
+            else -> "👤 Membre" to Color.Gray
+        }
+    }
+    
+    // Charger l'URL du dashboard
+    fun loadDashboardUrl() {
+        scope.launch {
+            isLoadingUrl = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/admin/dashboard-url")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        dashboardUrl = data["dashboardUrl"]?.jsonPrimitive?.contentOrNull ?: ""
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading dashboard URL: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        // Si l'erreur est 403 (Forbidden), ne rien afficher car l'utilisateur n'est pas fondateur
+                        if (e.message?.contains("403") != true) {
+                            snackbar.showSnackbar("❌ Erreur chargement URL: ${e.message}")
+                        }
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) { isLoadingUrl = false }
+                }
+            }
+        }
+    }
+    
+    // Sauvegarder l'URL du dashboard
+    fun saveDashboardUrl() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject { put("dashboardUrl", dashboardUrlInput) }
+                    api.postJson("/api/admin/dashboard-url", body.toString())
+                    withContext(Dispatchers.Main) {
+                        dashboardUrl = dashboardUrlInput
+                        showDashboardUrlDialog = false
+                        snackbar.showSnackbar("✅ URL du dashboard configurée")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        val errorMsg = when {
+                            e.message?.contains("403") == true -> "❌ Seul le fondateur peut modifier l'URL"
+                            e.message?.contains("400") == true -> "❌ Format d'URL invalide"
+                            else -> "❌ Erreur: ${e.message}"
+                        }
+                        snackbar.showSnackbar(errorMsg)
+                    }
+                }
+            }
+        }
+    }
     
     // Charger la liste des utilisateurs autorisés
     LaunchedEffect(Unit) {
@@ -1997,6 +3805,10 @@ fun AdminScreenWithAccess(
                     isLoading = false
                 }
             }
+        }
+        // Charger l'URL du dashboard UNIQUEMENT pour le fondateur
+        if (isFounder) {
+            loadDashboardUrl()
         }
     }
     
@@ -2043,6 +3855,46 @@ fun AdminScreenWithAccess(
         }
     }
     
+    if (showDashboardUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showDashboardUrlDialog = false },
+            title = { Text("Configurer l'URL du Dashboard") },
+            text = {
+                Column {
+                    Text("Entrez l'URL publique du dashboard")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Cette URL sera partagée automatiquement via la commande /dashboard du bot.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = dashboardUrlInput,
+                        onValueChange = { dashboardUrlInput = it },
+                        label = { Text("URL du Dashboard") },
+                        placeholder = { Text("http://exemple.com:3002") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { saveDashboardUrl() },
+                    enabled = dashboardUrlInput.isNotBlank()
+                ) {
+                    Text("Enregistrer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDashboardUrlDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
@@ -2057,6 +3909,34 @@ fun AdminScreenWithAccess(
                         onMemberSelected = { selectedMember = it },
                         label = "Membre"
                     )
+                    // Afficher le rôle du membre sélectionné
+                    selectedMember?.let { userId ->
+                        Spacer(Modifier.height(12.dp))
+                        val (roleLabel, roleColor) = getUserRole(userId)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    null,
+                                    tint = roleColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Rôle: $roleLabel",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = roleColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -2112,6 +3992,104 @@ fun AdminScreenWithAccess(
             }
         }
         
+        // Dashboard URL Configuration Card - VISIBLE UNIQUEMENT PAR LE FONDATEUR
+        if (isFounder) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Link,
+                                    null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "🔗 URL du Dashboard",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Icon(
+                                            Icons.Default.Star,
+                                            "Fondateur uniquement",
+                                            tint = Color(0xFFFFD700),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    if (isLoadingUrl) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else if (dashboardUrl.isNotBlank()) {
+                                        Text(
+                                            dashboardUrl,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFBBDEFB)
+                                        )
+                                    } else {
+                                        Text(
+                                            "Non configurée",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFFFCDD2)
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(onClick = {
+                                dashboardUrlInput = dashboardUrl
+                                showDashboardUrlDialog = true
+                            }) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    "Modifier l'URL",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "👑 Réservé au fondateur - Cette URL est utilisée par la commande /dashboard du bot Discord",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE3F2FD)
+                        )
+                    }
+                }
+            }
+            
+            // Section Gestion des Utilisateurs de l'App - FONDATEUR UNIQUEMENT
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
+                ) {
+                    AppUsersManagementSection(api, json, scope, snackbar, configData, members, memberRoles)
+                }
+            }
+            
+            item {
+                Divider(
+                    color = Color(0xFF2A2A2A),
+                    thickness = 2.dp,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+        }
+        
         item {
             Button(
                 onClick = { showAddDialog = true },
@@ -2133,12 +4111,13 @@ fun AdminScreenWithAccess(
         } else {
             items(allowedUsers) { userId ->
                 val memberName = members[userId] ?: "Utilisateur $userId"
-                val isFounder = userId == "943487722738311219"
+                val isFounderUser = userId in founderIds
+                val (roleLabel, roleColor) = getUserRole(userId)
                 
                 Card(
                     Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isFounder) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
+                        containerColor = if (isFounderUser) Color(0xFF2A2A2A) else Color(0xFF1E1E1E)
                     )
                 ) {
                     Row(
@@ -2148,9 +4127,9 @@ fun AdminScreenWithAccess(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                if (isFounder) Icons.Default.Star else Icons.Default.Person,
+                                if (isFounderUser) Icons.Default.Star else Icons.Default.Person,
                                 null,
-                                tint = if (isFounder) Color(0xFFFFD700) else Color(0xFF9C27B0),
+                                tint = if (isFounderUser) Color(0xFFFFD700) else Color(0xFF9C27B0),
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(Modifier.width(12.dp))
@@ -2160,15 +4139,16 @@ fun AdminScreenWithAccess(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
-                                if (isFounder) {
+                                // Afficher le rôle du membre
+                                Text(
+                                    roleLabel,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = roleColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (!isFounderUser) {
                                     Text(
-                                        "👑 Fondateur (non supprimable)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFFFD700)
-                                    )
-                                } else {
-                                    Text(
-                                        "ID: $userId",
+                                        "ID: ${userId.takeLast(8)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color.Gray
                                     )
@@ -2176,7 +4156,7 @@ fun AdminScreenWithAccess(
                             }
                         }
                         
-                        if (!isFounder) {
+                        if (!isFounderUser) {
                             IconButton(
                                 onClick = { removeUser(userId) }
                             ) {

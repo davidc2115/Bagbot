@@ -1,0 +1,149 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║          ✅ ICÔNES AJOUTÉES SUR LES VIGNETTES CONFIG ✅             ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+🎯 MODIFICATION EFFECTUÉE
+═══════════════════════════════════════════════════════════════════════
+
+Des icônes Material Design ont été ajoutées sur chaque section 
+individuelle de configuration pour améliorer la lisibilité.
+
+═══════════════════════════════════════════════════════════════════════
+
+📱 OÙ VOIR LES ICÔNES
+═══════════════════════════════════════════════════════════════════════
+
+Navigation :
+1. Ouvrir l'application
+2. Onglet "Config" (3ème onglet)
+3. Cliquer sur un groupe (ex: "Messages & Bienvenue")
+4. ✅ Chaque section a maintenant une icône colorée !
+
+═══════════════════════════════════════════════════════════════════════
+
+🎨 ICÔNES PAR SECTION
+═══════════════════════════════════════════════════════════════════════
+
+👋 Messages & Bienvenue (VERT)
+  👤 Welcome         → EmojiPeople
+  🚶 Goodbye         → DirectionsWalk
+
+👮 Modération & Sécurité (ROUGE)
+  📝 Logs            → Description
+  🚫 AutoKick        → PersonRemove
+  💤 Inactivity      → Bedtime
+  🛡️  Staff Roles    → Shield
+  🔒 Quarantine      → Lock
+
+🎮 Gamification & Fun (VIOLET)
+  💰 Economy         → AttachMoney
+  📈 Levels          → TrendingUp
+  ❓ Truth or Dare   → QuestionAnswer
+
+🛠️  Fonctionnalités (BLEU)
+  🎫 Tickets         → ConfirmationNumber
+  💬 Confess         → ChatBubble
+  🔢 Counting        → Numbers
+  ✅ Disboard        → Verified
+  💬 AutoThread      → Forum
+
+🎨 Personnalisation (ORANGE)
+  🖼️  Banners        → Image
+  📷 Footer Logo     → Photo
+  📍 Géo             → LocationOn
+
+═══════════════════════════════════════════════════════════════════════
+
+🎨 DESIGN
+═══════════════════════════════════════════════════════════════════════
+
+Chaque section affiche maintenant :
+
+┌─────────────────────────────────────────┐
+│ [📝]  Logs                         [▼]  │
+│       Cliquez pour afficher             │
+└─────────────────────────────────────────┘
+
+Où :
+- [📝] = Box 40x40dp avec background coloré (20% opacité)
+- Icône Material Design 24x24dp
+- Couleur correspondant au groupe parent
+- Design arrondi (8dp)
+
+═══════════════════════════════════════════════════════════════════════
+
+🔧 MODIFICATIONS TECHNIQUES
+═══════════════════════════════════════════════════════════════════════
+
+Fichier : /workspace/android-app/.../App.kt
+
+Ajouts :
+  ✓ Fonction getSectionIcon(sectionKey: String)
+  ✓ Fonction getSectionColor(sectionKey: String)
+  ✓ Modification de ConfigGroupDetailScreen
+
+Lignes ajoutées : ~70 lignes
+
+═══════════════════════════════════════════════════════════════════════
+
+✅ AVANTAGES
+═══════════════════════════════════════════════════════════════════════
+
+🎨 Meilleure Lisibilité
+  - Icônes reconnaissables instantanément
+  - Couleurs cohérentes
+  - Hiérarchie visuelle claire
+
+🚀 Meilleure UX
+  - Navigation plus intuitive
+  - Identification rapide
+  - Interface moderne
+
+🎯 Cohérence
+  - Même design que les ConfigGroups
+  - Couleurs harmonisées
+  - Style Material Design 3
+
+═══════════════════════════════════════════════════════════════════════
+
+📊 RÉSUMÉ
+═══════════════════════════════════════════════════════════════════════
+
+Sections concernées : 19 sections
+Icônes ajoutées     : 19 icônes Material Design
+Groupes de couleurs : 5 (Vert, Rouge, Violet, Bleu, Orange)
+Taille Box          : 40x40 dp
+Taille Icône        : 24x24 dp
+Opacité background  : 20%
+Border radius       : 8 dp
+
+═══════════════════════════════════════════════════════════════════════
+
+✅ VALIDATION
+═══════════════════════════════════════════════════════════════════════
+
+  ✓ Code compilé sans erreur
+  ✓ Pas d'erreur de linter
+  ✓ 2 fonctions helper créées
+  ✓ ConfigGroupDetailScreen mis à jour
+  ✓ 19 icônes définies
+  ✓ 5 couleurs harmonisées
+  ✓ Design cohérent
+
+═══════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║                  ✅ MODIFICATION TERMINÉE ✅                         ║
+║                                                                      ║
+║      Les vignettes de configuration sont maintenant iconées ! 🎨    ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Version: 4.1.0
+Date: 20 Décembre 2025
+Statut: ✅ COMPLET
+Documentation: /workspace/docs/AJOUT_ICONES_CONFIG.md
+
