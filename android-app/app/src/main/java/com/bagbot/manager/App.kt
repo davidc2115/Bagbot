@@ -700,10 +700,22 @@ fun StaffMainScreen(
                     Text("Admin")
                 }
             })
+            if (isFounder) {
+                Tab(selected = selectedStaffTab == 2, onClick = { selectedStaffTab = 2 }, text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Logs")
+                    }
+                })
+            }
         }
         when (selectedStaffTab) {
             0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
             1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
+            2 -> if (isFounder) {
+                LogsScreen(api, json, scope, snackbar)
+            }
         }
     }
 }
@@ -1228,7 +1240,7 @@ fun LoginScreen(
     }
 }
 
-// BotControlScreen avec onglets (Statut, Logs, Actions)
+// BotControlScreen - Affichage du statut uniquement
 @Composable
 fun BotControlScreen(
     api: ApiClient,
@@ -1242,7 +1254,132 @@ fun BotControlScreen(
     roles: Map<String, String>,
     isFounder: Boolean
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (botOnline) Icons.Default.CheckCircle else Icons.Default.Error,
+                            null,
+                            tint = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935),
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Statut du Bot",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                if (botOnline) "✅ En ligne" else "❌ Hors ligne",
+                                color = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935)
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    Divider(color = Color(0xFF2E2E2E))
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${members.size}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFF1744)
+                            )
+                            Text("Membres", color = Color.Gray)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${channels.size}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF9C27B0)
+                            )
+                            Text("Salons", color = Color.Gray)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${roles.size}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFD700)
+                            )
+                            Text("Rôles", color = Color.Gray)
+                        }
+                    }
+                    
+                    botStats?.let { stats ->
+                        Spacer(Modifier.height(16.dp))
+                        Divider(color = Color(0xFF2E2E2E))
+                        Spacer(Modifier.height(16.dp))
+                        
+                        stats["commandCount"]?.jsonPrimitive?.intOrNull?.let {
+                            Text("⚡ $it commandes disponibles", color = Color.White)
+                        }
+                        stats["version"]?.jsonPrimitive?.contentOrNull?.let {
+                            Text("📦 Version: $it", color = Color.Gray)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (isFounder) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "ℹ️ Logs et Redémarrage",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Les logs et options de redémarrage PM2 sont disponibles dans la section Admin > onglet Logs",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFBBDEFB)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// LogsScreen - Affichage des logs Bot et Dashboard
+@Composable
+fun LogsScreen(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    var selectedService by remember { mutableStateOf(0) } // 0=bot, 1=dashboard
     var botLogs by remember { mutableStateOf("") }
     var dashboardLogs by remember { mutableStateOf("") }
     var isLoadingLogs by remember { mutableStateOf(false) }
@@ -1289,6 +1426,10 @@ fun BotControlScreen(
                     withContext(Dispatchers.Main) {
                         if (success) {
                             snackbar.showSnackbar("✅ Service $service redémarré")
+                            // Recharger les logs après redémarrage
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                loadLogs(service)
+                            }, 3000)
                         } else {
                             snackbar.showSnackbar("❌ Échec du redémarrage")
                         }
@@ -1307,305 +1448,119 @@ fun BotControlScreen(
     }
     
     Column(Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
+        // Tabs pour sélectionner Bot ou Dashboard
+        TabRow(
+            selectedTabIndex = selectedService,
+            containerColor = Color(0xFF2196F3)
+        ) {
             Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("📊 Statut") }
-            )
-            Tab(
-                selected = selectedTab == 1,
+                selected = selectedService == 0,
                 onClick = { 
-                    selectedTab = 1
+                    selectedService = 0
                     if (botLogs.isEmpty()) loadLogs("bot")
                 },
-                text = { Text("📝 Logs") }
+                text = { Text("🤖 Bot", color = Color.White) }
             )
-            if (isFounder) {
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    text = { Text("🔧 Actions") }
-                )
-            }
+            Tab(
+                selected = selectedService == 1,
+                onClick = { 
+                    selectedService = 1
+                    if (dashboardLogs.isEmpty()) loadLogs("dashboard")
+                },
+                text = { Text("📊 Dashboard", color = Color.White) }
+            )
         }
         
-        when (selectedTab) {
-            0 -> {
-                // Onglet Statut
-                LazyColumn(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    item {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                        ) {
-                            Column(Modifier.padding(20.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        if (botOnline) Icons.Default.CheckCircle else Icons.Default.Error,
-                                        null,
-                                        tint = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935),
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            "Statut du Bot",
-                                            style = MaterialTheme.typography.titleLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            if (botOnline) "✅ En ligne" else "❌ Hors ligne",
-                                            color = if (botOnline) Color(0xFF4CAF50) else Color(0xFFE53935)
-                                        )
-                                    }
-                                }
-                                
-                                Spacer(Modifier.height(16.dp))
-                                Divider(color = Color(0xFF2E2E2E))
-                                Spacer(Modifier.height(16.dp))
-                                
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceAround
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            "${members.size}",
-                                            style = MaterialTheme.typography.headlineMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFF1744)
-                                        )
-                                        Text("Membres", color = Color.Gray)
-                                    }
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            "${channels.size}",
-                                            style = MaterialTheme.typography.headlineMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF9C27B0)
-                                        )
-                                        Text("Salons", color = Color.Gray)
-                                    }
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            "${roles.size}",
-                                            style = MaterialTheme.typography.headlineMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFFD700)
-                                        )
-                                        Text("Rôles", color = Color.Gray)
-                                    }
-                                }
-                                
-                                botStats?.let { stats ->
-                                    Spacer(Modifier.height(16.dp))
-                                    Divider(color = Color(0xFF2E2E2E))
-                                    Spacer(Modifier.height(16.dp))
-                                    
-                                    stats["commandCount"]?.jsonPrimitive?.intOrNull?.let {
-                                        Text("⚡ $it commandes disponibles", color = Color.White)
-                                    }
-                                    stats["version"]?.jsonPrimitive?.contentOrNull?.let {
-                                        Text("📦 Version: $it", color = Color.Gray)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        if (isLoadingLogs) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF2196F3))
             }
-            1 -> {
-                // Onglet Logs
-                Column(Modifier.fillMaxSize()) {
-                    TabRow(
-                        selectedTabIndex = if (botLogs.isNotEmpty()) 0 else 1,
-                        containerColor = Color(0xFF2196F3)
+        } else {
+            val currentService = if (selectedService == 0) "bot" else "dashboard"
+            val logsToShow = if (selectedService == 0) botLogs else dashboardLogs
+            
+            LazyColumn(
+                Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Card des logs
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                     ) {
-                        Tab(
-                            selected = true,
-                            onClick = { loadLogs("bot") },
-                            text = { Text("🤖 Bot", color = Color.White) }
-                        )
-                        Tab(
-                            selected = false,
-                            onClick = { loadLogs("dashboard") },
-                            text = { Text("📊 Dashboard", color = Color.White) }
-                        )
-                    }
-                    
-                    if (isLoadingLogs) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color(0xFF2196F3))
-                        }
-                    } else {
-                        val logsToShow = if (botLogs.isNotEmpty()) botLogs else dashboardLogs
-                        
-                        LazyColumn(
-                            Modifier.fillMaxSize().padding(16.dp)
-                        ) {
-                            item {
-                                Card(
-                                    Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        Column(Modifier.padding(16.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "📝 Logs Récents (100 lignes)",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                IconButton(
+                                    onClick = { loadLogs(currentService) }
                                 ) {
-                                    Column(Modifier.padding(16.dp)) {
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                "📝 Logs Récents (100 lignes)",
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                            IconButton(
-                                                onClick = { 
-                                                    if (botLogs.isNotEmpty()) loadLogs("bot") 
-                                                    else loadLogs("dashboard") 
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.Refresh, "Recharger", tint = Color(0xFF2196F3))
-                                            }
-                                        }
-                                        
-                                        Spacer(Modifier.height(8.dp))
-                                        
-                                        Text(
-                                            logsToShow.ifBlank { "Aucun log disponible\nCliquez sur les onglets ci-dessus pour charger" },
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                            ),
-                                            color = Color.LightGray,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
+                                    Icon(Icons.Default.Refresh, "Recharger", tint = Color(0xFF2196F3))
                                 }
                             }
+                            
+                            Spacer(Modifier.height(8.dp))
+                            
+                            Text(
+                                logsToShow.ifBlank { "Aucun log disponible\nCliquez sur Rafraîchir pour charger" },
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                ),
+                                color = Color.LightGray,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
-            }
-            2 -> {
-                // Onglet Actions (fondateur uniquement)
-                LazyColumn(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    item {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFF5722))
-                        ) {
-                            Column(Modifier.padding(20.dp)) {
-                                Icon(
-                                    Icons.Default.Security,
-                                    null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "⚠️ Zone Fondateur",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    "Actions critiques - Utiliser avec précaution",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFFFFCCBC)
-                                )
-                            }
-                        }
-                    }
-                    
-                    item {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                        ) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text(
-                                    "🤖 Redémarrer le Bot Discord",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "Redémarre le processus PM2 du bot Discord sur la Freebox",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
-                                Spacer(Modifier.height(16.dp))
-                                
-                                Button(
-                                    onClick = { restartService("bot") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                                    enabled = !isRestarting
-                                ) {
-                                    if (isRestarting) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Redémarrage...")
-                                    } else {
-                                        Icon(Icons.Default.RestartAlt, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("🔄 Redémarrer le Bot")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    item {
-                        Card(
-                            Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-                        ) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text(
-                                    "📊 Redémarrer le Dashboard",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "Redémarre le processus PM2 du dashboard sur la Freebox",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
-                                )
-                                Spacer(Modifier.height(16.dp))
-                                
-                                Button(
-                                    onClick = { restartService("dashboard") },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
-                                    enabled = !isRestarting
-                                ) {
-                                    if (isRestarting) {
-                                        CircularProgressIndicator(
-                                            color = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Redémarrage...")
-                                    } else {
-                                        Icon(Icons.Default.RestartAlt, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("🔄 Redémarrer le Dashboard")
-                                    }
+                
+                // Card de redémarrage
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    ) {
+                        Column(Modifier.padding(20.dp)) {
+                            Text(
+                                "🔄 Redémarrer le service",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Redémarre le processus PM2 sur la Freebox",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            
+                            Button(
+                                onClick = { restartService(currentService) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedService == 0) Color(0xFF4CAF50) else Color(0xFF2196F3)
+                                ),
+                                enabled = !isRestarting
+                            ) {
+                                if (isRestarting) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Redémarrage...")
+                                } else {
+                                    Icon(Icons.Default.RestartAlt, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("🔄 Redémarrer ${if (selectedService == 0) "le Bot" else "le Dashboard"}")
                                 }
                             }
                         }

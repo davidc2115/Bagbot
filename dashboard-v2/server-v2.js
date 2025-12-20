@@ -2320,6 +2320,64 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
   }
 });
 
+// GET /api/dashboard/stats - Statistiques complètes du serveur
+app.get('/api/dashboard/stats', async (req, res) => {
+  try {
+    const guild = client.guilds.cache.get(GUILD);
+    if (!guild) {
+      return res.json({
+        totalMembers: 0,
+        totalHumans: 0,
+        totalBots: 0,
+        ecoUsers: 0,
+        levelUsers: 0
+      });
+    }
+
+    // Récupérer tous les membres si nécessaire
+    await guild.members.fetch();
+    
+    const totalMembers = guild.memberCount;
+    const totalBots = guild.members.cache.filter(m => m.user.bot).size;
+    const totalHumans = totalMembers - totalBots;
+    
+    // Lire les données eco et levels
+    let ecoUsers = 0;
+    let levelUsers = 0;
+    
+    try {
+      const economyPath = path.join(process.cwd(), 'data', 'economy.json');
+      if (fs.existsSync(economyPath)) {
+        const economyData = JSON.parse(fs.readFileSync(economyPath, 'utf8'));
+        ecoUsers = Object.keys(economyData).length;
+      }
+    } catch (e) {
+      console.error('Error reading economy data:', e);
+    }
+    
+    try {
+      const levelsPath = path.join(process.cwd(), 'data', 'levels.json');
+      if (fs.existsSync(levelsPath)) {
+        const levelsData = JSON.parse(fs.readFileSync(levelsPath, 'utf8'));
+        levelUsers = Object.keys(levelsData).length;
+      }
+    } catch (e) {
+      console.error('Error reading levels data:', e);
+    }
+    
+    res.json({
+      totalMembers,
+      totalHumans,
+      totalBots,
+      ecoUsers,
+      levelUsers
+    });
+  } catch (error) {
+    console.error('Error in /api/dashboard/stats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/admin/logs/:service - Récupérer les logs d'un service (bot ou dashboard)
 app.get('/api/admin/logs/:service', (req, res) => {
   const authHeader = req.headers['authorization'];
