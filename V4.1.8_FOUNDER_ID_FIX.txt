@@ -1,0 +1,75 @@
+# 🎯 v4.1.8 - FOUNDER_ID CORRIGÉ !
+
+## ✅ LE PROBLÈME ÉTAIT LÀ !
+
+Votre ID de fondateur était **FAUX** dans tout le code !
+
+### Avant (FAUX ❌)
+```
+FOUNDER_ID = "943487722738311219"
+```
+
+### Maintenant (CORRECT ✅)
+```
+FOUNDER_ID = "661256714779426859"
+```
+
+---
+
+## 🔧 Corrections apportées
+
+### 1. Variables d'environnement dans `.env`
+```env
+GUILD_ID=1307397043326922862
+FOUNDER_ID=661256714779426859
+```
+
+### 2. Serveur dashboard (`server-v2.js`)
+- `FOUNDER_ID` maintenant lu depuis `.env`
+- Tous les checks mis à jour (7 occurrences)
+- Logs au démarrage pour vérifier
+
+### 3. App Android (`App.kt`)
+```kotlin
+isFounder = userId == "661256714779426859"  // Votre vrai ID
+```
+
+---
+
+## 🚀 Ce qui va ENFIN fonctionner
+
+### ✅ Onglet Admin visible
+L'onglet Admin apparaîtra car `isFounder = true`
+
+### ✅ Membres connectés affichés
+L'endpoint `/api/admin/sessions` sera accessible
+
+### ✅ Toutes les fonctions admin
+- Logs Bot/Dashboard
+- Redémarrage PM2
+- Sessions actives
+- Gestion des utilisateurs
+
+---
+
+## 📝 Vérification
+
+Au démarrage du serveur, vous verrez :
+```
+🔧 Configuration serveur:
+📋 GUILD_ID: 1307397043326922862
+👑 FOUNDER_ID: 661256714779426859
+```
+
+---
+
+## 🎯 Testez v4.1.8
+
+**Lien**: https://github.com/mel805/Bagbot/releases/tag/v4.1.8
+
+Cette fois vous devriez :
+1. ✅ Voir l'onglet **Admin**
+2. ✅ Voir les **membres connectés**
+3. ✅ Avoir accès à toutes les fonctions admin
+
+Le serveur a déjà été redémarré avec les bons paramètres ! 🚀
