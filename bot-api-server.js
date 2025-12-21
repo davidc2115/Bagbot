@@ -86,6 +86,167 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'bot-api', timestamp: new Date().toISOString() });
 });
 
+// ========== OAUTH DISCORD ==========
+
+function generateToken() {
+  return Buffer.from(`${Date.now()}-${Math.random()}`).toString('base64');
+}
+
+// Mobile OAuth start
+app.get('/auth/mobile/start', (req, res) => {
+  const OAUTH_CLIENT_ID = process.env.DISCORD_OAUTH_CLIENT_ID || process.env.CLIENT_ID || '1414216173809307780';
+  const REDIRECT_URI = encodeURIComponent('http://88.174.155.230:33003/auth/mobile/callback');
+  const app_redirect = req.query.app_redirect || 'bagbot://auth';
+  
+  const state = generateToken().substring(0, 16);
+  appTokens.set('state_' + state, { app_redirect, timestamp: Date.now() });
+  
+  const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${OAUTH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=identify&state=${state}`;
+  
+  console.log('[BOT-API] Mobile auth started');
+  res.redirect(discordAuthUrl);
+});
+
+// Mobile OAuth callback
+app.get('/auth/mobile/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  if (!code || !state) {
+    return res.status(400).send('Missing code or state');
+  }
+  
+  const stateData = appTokens.get('state_' + state);
+  if (!stateData) {
+    return res.status(400).send('Invalid state');
+  }
+  
+  const app_redirect = stateData.app_redirect;
+  appTokens.delete('state_' + state);
+  
+  try {
+    const OAUTH_CLIENT_ID = process.env.DISCORD_OAUTH_CLIENT_ID || '1414216173809307780';
+    const OAUTH_CLIENT_SECRET = process.env.DISCORD_OAUTH_CLIENT_SECRET || '_LnfeJDT77TZ3qcBs7SsjFOcT_nvWB-o';
+    const REDIRECT_URI = 'http://88.174.155.230:33003/auth/mobile/callback';
+    
+    // Échanger code contre access token
+    const https = require('https');
+    const tokenData = await new Promise((resolve, reject) => {
+      const postData = new URLSearchParams({
+        client_id: OAUTH_CLIENT_ID,
+        client_secret: OAUTH_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI
+      }).toString();
+      
+      const options = {
+        hostname: 'discord.com',
+        port: 443,
+        path: '/api/oauth2/token',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
+      
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(new Error('Failed to parse token response'));
+          }
+        });
+      });
+      
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
+    });
+    
+    if (!tokenData.access_token) {
+      throw new Error('No access token received');
+    }
+    
+    // Récupérer infos utilisateur
+    const userData = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'discord.com',
+        port: 443,
+        path: '/api/users/@me',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`
+        }
+      };
+      
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(new Error('Failed to parse user response'));
+          }
+        });
+      });
+      
+      req.on('error', reject);
+      req.end();
+    });
+    
+    // Vérifier permissions
+    const permissions = await checkUserPermissions(userData.id, req.app.locals.client);
+    
+    if (!permissions.isAdmin && !permissions.isFounder) {
+      return res.send(`
+        <html><body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h1>❌ Accès refusé</h1>
+          <p>Vous devez être administrateur du serveur.</p>
+        </body></html>
+      `);
+    }
+    
+    // Créer token app
+    const appToken = generateToken();
+    appTokens.set('token_' + appToken, {
+      userId: userData.id,
+      username: userData.username,
+      discriminator: userData.discriminator,
+      avatar: userData.avatar,
+      isFounder: permissions.isFounder,
+      isAdmin: permissions.isAdmin,
+      timestamp: Date.now()
+    });
+    
+    console.log(`[BOT-API] User authenticated: ${userData.username} (${userData.id})`);
+    
+    // Rediriger vers l'app
+    const redirectUrl = `${app_redirect}?token=${appToken}`;
+    res.redirect(redirectUrl);
+    
+  } catch (error) {
+    console.error('[BOT-API] OAuth error:', error);
+    res.status(500).send(`Authentication failed: ${error.message}`);
+  }
+});
+
+// GET /api/me - Infos utilisateur
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({
+    userId: req.userData.userId,
+    username: req.userData.username,
+    discriminator: req.userData.discriminator,
+    avatar: req.userData.avatar,
+    isFounder: req.userData.isFounder,
+    isAdmin: req.userData.isAdmin
+  });
+});
+
 // Login endpoint (temporaire - nécessite Discord OAuth pour production)
 app.post('/auth/login', async (req, res) => {
   const { userId, username } = req.body;
