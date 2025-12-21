@@ -644,8 +644,12 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
     config.guilds[GUILD][section] = { ...config.guilds[GUILD][section], ...updates };
     
     console.log(`📝 [DEBUG] Config APRÈS merge:`, JSON.stringify(config.guilds[GUILD][section], null, 2));
+    console.log(`🔍 [DEBUG] Appel writeConfig...`);
     
-    if (writeConfig(config)) {
+    const writeResult = writeConfig(config);
+    console.log(`🔍 [DEBUG] writeConfig result: ${writeResult}`);
+    
+    if (writeResult) {
       console.log(`✅ Config section '${section}' updated by ${userData.username} (${userData.userId})`);
       
       // Envoyer signal au bot
