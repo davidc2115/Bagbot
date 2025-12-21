@@ -298,8 +298,8 @@ app.post('/auth/login', async (req, res) => {
   });
 });
 
-// GET /api/configs - Récupérer toute la config
-app.get('/api/configs', requireAuth, async (req, res) => {
+// GET /api/configs - Récupérer toute la config (PUBLIC pour compatibilité)
+app.get('/api/configs', async (req, res) => {
   try {
     const config = await readConfig();
     const guildConfig = config.guilds[GUILD] || {};
@@ -381,8 +381,8 @@ app.put('/api/configs/:section', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/dashboard/stats - Statistiques du serveur
-app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
+// GET /api/dashboard/stats - Statistiques du serveur (PUBLIC)
+app.get('/api/dashboard/stats', async (req, res) => {
   try {
     const guild = req.app.locals.client.guilds.cache.get(GUILD);
     if (!guild) {
@@ -429,8 +429,8 @@ app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/discord/members - Liste des membres
-app.get('/api/discord/members', requireAuth, async (req, res) => {
+// GET /api/discord/members - Liste des membres (PUBLIC)
+app.get('/api/discord/members', async (req, res) => {
   try {
     const guild = req.app.locals.client.guilds.cache.get(GUILD);
     if (!guild) {
@@ -454,8 +454,8 @@ app.get('/api/discord/members', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/discord/channels - Liste des channels
-app.get('/api/discord/channels', requireAuth, async (req, res) => {
+// GET /api/discord/channels - Liste des channels (PUBLIC)
+app.get('/api/discord/channels', async (req, res) => {
   try {
     const guild = req.app.locals.client.guilds.cache.get(GUILD);
     if (!guild) {
@@ -474,8 +474,8 @@ app.get('/api/discord/channels', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/discord/roles - Liste des rôles
-app.get('/api/discord/roles', requireAuth, async (req, res) => {
+// GET /api/discord/roles - Liste des rôles (PUBLIC)
+app.get('/api/discord/roles', async (req, res) => {
   try {
     const guild = req.app.locals.client.guilds.cache.get(GUILD);
     if (!guild) {
