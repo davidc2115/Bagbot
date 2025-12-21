@@ -2304,7 +2304,19 @@ fun PlaylistsTab(
                 item {
                     val playlistId = playlist["id"]?.jsonPrimitive?.contentOrNull ?: ""
                     val playlistName = playlist["name"]?.jsonPrimitive?.contentOrNull ?: "Sans nom"
-                    val songs = playlist["songs"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                    
+                    // Support both old format (array of strings) and new format (array of objects)
+                    val songsArray = playlist["songs"]?.jsonArray ?: emptyList()
+                    val songs = songsArray.mapNotNull { element ->
+                        when {
+                            element is kotlinx.serialization.json.JsonPrimitive -> element.contentOrNull
+                            element is kotlinx.serialization.json.JsonObject -> {
+                                element["filename"]?.jsonPrimitive?.contentOrNull 
+                                    ?: element["title"]?.jsonPrimitive?.contentOrNull
+                            }
+                            else -> null
+                        }
+                    }
                     
                     Card(
                         Modifier.fillMaxWidth(),

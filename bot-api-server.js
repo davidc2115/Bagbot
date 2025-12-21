@@ -804,12 +804,15 @@ app.get('/api/music/playlists', requireAuth, (req, res) => {
           const content = JSON.parse(fs.readFileSync(path.join(oldPlaylistsDir, file), 'utf8'));
           // Convertir ancien → nouveau
           if (content.tracks && !content.songs) {
-            content.songs = content.tracks.map(t => ({
-              id: t.filename || Date.now().toString(),
-              filename: t.filename,
-              title: t.title || t.filename,
+            content.songs = content.tracks.map((t, idx) => ({
+              id: t.filename || t.url || `track-${idx}`,
+              filename: t.filename || null,
+              title: t.title || t.filename || 'Sans titre',
+              url: t.url || null,
+              author: t.author || null,
+              duration: t.duration || null,
               addedAt: t.addedAt || Date.now()
-            }));
+            })).filter(s => s.filename || s.url); // Garder seulement les tracks valides
             delete content.tracks;
           }
           if (!content.id) content.id = file.replace('.json', '');
