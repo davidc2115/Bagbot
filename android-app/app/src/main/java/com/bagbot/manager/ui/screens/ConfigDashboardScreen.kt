@@ -347,14 +347,14 @@ private fun DashboardTab(
     val eco = configData?.obj("economy")
     val levels = configData?.obj("levels")
     val ecoBalances = eco?.obj("balances")
-    val levelsData = levels?.obj("data")
+    val levelsUsers = levels?.obj("users")  // Corrigé: "users" au lieu de "data"
     
     // États pour les statistiques
     var totalMembers by remember { mutableIntStateOf(members.size) }
     var totalHumans by remember { mutableIntStateOf(members.size) }
     var totalBots by remember { mutableIntStateOf(0) }
     var ecoUsers by remember { mutableIntStateOf(ecoBalances?.jsonObject?.size ?: 0) }
-    var levelUsers by remember { mutableIntStateOf(levelsData?.jsonObject?.size ?: 0) }
+    var levelUsers by remember { mutableIntStateOf(levelsUsers?.jsonObject?.size ?: 0) }
     var isLoadingStats by remember { mutableStateOf(false) }
     
     fun loadStats() {
@@ -368,8 +368,8 @@ private fun DashboardTab(
                         totalMembers = obj["totalMembers"]?.jsonPrimitive?.intOrNull ?: members.size
                         totalHumans = obj["totalHumans"]?.jsonPrimitive?.intOrNull ?: members.size
                         totalBots = obj["totalBots"]?.jsonPrimitive?.intOrNull ?: 0
-                        ecoUsers = obj["ecoUsers"]?.jsonPrimitive?.intOrNull ?: 0
-                        levelUsers = obj["levelUsers"]?.jsonPrimitive?.intOrNull ?: 0
+                        ecoUsers = obj["ecoUsers"]?.jsonPrimitive?.intOrNull ?: (ecoBalances?.jsonObject?.size ?: 0)
+                        levelUsers = obj["levelUsers"]?.jsonPrimitive?.intOrNull ?: (levelsUsers?.jsonObject?.size ?: 0)
                     }
                 } catch (e: Exception) {
                     // Fallback aux données locales si l'endpoint n'existe pas
@@ -377,6 +377,9 @@ private fun DashboardTab(
                         totalMembers = members.size
                         totalHumans = members.size
                         totalBots = 0
+                        ecoUsers = ecoBalances?.jsonObject?.size ?: 0
+                        levelUsers = levelsUsers?.jsonObject?.size ?: 0
+                    }
                         ecoUsers = ecoBalances?.jsonObject?.size ?: 0
                         levelUsers = levelsData?.jsonObject?.size ?: 0
                     }
@@ -2126,7 +2129,7 @@ private fun BoosterConfigTab(
     snackbar: SnackbarHostState
 ) {
     val eco = configData?.obj("economy")
-    val boost = (configData?.obj("boost") ?: eco?.obj("boost")) // tolère les 2 formats
+    val boost = (configData?.obj("booster") ?: eco?.obj("booster") ?: configData?.obj("boost") ?: eco?.obj("boost")) // tolère les formats: booster, boost
 
     var enabled by remember { mutableStateOf(boost?.bool("enabled") ?: false) }
     var textXpMult by remember { mutableStateOf((boost?.double("textXpMult") ?: 2.0).toString()) }
