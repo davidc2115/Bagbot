@@ -1,7 +1,7 @@
 // Gestionnaire pour le système mot-caché
 // Écoute les messages et cache des lettres aléatoirement
 
-const { readConfig, writeConfig } = require('./storage/jsonStore');
+const { readConfig, writeConfig } = require('../storage/jsonStore');
 
 // Fonction pour cacher une lettre dans un message aléatoire
 async function handleMessage(message) {
