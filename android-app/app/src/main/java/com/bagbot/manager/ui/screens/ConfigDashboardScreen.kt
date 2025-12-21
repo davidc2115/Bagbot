@@ -2126,7 +2126,7 @@ private fun BoosterConfigTab(
     snackbar: SnackbarHostState
 ) {
     val eco = configData?.obj("economy")
-    val boost = (configData?.obj("booster") ?: eco?.obj("booster") ?: configData?.obj("boost") ?: eco?.obj("boost")) // tolère les formats: booster, boost
+    val boost = eco?.obj("booster") // Toujours dans economy.booster
 
     var enabled by remember { mutableStateOf(boost?.bool("enabled") ?: false) }
     var textXpMult by remember { mutableStateOf((boost?.double("textXpMult") ?: 2.0).toString()) }
@@ -2192,7 +2192,7 @@ private fun BoosterConfigTab(
                         withContext(Dispatchers.IO) {
                             try {
                                 val body = buildJsonObject {
-                                    put("boost", buildJsonObject {
+                                    put("booster", buildJsonObject {
                                         put("enabled", enabled)
                                         put("textXpMult", textXpMult.toDoubleOrNull() ?: 2.0)
                                         put("voiceXpMult", voiceXpMult.toDoubleOrNull() ?: 2.0)
@@ -2202,7 +2202,7 @@ private fun BoosterConfigTab(
                                     })
                                 }
 
-                                // Le dashboard stocke souvent le boost sous economy.settings/boost; on fait au plus simple: PUT section economy avec boost
+                                // PUT section economy avec booster
                                 api.putJson("/api/configs/economy", json.encodeToString(JsonObject.serializer(), body))
                                 withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Booster sauvegardé") }
                             } catch (e: Exception) {

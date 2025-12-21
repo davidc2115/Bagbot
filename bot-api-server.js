@@ -359,6 +359,15 @@ app.put('/api/configs/:section', requireAuth, async (req, res) => {
     // Sauvegarder
     await writeConfig(config);
     
+    // Déclencher le reload du bot via signal file
+    const signalPath = path.join(__dirname, '../data/config-updated.signal');
+    try {
+      fs.writeFileSync(signalPath, Date.now().toString(), 'utf8');
+      console.log(`🔄 [BOT-API] Config reload signal sent`);
+    } catch (signalError) {
+      console.warn('[BOT-API] Could not write reload signal:', signalError.message);
+    }
+    
     console.log(`✅ [BOT-API] Config section '${section}' updated successfully`);
     
     res.json({ 
@@ -554,6 +563,216 @@ app.get('/api/music/stream/:filename', (req, res) => {
     res.sendFile(filepath);
   } catch (error) {
     console.error('[BOT-API] Error streaming file:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========== ADMIN ==========
+
+// GET /api/admin/sessions - Membres connectés
+app.get('/api/admin/sessions', requireAuth, (req, res) => {
+  try {
+    const sessions = [];
+    for (const [key, data] of appTokens.entries()) {
+      if (key.startsWith('token_')) {
+        sessions.push({
+          userId: data.userId,
+          username: data.username,
+          discriminator: data.discriminator || '0',
+          avatar: data.avatar,
+          isAdmin: data.isAdmin || false,
+          isFounder: data.isFounder || false,
+          connectedAt: new Date(data.timestamp).toISOString(),
+          lastActivity: new Date(data.timestamp).toISOString()
+        });
+      }
+    }
+    res.json({ sessions, count: sessions.length });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/admin/sessions:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/allowed-users - Liste des utilisateurs autorisés
+app.get('/api/admin/allowed-users', requireAuth, (req, res) => {
+  try {
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    let allowedUsers = [];
+    
+    if (fs.existsSync(appConfigPath)) {
+      const appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+      allowedUsers = appConfig.allowedUsers || [];
+    }
+    
+    res.json({ allowedUsers, count: allowedUsers.length });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/admin/allowed-users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/allowed-users - Ajouter un utilisateur autorisé
+app.post('/api/admin/allowed-users', requireAuth, express.json(), async (req, res) => {
+  try {
+    if (!req.userData.isFounder) {
+      return res.status(403).json({ error: 'Founder only' });
+    }
+    
+    const { userId, username } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
+    }
+    
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    let appConfig = { allowedUsers: [] };
+    
+    if (fs.existsSync(appConfigPath)) {
+      appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    }
+    
+    if (!appConfig.allowedUsers) appConfig.allowedUsers = [];
+    
+    // Vérifier si déjà présent
+    if (appConfig.allowedUsers.some(u => u.userId === userId)) {
+      return res.status(400).json({ error: 'User already allowed' });
+    }
+    
+    appConfig.allowedUsers.push({ userId, username: username || 'Unknown', addedAt: new Date().toISOString() });
+    fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2), 'utf8');
+    
+    console.log(`✅ [BOT-API] User ${userId} added to allowed list`);
+    res.json({ success: true, allowedUsers: appConfig.allowedUsers });
+  } catch (error) {
+    console.error('[BOT-API] Error adding allowed user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/allowed-users/:userId - Retirer un utilisateur autorisé
+app.delete('/api/admin/allowed-users/:userId', requireAuth, (req, res) => {
+  try {
+    if (!req.userData.isFounder) {
+      return res.status(403).json({ error: 'Founder only' });
+    }
+    
+    const { userId } = req.params;
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    
+    if (!fs.existsSync(appConfigPath)) {
+      return res.status(404).json({ error: 'No config found' });
+    }
+    
+    let appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    if (!appConfig.allowedUsers) appConfig.allowedUsers = [];
+    
+    const initialLength = appConfig.allowedUsers.length;
+    appConfig.allowedUsers = appConfig.allowedUsers.filter(u => u.userId !== userId);
+    
+    if (appConfig.allowedUsers.length === initialLength) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2), 'utf8');
+    
+    console.log(`✅ [BOT-API] User ${userId} removed from allowed list`);
+    res.json({ success: true, allowedUsers: appConfig.allowedUsers });
+  } catch (error) {
+    console.error('[BOT-API] Error removing allowed user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/app-config - Configuration de l'app
+app.get('/api/admin/app-config', requireAuth, (req, res) => {
+  try {
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    let appConfig = { dashboardUrl: 'http://88.174.155.230:33002' };
+    
+    if (fs.existsSync(appConfigPath)) {
+      appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    }
+    
+    res.json(appConfig);
+  } catch (error) {
+    console.error('[BOT-API] Error reading app-config:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/app-config - Mettre à jour la configuration
+app.post('/api/admin/app-config', requireAuth, express.json(), (req, res) => {
+  try {
+    if (!req.userData.isFounder && !req.userData.isAdmin) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    let appConfig = {};
+    
+    if (fs.existsSync(appConfigPath)) {
+      appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    }
+    
+    // Merge updates
+    appConfig = { ...appConfig, ...req.body };
+    fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2), 'utf8');
+    
+    console.log(`✅ [BOT-API] App config updated by ${req.userData.username}`);
+    res.json({ success: true, config: appConfig });
+  } catch (error) {
+    console.error('[BOT-API] Error updating app-config:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/logs/:service - Logs PM2
+app.get('/api/admin/logs/:service', requireAuth, (req, res) => {
+  try {
+    if (!req.userData.isFounder && !req.userData.isAdmin) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    
+    const { service } = req.params;
+    const { exec } = require('child_process');
+    
+    exec(`pm2 logs ${service} --lines 100 --nostream`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[BOT-API] Error fetching logs for ${service}:`, error);
+        return res.status(500).json({ error: 'Failed to fetch logs' });
+      }
+      
+      res.json({ logs: stdout || stderr || 'No logs available' });
+    });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/admin/logs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/restart/:service - Redémarrer un service PM2
+app.post('/api/admin/restart/:service', requireAuth, express.json(), (req, res) => {
+  try {
+    if (!req.userData.isFounder && !req.userData.isAdmin) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    
+    const { service } = req.params;
+    const { exec } = require('child_process');
+    
+    console.log(`🔄 [BOT-API] Restarting ${service} by ${req.userData.username}`);
+    
+    exec(`pm2 restart ${service}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[BOT-API] Error restarting ${service}:`, error);
+        return res.status(500).json({ error: 'Failed to restart service' });
+      }
+      
+      console.log(`✅ [BOT-API] ${service} restarted successfully`);
+      res.json({ success: true, message: `${service} restarted` });
+    });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/admin/restart:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
