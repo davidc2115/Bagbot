@@ -2761,6 +2761,40 @@ app.put('/api/admin/dashboard-url', (req, res) => {
   }
 });
 
+// GET /api/debug/config - Endpoint de diagnostic pour voir la config chargée
+app.get('/api/debug/config', (req, res) => {
+  try {
+    const config = readConfig();
+    const guildConfig = config.guilds[GUILD] || {};
+    
+    res.json({
+      guildId: GUILD,
+      founderId: FOUNDER_ID,
+      configPath: CONFIG,
+      hasGuildConfig: !!guildConfig,
+      sections: Object.keys(guildConfig),
+      economy: {
+        hasSettings: !!guildConfig.economy?.settings,
+        hasBalances: !!guildConfig.economy?.balances,
+        balancesCount: guildConfig.economy?.balances ? Object.keys(guildConfig.economy.balances).length : 0
+      },
+      levels: {
+        hasSettings: !!guildConfig.levels,
+        xpPerMessage: guildConfig.levels?.xpPerMessage,
+        usersCount: guildConfig.levels?.users ? Object.keys(guildConfig.levels.users).length : 0
+      },
+      truthdare: {
+        hasSfw: !!guildConfig.truthdare?.sfw,
+        hasNsfw: !!guildConfig.truthdare?.nsfw,
+        sfwPromptsCount: guildConfig.truthdare?.sfw?.prompts?.length || 0,
+        nsfwPromptsCount: guildConfig.truthdare?.nsfw?.prompts?.length || 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✓ Dashboard V2 Server running on port ${PORT}`);
   console.log(`✓ Guild ID: ${GUILD}`);
