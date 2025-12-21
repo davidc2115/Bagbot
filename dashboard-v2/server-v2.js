@@ -2431,15 +2431,16 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
     if (writeConfig(config)) {
       console.log(`✅ Config section '${section}' updated by ${userData.username} (${userData.userId})`);
       
-      // Redémarrer le bot pour appliquer les changements
-      const { exec } = require('child_process');
-      exec('pm2 restart bagbot', (err) => {
-        if (err) {
-          console.error('⚠️ Warning: Failed to restart bot, changes saved but not applied yet');
-        } else {
-          console.log('🔄 Bot restarted to apply config changes');
-        }
-      });
+      // Au lieu de redémarrer le bot, envoyer un signal au bot pour recharger
+      // Le bot Discord écoute les changements de fichier via un watcher
+      // Pour forcer le rechargement immédiat, on peut créer un fichier signal
+      try {
+        const signalPath = path.join(__dirname, '../data/config-updated.signal');
+        fs.writeFileSync(signalPath, Date.now().toString(), 'utf8');
+        console.log('📡 Signal envoyé au bot pour recharger la config');
+      } catch (e) {
+        console.error('⚠️ Erreur envoi signal:', e.message);
+      }
       
       res.json({ success: true, section, config: config.guilds[GUILD][section] });
     } else {
@@ -2522,16 +2523,55 @@ app.post('/api/music/upload', upload.single('audio'), (req, res) => {
   }
 });
 
-// GET /api/music/playlists - Liste des playlists
+// GET /api/music/playlists - Liste des playlists (support ancien + nouveau format)
 app.get('/api/music/playlists', (req, res) => {
   try {
-    const playlistsPath = path.join(__dirname, '../data/playlists.json');
+    const playlists = [];
     
-    if (!fs.existsSync(playlistsPath)) {
-      return res.json({ playlists: [] });
+    // 1. Lire le nouveau format (fichier unique playlists.json)
+    const newFormatPath = path.join(__dirname, '../data/playlists.json');
+    if (fs.existsSync(newFormatPath)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(newFormatPath, 'utf8'));
+        if (Array.isArray(data)) {
+          playlists.push(...data);
+        }
+      } catch (e) {
+        console.error('Error reading new format playlists:', e);
+      }
     }
     
-    const playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    // 2. Lire l'ancien format (fichiers séparés dans data/playlists/)
+    const oldFormatDir = path.join(__dirname, '../data/playlists');
+    if (fs.existsSync(oldFormatDir)) {
+      try {
+        const files = fs.readdirSync(oldFormatDir).filter(f => f.endsWith('.json'));
+        for (const file of files) {
+          try {
+            const filePath = path.join(oldFormatDir, file);
+            const playlist = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            
+            // Convertir ancien format vers nouveau format
+            const converted = {
+              id: playlist.createdAt?.toString() || Date.now().toString(),
+              name: playlist.name || 'Sans nom',
+              songs: (playlist.tracks || []).map(t => t.filename).filter(Boolean),
+              createdAt: playlist.createdAt ? new Date(playlist.createdAt).toISOString() : new Date().toISOString(),
+              _oldFormat: true,
+              _file: file
+            };
+            
+            playlists.push(converted);
+          } catch (e) {
+            console.error(`Error reading playlist ${file}:`, e);
+          }
+        }
+      } catch (e) {
+        console.error('Error reading old format playlists:', e);
+      }
+    }
+    
+    console.log(`📋 Playlists loaded: ${playlists.length} (nouveau + ancien format)`);
     res.json({ playlists });
   } catch (error) {
     console.error('Error in /api/music/playlists:', error);
