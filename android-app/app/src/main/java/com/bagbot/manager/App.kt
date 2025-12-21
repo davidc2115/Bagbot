@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.Gamepad
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.Dispatchers
@@ -3096,6 +3098,200 @@ fun getSectionDisplayName(key: String): String {
 // Partie 3 - AdminScreenWithAccess et ConfigEditorScreen
 
 @Composable
+fun DashboardUrlCard(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    var dashboardUrl by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var isEditing by remember { mutableStateOf(false) }
+    var editedUrl by remember { mutableStateOf("") }
+    
+    // Charger l'URL actuelle
+    LaunchedEffect(Unit) {
+        isLoading = true
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.getJson("/api/admin/app-config")
+                val data = json.parseToJsonElement(response).jsonObject
+                val url = data["dashboardUrl"]?.jsonPrimitive?.content ?: ""
+                withContext(Dispatchers.Main) {
+                    dashboardUrl = url
+                    editedUrl = url
+                }
+                Log.d(TAG, "Dashboard URL loaded: $url")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading dashboard URL: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    snackbar.showSnackbar("❌ Erreur chargement: ${e.message}")
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isLoading = false
+                }
+            }
+        }
+    }
+    
+    fun saveDashboardUrl() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val body = buildJsonObject { 
+                        put("dashboardUrl", editedUrl.trim())
+                    }
+                    api.postJson("/api/admin/app-config", body.toString())
+                    withContext(Dispatchers.Main) {
+                        dashboardUrl = editedUrl.trim()
+                        isEditing = false
+                        snackbar.showSnackbar("✅ URL dashboard sauvegardée")
+                    }
+                    Log.d(TAG, "Dashboard URL saved: ${editedUrl.trim()}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error saving dashboard URL: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur sauvegarde: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Link,
+                        null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            "🔗 URL Dashboard",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Configuration globale",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFBBDEFB)
+                        )
+                    }
+                }
+                
+                IconButton(
+                    onClick = { 
+                        isEditing = !isEditing
+                        if (!isEditing) editedUrl = dashboardUrl
+                    }
+                ) {
+                    Icon(
+                        if (isEditing) Icons.Default.Close else Icons.Default.Edit,
+                        null,
+                        tint = Color.White
+                    )
+                }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            if (isEditing) {
+                OutlinedTextField(
+                    value = editedUrl,
+                    onValueChange = { editedUrl = it },
+                    label = { Text("URL du Dashboard") },
+                    placeholder = { Text("http://88.174.155.230:33002") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color.White,
+                        unfocusedBorderColor = Color(0xFFBBDEFB),
+                        focusedLabelColor = Color.White,
+                        unfocusedLabelColor = Color(0xFFBBDEFB),
+                        cursorColor = Color.White
+                    ),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { saveDashboardUrl() }
+                    )
+                )
+                
+                Spacer(Modifier.height(12.dp))
+                
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { 
+                            isEditing = false
+                            editedUrl = dashboardUrl
+                        }
+                    ) {
+                        Text("Annuler", color = Color.White)
+                    }
+                    
+                    Spacer(Modifier.width(8.dp))
+                    
+                    Button(
+                        onClick = { saveDashboardUrl() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFF2196F3)
+                        ),
+                        enabled = editedUrl.trim().isNotEmpty()
+                    ) {
+                        Text("💾 Sauvegarder")
+                    }
+                }
+            } else {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White
+                    )
+                } else {
+                    Text(
+                        dashboardUrl.ifEmpty { "Aucune URL configurée" },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Text(
+                        "📱 Cette URL sera automatiquement partagée avec le bot Discord et les autres applications",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFBBDEFB),
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AdminScreenWithAccess(
     members: Map<String, String>,
     api: ApiClient,
@@ -3213,6 +3409,10 @@ fun AdminScreenWithAccess(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item {
+            DashboardUrlCard(api, json, scope, snackbar)
+        }
+        
         item {
             Card(
                 Modifier.fillMaxWidth(),
