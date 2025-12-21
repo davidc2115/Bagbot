@@ -1,4 +1,4 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
@@ -300,12 +300,8 @@ app.use(express.static('.'));
 
 
 const CONFIG = path.join(__dirname, '../data/config.json');
-const GUILD = process.env.GUILD_ID || '1360897918504271882';
-const FOUNDER_ID = process.env.FOUNDER_ID || '661256714779426859';
-
-console.log('🔧 Configuration serveur:');
-console.log('📋 GUILD_ID:', GUILD);
-console.log('👑 FOUNDER_ID:', FOUNDER_ID);
+const GUILD = '1360897918504271882';
+const FOUNDER_ID = '943487722738311219';
 const BACKUP_DIR = '/var/data/backups';
 
 // Discord API credentials
@@ -2121,123 +2117,7 @@ app.get('/auth/mobile/callback', async (req, res) => {
       req.end();
     });
     
-    // ✅ VÉRIFICATION : L'utilisateur doit être membre du serveur ET admin (ou fondateur)
-    // Utiliser l'API Discord REST pour vérifier le membre
-    const DISCORD_BOT_TOKEN = process.env.DISCORD_TOKEN;
-    if (!DISCORD_BOT_TOKEN) {
-      return res.status(500).send('❌ Bot token non configuré');
-    }
-    
-    // Récupérer le membre via l'API Discord
-    let member;
-    try {
-      const memberResponse = await new Promise((resolve, reject) => {
-        const options = {
-          hostname: 'discord.com',
-          port: 443,
-          path: `/api/guilds/${GUILD}/members/${userData.id}`,
-          method: 'GET',
-          headers: {
-            'Authorization': `Bot ${DISCORD_BOT_TOKEN}`
-          }
-        };
-        
-        const req = https.request(options, (response) => {
-          let data = '';
-          response.on('data', chunk => data += chunk);
-          response.on('end', () => {
-            if (response.statusCode === 200) {
-              resolve(JSON.parse(data));
-            } else if (response.statusCode === 404) {
-              resolve(null); // Pas membre
-            } else {
-              reject(new Error(`HTTP ${response.statusCode}`));
-            }
-          });
-        });
-        req.on('error', reject);
-        req.end();
-      });
-      
-      if (!memberResponse) {
-        console.log('❌ User', userData.username, 'is not a member of the server');
-        return res.send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Accès refusé</title>
-  <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
-      height: 100vh; 
-      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-      color: white;
-      margin: 0;
-    }
-    .container { text-align: center; }
-    h1 { font-size: 2em; margin-bottom: 20px; }
-    p { font-size: 1.2em; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>🚫 Accès refusé</h1>
-    <p>Vous devez être membre du serveur Discord pour accéder à cette application.</p>
-  </div>
-</body>
-</html>`);
-      }
-      
-      member = memberResponse;
-    } catch (e) {
-      console.error('Error fetching member:', e);
-      return res.status(500).send('❌ Erreur lors de la vérification du membre');
-    }
-    
-    // Vérifier si admin ou fondateur
-    const configs = readConfig();
-    const guildConfig = configs.guilds[GUILD] || {};
-    const staffRoleIds = guildConfig.staffRoleIds || [];
-    const memberRoles = member.roles || [];
-    const isAdmin = staffRoleIds.some(roleId => memberRoles.includes(roleId));
-    const isFounder = userData.id === FOUNDER_ID;
-    
-    if (!isFounder && !isAdmin) {
-      console.log('❌ User', userData.username, 'is not an admin');
-      return res.send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Accès refusé</title>
-  <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
-      height: 100vh; 
-      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-      color: white;
-      margin: 0;
-    }
-    .container { text-align: center; }
-    h1 { font-size: 2em; margin-bottom: 20px; }
-    p { font-size: 1.2em; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>🚫 Accès refusé</h1>
-    <p>Cette application est réservée aux administrateurs du serveur.</p>
-  </div>
-</body>
-</html>`);
-    }
-    
-    // ✅ L'utilisateur est autorisé : générer token app
+    // Générer token app
     const appToken = generateToken();
     appTokens.set('token_' + appToken, {
       userId: userData.id,
@@ -2247,7 +2127,7 @@ app.get('/auth/mobile/callback', async (req, res) => {
       timestamp: Date.now()
     });
     
-    console.log('✅ Mobile auth successful for', userData.username, '(' + userData.id + ')' + (isFounder ? ' [FOUNDER]' : ' [ADMIN]'));
+    console.log('✅ Mobile auth successful for', userData.username, '(' + userData.id + ')');
     
     const redirectUrl = `${app_redirect}?token=${appToken}`;
     
@@ -2317,15 +2197,12 @@ app.get('/api/me', (req, res) => {
   });
 });
 
+// ========== ENDPOINTS ADMIN ==========
 
-// ============================================
-// ROUTES API ADMIN - GESTION DES ACCÈS
-// ============================================
+// Stockage des utilisateurs autorisés
+const allowedUsers = new Set([FOUNDER_ID]);
 
-// Stockage des utilisateurs autorisés (en mémoire - à remplacer par DB si nécessaire)
-const allowedUsers = new Set([FOUNDER_ID]); // Fondateur par défaut
-
-// Endpoints pour app-config.json (URL dashboard, etc.)
+// GET /api/admin/app-config
 app.get('/api/admin/app-config', (req, res) => {
   try {
     const appConfigPath = path.join(__dirname, '../data/app-config.json');
@@ -2340,6 +2217,7 @@ app.get('/api/admin/app-config', (req, res) => {
   }
 });
 
+// POST /api/admin/app-config
 app.post('/api/admin/app-config', express.json(), (req, res) => {
   try {
     const { dashboardUrl } = req.body;
@@ -2361,34 +2239,15 @@ app.post('/api/admin/app-config', express.json(), (req, res) => {
   }
 });
 
-// GET /api/admin/allowed-users - Récupérer la liste
-app.get('/api/admin/allowed-users', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token' });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData || userData.userId !== FOUNDER_ID) {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
-  }
-  
-  res.json({ allowedUsers: Array.from(allowedUsers) });
-});
-
-// GET /api/admin/logs/:service - Récupérer les logs PM2
+// GET /api/admin/logs/:service
 app.get('/api/admin/logs/:service', (req, res) => {
   const { service } = req.params;
   const { exec } = require('child_process');
   
-  // Valider le service
   if (!['bot', 'dashboard'].includes(service)) {
     return res.status(400).json({ error: 'Invalid service' });
   }
   
-  // Mapper au nom du process PM2
   const processName = service === 'bot' ? 'bagbot' : 'dashboard';
   
   exec(`pm2 logs ${processName} --lines 100 --nostream`, (error, stdout, stderr) => {
@@ -2401,17 +2260,15 @@ app.get('/api/admin/logs/:service', (req, res) => {
   });
 });
 
-// POST /api/admin/restart/:service - Redémarrer un service PM2
+// POST /api/admin/restart/:service
 app.post('/api/admin/restart/:service', (req, res) => {
   const { service } = req.params;
   const { exec } = require('child_process');
   
-  // Valider le service
   if (!['bot', 'dashboard'].includes(service)) {
     return res.status(400).json({ error: 'Invalid service' });
   }
   
-  // Mapper au nom du process PM2
   const processName = service === 'bot' ? 'bagbot' : 'dashboard';
   
   exec(`pm2 restart ${processName}`, (error, stdout, stderr) => {
@@ -2425,155 +2282,45 @@ app.post('/api/admin/restart/:service', (req, res) => {
   });
 });
 
-// POST /api/admin/allowed-users - Ajouter un utilisateur
+// GET /api/admin/allowed-users
+app.get('/api/admin/allowed-users', (req, res) => {
+  res.json({ allowedUsers: Array.from(allowedUsers) });
+});
+
+// POST /api/admin/allowed-users
 app.post('/api/admin/allowed-users', express.json(), (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token' });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData || userData.userId !== FOUNDER_ID) {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
-  }
-  
   const { userId } = req.body;
   if (!userId) {
-    return res.status(400).json({ error: 'Missing userId' });
+    return res.status(400).json({ error: 'userId required' });
   }
-  
   allowedUsers.add(userId);
-  console.log('✅ User added to allowed list:', userId);
   res.json({ success: true, allowedUsers: Array.from(allowedUsers) });
 });
 
-// DELETE /api/admin/allowed-users/:userId - Retirer un utilisateur
+// DELETE /api/admin/allowed-users/:userId
 app.delete('/api/admin/allowed-users/:userId', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token' });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData || userData.userId !== FOUNDER_ID) {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
-  }
-  
   const { userId } = req.params;
-  
-  if (userId === FOUNDER_ID) {
-    return res.status(400).json({ error: 'Cannot remove founder' });
-  }
-  
   allowedUsers.delete(userId);
-  console.log('✅ User removed from allowed list:', userId);
   res.json({ success: true, allowedUsers: Array.from(allowedUsers) });
 });
 
-// ============================================
-// ROUTES API CONFIG - MISE À JOUR
-// ============================================
-
-// PUT /api/configs/:section - Mettre à jour une section
-app.put('/api/configs/:section', express.json(), (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token' });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-  
-  const { section } = req.params;
-  const updates = req.body;
-  
-  try {
-    // Utiliser readConfig/writeConfig pour manipuler la bonne structure
-    const config = readConfig();
-    
-    console.log(`📝 [DEBUG] Config AVANT update section '${section}':`, JSON.stringify(config.guilds?.[GUILD]?.[section], null, 2));
-    console.log(`📝 [DEBUG] Updates reçus:`, JSON.stringify(updates, null, 2));
-    
-    if (!config.guilds) config.guilds = {};
-    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
-    
-    // Mettre à jour la section spécifique
-    if (!config.guilds[GUILD][section]) {
-      config.guilds[GUILD][section] = {};
-    }
-    
-    // Merger les updates avec la structure existante
-    config.guilds[GUILD][section] = { ...config.guilds[GUILD][section], ...updates };
-    
-    console.log(`📝 [DEBUG] Config APRÈS merge:`, JSON.stringify(config.guilds[GUILD][section], null, 2));
-    
-    // Sauvegarder avec writeConfig
-    if (writeConfig(config)) {
-      console.log(`✅ Config section '${section}' updated by ${userData.username} (${userData.userId})`);
-      
-      // Au lieu de redémarrer le bot, envoyer un signal au bot pour recharger
-      // Le bot Discord écoute les changements de fichier via un watcher
-      // Pour forcer le rechargement immédiat, on peut créer un fichier signal
-      try {
-        const signalPath = path.join(__dirname, '../data/config-updated.signal');
-        fs.writeFileSync(signalPath, Date.now().toString(), 'utf8');
-        console.log('📡 Signal envoyé au bot pour recharger la config');
-      } catch (e) {
-        console.error('⚠️ Erreur envoi signal:', e.message);
-      }
-      
-      res.json({ success: true, section, config: config.guilds[GUILD][section] });
-    } else {
-      console.error(`❌ Failed to write config for section '${section}'`);
-      res.status(500).json({ error: 'Failed to write config' });
-    }
-  } catch (error) {
-    console.error('❌ Config update error:', error);
-    res.status(500).json({ error: error.message });
-  }
+// GET /api/admin/sessions
+app.get('/api/admin/sessions', (req, res) => {
+  const sessions = Array.from(appTokens.entries()).map(([key, data]) => ({
+    userId: data.userId,
+    username: data.username,
+    timestamp: data.timestamp,
+    expires: data.timestamp + (24 * 60 * 60 * 1000)
+  }));
+  res.json({ sessions, count: sessions.length });
 });
 
-// DEBUG: Endpoint pour afficher les infos de l'utilisateur connecté
-app.get('/api/debug/me', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.json({ error: 'No token', authenticated: false });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData) {
-    return res.json({ error: 'Invalid token', authenticated: false });
-  }
-  
-  const configs = readConfig();
-  const staffRoleIds = configs.staffRoleIds || [];
-  
-  res.json({
-    authenticated: true,
-    userId: userData.userId,
-    username: userData.username,
-    isFounder: userData.userId === FOUNDER_ID,
-    isFounderCheck: `${userData.userId} === ${FOUNDER_ID}`,
-    configuredFounderId: FOUNDER_ID,
-    staffRoleIds: staffRoleIds,
-    timestamp: new Date().toISOString()
-  });
-});
+// ========== ENDPOINTS MUSIQUE ==========
 
-// GET /api/music/uploads - Liste des fichiers musique uploadés
+// GET /api/music/uploads
 app.get('/api/music/uploads', (req, res) => {
   try {
-    const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+    const uploadsDir = path.join(__dirname, '../data/uploads');
     
     if (!fs.existsSync(uploadsDir)) {
       return res.json({ files: [] });
@@ -2581,7 +2328,7 @@ app.get('/api/music/uploads', (req, res) => {
     
     const files = fs.readdirSync(uploadsDir).filter(file => {
       const ext = path.extname(file).toLowerCase();
-      return ['.mp3', '.wav', '.m4a', '.ogg', '.flac'].includes(ext);
+      return ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.webm'].includes(ext);
     });
     
     res.json({ files });
@@ -2591,8 +2338,8 @@ app.get('/api/music/uploads', (req, res) => {
   }
 });
 
-// POST /api/music/upload - Upload un fichier audio depuis l'app
-app.post('/api/music/upload', upload.single('audio'), (req, res) => {
+// POST /api/music/upload
+app.post('/api/music/upload', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -2611,64 +2358,68 @@ app.post('/api/music/upload', upload.single('audio'), (req, res) => {
   }
 });
 
-// GET /api/music/playlists - Liste des playlists (support ancien + nouveau format)
+// GET /api/music/stream/:filename
+app.get('/api/music/stream/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const filepath = path.join(__dirname, '../data/uploads', filename);
+    
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    
+    res.sendFile(filepath);
+  } catch (error) {
+    console.error('Error streaming file:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/music/playlists
 app.get('/api/music/playlists', (req, res) => {
   try {
-    const playlists = [];
+    const playlistsPath = path.join(__dirname, '../data/playlists.json');
+    const oldPlaylistsDir = path.join(__dirname, '../data/playlists');
+    let playlists = [];
     
-    // 1. Lire le nouveau format (fichier unique playlists.json)
-    const newFormatPath = path.join(__dirname, '../data/playlists.json');
-    if (fs.existsSync(newFormatPath)) {
-      try {
-        const data = JSON.parse(fs.readFileSync(newFormatPath, 'utf8'));
-        if (Array.isArray(data)) {
-          playlists.push(...data);
-        }
-      } catch (e) {
-        console.error('Error reading new format playlists:', e);
-      }
+    // Nouveau format (playlists.json)
+    if (fs.existsSync(playlistsPath)) {
+      playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
     }
     
-    // 2. Lire l'ancien format (fichiers séparés dans data/playlists/)
-    const oldFormatDir = path.join(__dirname, '../data/playlists');
-    if (fs.existsSync(oldFormatDir)) {
-      try {
-        const files = fs.readdirSync(oldFormatDir).filter(f => f.endsWith('.json'));
-        for (const file of files) {
-          try {
-            const filePath = path.join(oldFormatDir, file);
-            const playlist = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-            
-            // Convertir ancien format vers nouveau format
-            const converted = {
-              id: playlist.createdAt?.toString() || Date.now().toString(),
-              name: playlist.name || 'Sans nom',
-              songs: (playlist.tracks || []).map(t => t.filename).filter(Boolean),
-              createdAt: playlist.createdAt ? new Date(playlist.createdAt).toISOString() : new Date().toISOString(),
-              _oldFormat: true,
-              _file: file
-            };
-            
-            playlists.push(converted);
-          } catch (e) {
-            console.error(`Error reading playlist ${file}:`, e);
+    // Ancien format (fichiers individuels)
+    if (fs.existsSync(oldPlaylistsDir)) {
+      const files = fs.readdirSync(oldPlaylistsDir).filter(f => f.endsWith('.json'));
+      files.forEach(file => {
+        try {
+          const content = JSON.parse(fs.readFileSync(path.join(oldPlaylistsDir, file), 'utf8'));
+          // Convertir ancien format vers nouveau
+          if (content.tracks && !content.songs) {
+            content.songs = content.tracks.map(t => ({
+              id: t.filename || Date.now().toString(),
+              filename: t.filename,
+              title: t.title || t.filename,
+              addedAt: t.addedAt || Date.now()
+            }));
+            delete content.tracks;
           }
+          if (!content.id) content.id = file.replace('.json', '');
+          playlists.push(content);
+        } catch (e) {
+          console.error(`Error reading playlist ${file}:`, e.message);
         }
-      } catch (e) {
-        console.error('Error reading old format playlists:', e);
-      }
+      });
     }
     
-    console.log(`📋 Playlists loaded: ${playlists.length} (nouveau + ancien format)`);
-    res.json({ playlists });
+    res.json({ playlists, count: playlists.length });
   } catch (error) {
     console.error('Error in /api/music/playlists:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/music/playlists - Créer une playlist
-app.post('/api/music/playlists', (req, res) => {
+// POST /api/music/playlists
+app.post('/api/music/playlists', express.json(), (req, res) => {
   try {
     const { name } = req.body;
     if (!name) {
@@ -2692,6 +2443,7 @@ app.post('/api/music/playlists', (req, res) => {
     playlists.push(newPlaylist);
     fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
     
+    console.log(`✅ Playlist created: ${name}`);
     res.json({ success: true, playlist: newPlaylist });
   } catch (error) {
     console.error('Error creating playlist:', error);
@@ -2699,32 +2451,11 @@ app.post('/api/music/playlists', (req, res) => {
   }
 });
 
-// DELETE /api/music/playlists/:id - Supprimer une playlist
-app.delete('/api/music/playlists/:id', (req, res) => {
+// POST /api/music/playlists/:id/songs
+app.post('/api/music/playlists/:id/songs', express.json(), (req, res) => {
   try {
     const { id } = req.params;
-    const playlistsPath = path.join(__dirname, '../data/playlists.json');
-    
-    if (!fs.existsSync(playlistsPath)) {
-      return res.status(404).json({ error: 'No playlists found' });
-    }
-    
-    let playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
-    playlists = playlists.filter(p => p.id !== id);
-    
-    fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting playlist:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/music/playlists/:id/songs - Ajouter une chanson à une playlist
-app.post('/api/music/playlists/:id/songs', (req, res) => {
-  try {
-    const { id } = req.params;
-    const { filename } = req.body;
+    const { filename, title } = req.body;
     
     if (!filename) {
       return res.status(400).json({ error: 'Filename required' });
@@ -2743,22 +2474,31 @@ app.post('/api/music/playlists/:id/songs', (req, res) => {
       return res.status(404).json({ error: 'Playlist not found' });
     }
     
-    if (!playlist.songs.includes(filename)) {
-      playlist.songs.push(filename);
-    }
+    const song = {
+      id: Date.now().toString(),
+      filename,
+      title: title || filename,
+      addedAt: new Date().toISOString()
+    };
+    
+    if (!playlist.songs) playlist.songs = [];
+    playlist.songs.push(song);
     
     fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
-    res.json({ success: true, playlist });
+    
+    console.log(`✅ Song added to playlist ${playlist.name}: ${filename}`);
+    res.json({ success: true, song, playlist });
   } catch (error) {
     console.error('Error adding song to playlist:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE /api/music/playlists/:id/songs/:filename - Retirer une chanson
-app.delete('/api/music/playlists/:id/songs/:filename', (req, res) => {
+// DELETE /api/music/playlists/:id/songs/:songId
+app.delete('/api/music/playlists/:id/songs/:songId', (req, res) => {
   try {
-    const { id, filename } = req.params;
+    const { id, songId } = req.params;
+    
     const playlistsPath = path.join(__dirname, '../data/playlists.json');
     
     if (!fs.existsSync(playlistsPath)) {
@@ -2768,13 +2508,20 @@ app.delete('/api/music/playlists/:id/songs/:filename', (req, res) => {
     let playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
     const playlist = playlists.find(p => p.id === id);
     
-    if (!playlist) {
-      return res.status(404).json({ error: 'Playlist not found' });
+    if (!playlist || !playlist.songs) {
+      return res.status(404).json({ error: 'Playlist or songs not found' });
     }
     
-    playlist.songs = playlist.songs.filter(s => s !== decodeURIComponent(filename));
+    const initialLength = playlist.songs.length;
+    playlist.songs = playlist.songs.filter(s => s.id !== songId);
+    
+    if (playlist.songs.length === initialLength) {
+      return res.status(404).json({ error: 'Song not found in playlist' });
+    }
     
     fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
+    
+    console.log(`✅ Song removed from playlist ${playlist.name}`);
     res.json({ success: true, playlist });
   } catch (error) {
     console.error('Error removing song from playlist:', error);
@@ -2782,370 +2529,31 @@ app.delete('/api/music/playlists/:id/songs/:filename', (req, res) => {
   }
 });
 
-// GET /api/dashboard/stats - Statistiques complètes du serveur
-app.get('/api/dashboard/stats', async (req, res) => {
+// DELETE /api/music/playlists/:id
+app.delete('/api/music/playlists/:id', (req, res) => {
   try {
-    // Récupérer les membres actuels via Discord REST API
-    const membersData = await getMembers();
-    const currentMemberIds = Object.keys(membersData.names || membersData);
+    const { id } = req.params;
+    const playlistsPath = path.join(__dirname, '../data/playlists.json');
     
-    let totalMembers = currentMemberIds.length;
-    let totalHumans = totalMembers;
-    let totalBots = 0;
-    let ecoUsers = 0;
-    let levelUsers = 0;
-    
-    // Compter les bots via Discord REST API
-    try {
-      const response = await fetch(`https://discord.com/api/v10/guilds/${GUILD}/members?limit=1000`, {
-        headers: {
-          'Authorization': `Bot ${process.env.DISCORD_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const members = await response.json();
-        totalBots = members.filter(m => m.user.bot).length;
-        totalHumans = totalMembers - totalBots;
-      }
-    } catch (e) {
-      console.error('Error counting bots:', e);
+    if (!fs.existsSync(playlistsPath)) {
+      return res.status(404).json({ error: 'No playlists found' });
     }
     
-    try {
-      const configs = readConfig();
-      const guildConfig = configs.guilds[GUILD] || {};
-      
-      // Economy users (filtrés)
-      if (guildConfig.economy && guildConfig.economy.balances) {
-        ecoUsers = Object.keys(guildConfig.economy.balances).filter(uid => 
-          currentMemberIds.includes(uid)
-        ).length;
-      }
-      
-      // Level users (filtrés) - CORRECTION: levels.users au lieu de levels.data
-      if (guildConfig.levels && guildConfig.levels.users) {
-        levelUsers = Object.keys(guildConfig.levels.users).filter(uid => 
-          currentMemberIds.includes(uid)
-        ).length;
-      }
-      
-    } catch (e) {
-      console.error('Error reading config data:', e);
+    let playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    const initialLength = playlists.length;
+    playlists = playlists.filter(p => p.id !== id);
+    
+    if (playlists.length === initialLength) {
+      return res.status(404).json({ error: 'Playlist not found' });
     }
     
-    res.json({
-      totalMembers,
-      totalHumans,
-      totalBots,
-      ecoUsers,
-      levelUsers
-    });
+    fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
+    
+    console.log(`✅ Playlist deleted: ${id}`);
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/dashboard/stats:', error);
+    console.error('Error deleting playlist:', error);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /api/admin/sessions - Liste des membres connectés avec leurs rôles
-app.get('/api/admin/sessions', (req, res) => {
-  // Authentification (utiliser appTokens au lieu de activeSessions)
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  const token = auth.slice(7);
-  const userData = appTokens.get('token_' + token);
-  if (!userData) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-  
-  const requestingUserId = userData.userId;
-  
-  // Vérifier que c'est le fondateur ou un admin
-  if (requestingUserId !== FOUNDER_ID) {
-    // Vérifier si c'est un admin via la config
-    const configs = readConfig();
-    const guildConfig = configs.guilds[GUILD] || {};
-    const staffRoleIds = guildConfig.staffRoleIds || [];
-    
-    // Pour vérifier l'admin, on doit accepter la requête car on ne peut pas
-    // facilement vérifier les rôles sans client Discord
-    // On se fie au token qui a déjà été vérifié lors de l'OAuth
-    // TODO: Utiliser l'API Discord REST pour vérifier les rôles si nécessaire
-  }
-  
-  // Récupérer toutes les sessions actives depuis appTokens
-  const sessions = [];
-  
-  // Parcourir appTokens au lieu de activeSessions
-  for (const [key, userData] of appTokens) {
-    if (!key.startsWith('token_')) continue; // Skip les autres clés
-    
-    const userId = userData.userId;
-    const username = userData.username || 'Inconnu';
-    
-    // Déterminer le rôle
-    let role = 'Membre';
-    if (userId === FOUNDER_ID) {
-      role = 'Fondateur';
-    } else {
-      // Vérifier via config si admin
-      const configs = readConfig();
-      const guildConfig = configs.guilds[GUILD] || {};
-      const staffRoleIds = guildConfig.staffRoleIds || [];
-      // On ne peut pas vérifier facilement sans client Discord
-      // On marque comme Admin par défaut si pas fondateur
-      role = 'Admin';
-    }
-    
-    sessions.push({
-      userId,
-      username,
-      role,
-      lastSeen: new Date().toISOString()
-    });
-  }
-  
-  res.json({ sessions });
-});
-
-// GET /api/admin/logs/:service - Récupérer les logs d'un service (bot ou dashboard)
-app.get('/api/admin/logs/:service', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token' });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData || userData.userId !== FOUNDER_ID) {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
-  }
-  
-  try {
-    const { service } = req.params;
-    if (service !== 'bot' && service !== 'dashboard') {
-      return res.status(400).json({ error: 'Invalid service (must be bot or dashboard)' });
-    }
-    
-    const { exec } = require('child_process');
-    const command = `pm2 logs ${service === 'bot' ? 'bagbot' : 'dashboard-v2'} --lines 100 --nostream`;
-    
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error getting logs for ${service}:`, error);
-        return res.status(500).json({ error: 'Failed to get logs', details: stderr });
-      }
-      
-      res.json({ 
-        service,
-        logs: stdout || stderr || 'No logs available'
-      });
-    });
-  } catch (err) {
-    console.error('Error in /api/admin/logs:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/admin/restart/:service - Redémarrer un service PM2
-app.post('/api/admin/restart/:service', express.json(), (req, res) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token' });
-  }
-  
-  const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData || userData.userId !== FOUNDER_ID) {
-    return res.status(403).json({ error: 'Forbidden - Admin only' });
-  }
-  
-  try {
-    const { service } = req.params;
-    if (service !== 'bot' && service !== 'dashboard') {
-      return res.status(400).json({ error: 'Invalid service (must be bot or dashboard)' });
-    }
-    
-    const { exec } = require('child_process');
-    const pm2Name = service === 'bot' ? 'bagbot' : 'dashboard-v2';
-    const command = `pm2 restart ${pm2Name}`;
-    
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error restarting ${service}:`, error);
-        return res.status(500).json({ error: 'Failed to restart service', details: stderr });
-      }
-      
-      console.log(`✅ Service ${service} restarted by ${userData.username}`);
-      res.json({ 
-        success: true,
-        service,
-        message: `Service ${service} restarted successfully`,
-        output: stdout
-      });
-    });
-  } catch (err) {
-    console.error('Error in /api/admin/restart:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /api/admin/dashboard-url - Récupérer l'URL du dashboard
-app.get('/api/admin/dashboard-url', (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token' });
-    }
-    
-    const token = authHeader.substring(7);
-    const userData = appTokens.get('token_' + token);
-    if (!userData) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    
-    // Seul le fondateur peut accéder
-    if (userData.userId !== FOUNDER_ID) {
-      return res.status(403).json({ error: 'Forbidden - Founder only' });
-    }
-    
-    // Lire l'URL depuis app-config.json
-    const appConfigPath = path.join(__dirname, '../data/app-config.json');
-    let dashboardUrl = 'http://88.174.155.230:33002'; // Valeur par défaut
-    
-    if (fs.existsSync(appConfigPath)) {
-      try {
-        const appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
-        dashboardUrl = appConfig.dashboardUrl || dashboardUrl;
-      } catch (e) {
-        console.error('Error reading app-config.json:', e);
-      }
-    }
-    
-    res.json({ dashboardUrl });
-  } catch (error) {
-    console.error('Error in /api/admin/dashboard-url:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// PUT /api/admin/dashboard-url - Modifier l'URL du dashboard
-app.put('/api/admin/dashboard-url', (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token' });
-    }
-    
-    const token = authHeader.substring(7);
-    const userData = appTokens.get('token_' + token);
-    if (!userData) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    
-    // Seul le fondateur peut modifier
-    if (userData.userId !== FOUNDER_ID) {
-      return res.status(403).json({ error: 'Forbidden - Founder only' });
-    }
-    
-    const { dashboardUrl } = req.body;
-    if (!dashboardUrl || typeof dashboardUrl !== 'string') {
-      return res.status(400).json({ error: 'dashboardUrl required' });
-    }
-    
-    // Sauvegarder dans app-config.json
-    const appConfigPath = path.join(__dirname, '../data/app-config.json');
-    const appConfig = { dashboardUrl };
-    
-    fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2), 'utf8');
-    console.log('✅ Dashboard URL updated:', dashboardUrl);
-    
-    res.json({ success: true, dashboardUrl });
-  } catch (error) {
-    console.error('Error in /api/admin/dashboard-url:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /api/music/stream/:filename - Streamer un fichier audio
-app.get('/api/music/stream/:filename', (req, res) => {
-  try {
-    const filename = decodeURIComponent(req.params.filename);
-    const filePath = path.join(__dirname, '../data/uploads', filename);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-    
-    const stat = fs.statSync(filePath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
-    
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunksize = (end - start) + 1;
-      const file = fs.createReadStream(filePath, { start, end });
-      const head = {
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
-        'Content-Type': 'audio/mpeg',
-      };
-      res.writeHead(206, head);
-      file.pipe(res);
-    } else {
-      const head = {
-        'Content-Length': fileSize,
-        'Content-Type': 'audio/mpeg',
-      };
-      res.writeHead(200, head);
-      fs.createReadStream(filePath).pipe(res);
-    }
-  } catch (error) {
-    console.error('Error streaming audio:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET /api/debug/config - Endpoint de diagnostic pour voir la config chargée
-app.get('/api/debug/config', (req, res) => {
-  try {
-    const config = readConfig();
-    const guildConfig = config.guilds[GUILD] || {};
-    
-    res.json({
-      guildId: GUILD,
-      founderId: FOUNDER_ID,
-      configPath: CONFIG,
-      hasGuildConfig: !!guildConfig,
-      sections: Object.keys(guildConfig),
-      economy: {
-        hasSettings: !!guildConfig.economy?.settings,
-        hasBalances: !!guildConfig.economy?.balances,
-        balancesCount: guildConfig.economy?.balances ? Object.keys(guildConfig.economy.balances).length : 0
-      },
-      levels: {
-        hasSettings: !!guildConfig.levels,
-        xpPerMessage: guildConfig.levels?.xpPerMessage,
-        usersCount: guildConfig.levels?.users ? Object.keys(guildConfig.levels.users).length : 0
-      },
-      truthdare: {
-        hasSfw: !!guildConfig.truthdare?.sfw,
-        hasNsfw: !!guildConfig.truthdare?.nsfw,
-        sfwPromptsCount: guildConfig.truthdare?.sfw?.prompts?.length || 0,
-        nsfwPromptsCount: guildConfig.truthdare?.nsfw?.prompts?.length || 0
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
