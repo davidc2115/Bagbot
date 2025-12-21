@@ -2325,6 +2325,42 @@ app.get('/api/me', (req, res) => {
 // Stockage des utilisateurs autorisés (en mémoire - à remplacer par DB si nécessaire)
 const allowedUsers = new Set([FOUNDER_ID]); // Fondateur par défaut
 
+// Endpoints pour app-config.json (URL dashboard, etc.)
+app.get('/api/admin/app-config', (req, res) => {
+  try {
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    if (!fs.existsSync(appConfigPath)) {
+      return res.json({ dashboardUrl: '' });
+    }
+    const appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    res.json(appConfig);
+  } catch (error) {
+    console.error('Error reading app-config:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/app-config', express.json(), (req, res) => {
+  try {
+    const { dashboardUrl } = req.body;
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    
+    let appConfig = {};
+    if (fs.existsSync(appConfigPath)) {
+      appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    }
+    
+    appConfig.dashboardUrl = dashboardUrl;
+    fs.writeFileSync(appConfigPath, JSON.stringify(appConfig, null, 2), 'utf8');
+    
+    console.log(`✅ Dashboard URL updated: ${dashboardUrl}`);
+    res.json({ success: true, dashboardUrl });
+  } catch (error) {
+    console.error('Error saving app-config:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/admin/allowed-users - Récupérer la liste
 app.get('/api/admin/allowed-users', (req, res) => {
   const authHeader = req.headers['authorization'];
@@ -2416,6 +2452,9 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
     // Utiliser readConfig/writeConfig pour manipuler la bonne structure
     const config = readConfig();
     
+    console.log(`📝 [DEBUG] Config AVANT update section '${section}':`, JSON.stringify(config.guilds?.[GUILD]?.[section], null, 2));
+    console.log(`📝 [DEBUG] Updates reçus:`, JSON.stringify(updates, null, 2));
+    
     if (!config.guilds) config.guilds = {};
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
     
@@ -2426,6 +2465,8 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
     
     // Merger les updates avec la structure existante
     config.guilds[GUILD][section] = { ...config.guilds[GUILD][section], ...updates };
+    
+    console.log(`📝 [DEBUG] Config APRÈS merge:`, JSON.stringify(config.guilds[GUILD][section], null, 2));
     
     // Sauvegarder avec writeConfig
     if (writeConfig(config)) {
