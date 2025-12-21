@@ -809,7 +809,20 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/me: ${e.message}")
                     withContext(Dispatchers.Main) {
-                        errorMessage = "Erreur authentification: ${e.message}"
+                        // Si erreur 401, on force la déconnexion
+                        if (e.message?.contains("401") == true || e.message?.contains("No token") == true) {
+                            token = null
+                            userName = ""
+                            userId = ""
+                            isFounder = false
+                            members = emptyMap()
+                            channels = emptyMap()
+                            roles = emptyMap()
+                            configData = null
+                            snackbar.showSnackbar("⚠️ Session expirée - Reconnectez-vous")
+                        } else {
+                            errorMessage = "Erreur authentification: ${e.message}"
+                        }
                     }
                 }
                 
