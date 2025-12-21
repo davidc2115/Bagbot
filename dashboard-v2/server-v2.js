@@ -2430,6 +2430,17 @@ app.put('/api/configs/:section', express.json(), (req, res) => {
     // Sauvegarder avec writeConfig
     if (writeConfig(config)) {
       console.log(`✅ Config section '${section}' updated by ${userData.username} (${userData.userId})`);
+      
+      // Redémarrer le bot pour appliquer les changements
+      const { exec } = require('child_process');
+      exec('pm2 restart bagbot', (err) => {
+        if (err) {
+          console.error('⚠️ Warning: Failed to restart bot, changes saved but not applied yet');
+        } else {
+          console.log('🔄 Bot restarted to apply config changes');
+        }
+      });
+      
       res.json({ success: true, section, config: config.guilds[GUILD][section] });
     } else {
       console.error(`❌ Failed to write config for section '${section}'`);
