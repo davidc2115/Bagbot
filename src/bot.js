@@ -12487,6 +12487,12 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     if (!message.guild) return;
     
+    // Mot caché runtime (distribution de lettres)
+    try {
+      const { handleMessage } = require('./modules/mot-cache-handler');
+      await handleMessage(message);
+    } catch (_) {}
+    
     // Track member activity for inactivity kick
     // Track member activity for inactivity kick
     if (message.author && !message.author.bot && message.guild) {

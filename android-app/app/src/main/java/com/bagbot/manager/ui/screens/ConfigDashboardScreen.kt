@@ -47,6 +47,7 @@ private enum class DashTab(val label: String) {
     Levels("📈 Niveaux"),
     Booster("🚀 Booster"),
     Counting("🔢 Comptage"),
+    MotCache("🔍 Mot caché"),
     TruthDare("🎲 A/V"),
     Actions("🎬 Actions"),
     Tickets("🎫 Tickets"),
@@ -147,6 +148,7 @@ fun ConfigDashboardScreen(
                 DashTab.Levels -> LevelsConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
+                DashTab.MotCache -> MotCacheConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.TruthDare -> TruthDareConfigTab(channels, api, json, scope, snackbar)
                 DashTab.Actions -> ActionsConfigTab(configData, api, json, scope, snackbar)
                 DashTab.Tickets -> TicketsConfigTab(configData, channels, roles, api, json, scope, snackbar)
@@ -3540,6 +3542,238 @@ private fun CountingConfigTab(
                     Icon(Icons.Default.Save, null)
                     Spacer(Modifier.width(8.dp))
                     Text("Sauvegarder Comptage")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MotCacheConfigTab(
+    configData: JsonObject?,
+    channels: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    val motCache = configData?.obj("motCache")
+
+    var enabled by remember { mutableStateOf(motCache?.bool("enabled") ?: false) }
+    var targetWord by remember { mutableStateOf(motCache?.str("targetWord") ?: "") }
+    var mode by remember { mutableStateOf(motCache?.str("mode") ?: "programmed") }
+    var lettersPerDay by remember { mutableIntStateOf(motCache?.int("lettersPerDay") ?: 1) }
+    var probability by remember { mutableIntStateOf(motCache?.int("probability") ?: 5) }
+    var reward by remember { mutableIntStateOf(motCache?.int("reward") ?: 5000) }
+    var emoji by remember { mutableStateOf(motCache?.str("emoji") ?: "🔍") }
+    var minMessageLength by remember { mutableIntStateOf(motCache?.int("minMessageLength") ?: 15) }
+
+    val initialAllowedChannels = remember(motCache) {
+        motCache?.arr("allowedChannels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+    }
+    var allowedChannels by remember(initialAllowedChannels) { mutableStateOf(initialAllowedChannels) }
+    var newAllowedChannelId by remember { mutableStateOf<String?>(null) }
+
+    var letterNotifChannelId by remember { mutableStateOf(motCache?.str("letterNotificationChannel")) }
+    var winnerNotifChannelId by remember { mutableStateOf(motCache?.str("notificationChannel")) }
+
+    var isSaving by remember { mutableStateOf(false) }
+    var expandedMode by remember { mutableStateOf(false) }
+
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            SectionCard(title = "🔍 Mot caché", subtitle = if (enabled) "Actif" else "Inactif") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Activer le jeu", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "🎯 Mot cible", subtitle = "Le mot à deviner") {
+                OutlinedTextField(
+                    value = targetWord,
+                    onValueChange = { targetWord = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Mot (ex: CALIN)") }
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Conseil: évite les espaces/accents si possible.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            }
+        }
+
+        item {
+            SectionCard(title = "🎲 Mode", subtitle = if (mode == "probability") "Probabilité" else "Programmé") {
+                ExposedDropdownMenuBox(
+                    expanded = expandedMode,
+                    onExpandedChange = { expandedMode = !expandedMode }
+                ) {
+                    OutlinedTextField(
+                        value = if (mode == "probability") "🎲 Probabilité" else "📅 Programmé",
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        label = { Text("Mode") }
+                    )
+                    ExposedDropdownMenu(expanded = expandedMode, onDismissRequest = { expandedMode = false }) {
+                        DropdownMenuItem(
+                            text = { Text("📅 Programmé") },
+                            onClick = { mode = "programmed"; expandedMode = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("🎲 Probabilité") },
+                            onClick = { mode = "probability"; expandedMode = false }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                if (mode == "programmed") {
+                    OutlinedTextField(
+                        value = lettersPerDay.toString(),
+                        onValueChange = { v -> lettersPerDay = v.filter { it.isDigit() }.toIntOrNull() ?: 1 },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Lettres par jour") },
+                        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = probability.toString(),
+                        onValueChange = { v -> probability = v.filter { it.isDigit() }.toIntOrNull() ?: 5 },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Probabilité (%)") },
+                        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "⚙️ Paramètres", subtitle = "Emoji + longueur min") {
+                OutlinedTextField(
+                    value = emoji,
+                    onValueChange = { emoji = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Emoji de réaction") }
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = reward.toString(),
+                    onValueChange = { v -> reward = v.filter { it.isDigit() }.toIntOrNull() ?: 5000 },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Récompense (BAG$)") },
+                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = minMessageLength.toString(),
+                    onValueChange = { v -> minMessageLength = v.filter { it.isDigit() }.toIntOrNull() ?: 15 },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Longueur minimale du message") },
+                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        }
+
+        item {
+            SectionCard(title = "📋 Salons de jeu", subtitle = "${allowedChannels.size} configuré(s) (vide = tous)") {
+                allowedChannels.forEach { chId ->
+                    RemovableIdRow(
+                        label = "Salon",
+                        id = chId,
+                        resolvedName = channels[chId],
+                        onRemove = { allowedChannels = allowedChannels.filterNot { it == chId } }
+                    )
+                    Divider(color = Color(0xFF2A2A2A))
+                }
+
+                Spacer(Modifier.height(10.dp))
+                ChannelSelector(
+                    channels = channels.filterKeys { !allowedChannels.contains(it) },
+                    selectedChannelId = newAllowedChannelId,
+                    onChannelSelected = { newAllowedChannelId = it },
+                    label = "Ajouter un salon"
+                )
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        newAllowedChannelId?.let { id ->
+                            if (!allowedChannels.contains(id)) allowedChannels = allowedChannels + id
+                            newAllowedChannelId = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = newAllowedChannelId != null
+                ) { Text("➕ Ajouter le salon") }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { allowedChannels = emptyList() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("♾️ Autoriser tous les salons") }
+            }
+        }
+
+        item {
+            SectionCard(title = "💬 Notifications", subtitle = "Lettres + gagnant") {
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = letterNotifChannelId,
+                    onChannelSelected = { letterNotifChannelId = it },
+                    label = "Salon notifications lettres (optionnel)"
+                )
+                Spacer(Modifier.height(10.dp))
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = winnerNotifChannelId,
+                    onChannelSelected = { winnerNotifChannelId = it },
+                    label = "Salon notifications gagnant (optionnel)"
+                )
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    scope.launch {
+                        isSaving = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val body = buildJsonObject {
+                                    put("enabled", enabled)
+                                    put("targetWord", targetWord.trim().uppercase())
+                                    put("mode", mode)
+                                    put("lettersPerDay", lettersPerDay.coerceIn(1, 20))
+                                    put("probability", probability.coerceIn(0, 100))
+                                    put("reward", reward.coerceIn(0, 1_000_000_000))
+                                    put("emoji", emoji.trim().ifBlank { "🔍" })
+                                    put("minMessageLength", minMessageLength.coerceAtLeast(1))
+                                    put("allowedChannels", JsonArray(allowedChannels.map { JsonPrimitive(it) }))
+                                    put("letterNotificationChannel", letterNotifChannelId?.takeIf { it.isNotBlank() })
+                                    put("notificationChannel", winnerNotifChannelId?.takeIf { it.isNotBlank() })
+                                }
+                                api.putJson("/api/configs/motCache", json.encodeToString(JsonObject.serializer(), body))
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Mot caché sauvegardé") }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                            } finally {
+                                withContext(Dispatchers.Main) { isSaving = false }
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !isSaving
+            ) {
+                if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                else {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder Mot caché")
                 }
             }
         }
