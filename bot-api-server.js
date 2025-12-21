@@ -26,6 +26,12 @@ const PORT = 33003; // Port différent du dashboard
 app.use(cors());
 app.use(express.json());
 
+// Logger middleware
+app.use((req, res, next) => {
+  console.log(`📥 [BOT-API] ${req.method} ${req.path}`);
+  next();
+});
+
 // Configuration
 const GUILD = process.env.GUILD_ID || '1360897918504271882';
 const FOUNDER_ID = process.env.FOUNDER_ID || '943487722738311219';
@@ -340,6 +346,9 @@ app.get('/api/configs', async (req, res) => {
 app.put('/api/configs/:section', requireAuth, async (req, res) => {
   const { section } = req.params;
   const updates = req.body;
+  
+  console.log(`📝 [BOT-API] PUT /api/configs/${section} by ${req.userData?.username || 'unknown'}`);
+  console.log(`📝 [BOT-API] Headers:`, JSON.stringify(req.headers, null, 2));
   
   try {
     console.log(`📝 [BOT-API] Update section '${section}' by ${req.userData.username}`);
