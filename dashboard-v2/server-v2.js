@@ -2491,6 +2491,138 @@ app.get('/api/music/uploads', (req, res) => {
   }
 });
 
+// GET /api/music/playlists - Liste des playlists
+app.get('/api/music/playlists', (req, res) => {
+  try {
+    const playlistsPath = path.join(DATA_DIR, 'playlists.json');
+    
+    if (!fs.existsSync(playlistsPath)) {
+      return res.json({ playlists: [] });
+    }
+    
+    const playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    res.json({ playlists });
+  } catch (error) {
+    console.error('Error in /api/music/playlists:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/music/playlists - Créer une playlist
+app.post('/api/music/playlists', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Name required' });
+    }
+    
+    const playlistsPath = path.join(DATA_DIR, 'playlists.json');
+    let playlists = [];
+    
+    if (fs.existsSync(playlistsPath)) {
+      playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    }
+    
+    const newPlaylist = {
+      id: Date.now().toString(),
+      name,
+      songs: [],
+      createdAt: new Date().toISOString()
+    };
+    
+    playlists.push(newPlaylist);
+    fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
+    
+    res.json({ success: true, playlist: newPlaylist });
+  } catch (error) {
+    console.error('Error creating playlist:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/music/playlists/:id - Supprimer une playlist
+app.delete('/api/music/playlists/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const playlistsPath = path.join(DATA_DIR, 'playlists.json');
+    
+    if (!fs.existsSync(playlistsPath)) {
+      return res.status(404).json({ error: 'No playlists found' });
+    }
+    
+    let playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    playlists = playlists.filter(p => p.id !== id);
+    
+    fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting playlist:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/music/playlists/:id/songs - Ajouter une chanson à une playlist
+app.post('/api/music/playlists/:id/songs', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { filename } = req.body;
+    
+    if (!filename) {
+      return res.status(400).json({ error: 'Filename required' });
+    }
+    
+    const playlistsPath = path.join(DATA_DIR, 'playlists.json');
+    
+    if (!fs.existsSync(playlistsPath)) {
+      return res.status(404).json({ error: 'No playlists found' });
+    }
+    
+    let playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    const playlist = playlists.find(p => p.id === id);
+    
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+    
+    if (!playlist.songs.includes(filename)) {
+      playlist.songs.push(filename);
+    }
+    
+    fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
+    res.json({ success: true, playlist });
+  } catch (error) {
+    console.error('Error adding song to playlist:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/music/playlists/:id/songs/:filename - Retirer une chanson
+app.delete('/api/music/playlists/:id/songs/:filename', (req, res) => {
+  try {
+    const { id, filename } = req.params;
+    const playlistsPath = path.join(DATA_DIR, 'playlists.json');
+    
+    if (!fs.existsSync(playlistsPath)) {
+      return res.status(404).json({ error: 'No playlists found' });
+    }
+    
+    let playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+    const playlist = playlists.find(p => p.id === id);
+    
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+    
+    playlist.songs = playlist.songs.filter(s => s !== decodeURIComponent(filename));
+    
+    fs.writeFileSync(playlistsPath, JSON.stringify(playlists, null, 2), 'utf8');
+    res.json({ success: true, playlist });
+  } catch (error) {
+    console.error('Error removing song from playlist:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/dashboard/stats - Statistiques complètes du serveur
 app.get('/api/dashboard/stats', async (req, res) => {
   try {

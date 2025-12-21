@@ -1983,14 +1983,129 @@ fun MusicScreen(
                 }
             }
             1 -> {
-                // Onglet Playlists (à venir)
-                Box(
-                    Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                // Onglet Playlists
+                PlaylistsTab(api, json, scope, snackbar, uploads)
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaylistsTab(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    availableSongs: List<String>
+) {
+    var playlists by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    
+    fun loadPlaylists() {
+        scope.launch {
+            isLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/music/playlists")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    val plist = data["playlists"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                    withContext(Dispatchers.Main) {
+                        playlists = plist
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) { isLoading = false }
+                }
+            }
+        }
+    }
+    
+    LaunchedEffect(Unit) {
+        loadPlaylists()
+    }
+    
+    if (showCreateDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("Nouvelle Playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    label = { Text("Nom de la playlist") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (newPlaylistName.isNotBlank()) {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val body = buildJsonObject { put("name", newPlaylistName) }
+                                    api.postJson("/api/music/playlists", json.encodeToString(JsonObject.serializer(), body))
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("✅ Playlist créée")
+                                        newPlaylistName = ""
+                                        showCreateDialog = false
+                                        loadPlaylists()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("❌ ${e.message}")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }) {
+                    Text("Créer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Button(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+            ) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Nouvelle Playlist")
+            }
+        }
+        
+        if (isLoading) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF9C27B0))
+                }
+            }
+        } else if (playlists.isEmpty()) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                 ) {
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(32.dp)
+                        Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
                             Icons.Default.PlaylistPlay,
@@ -2000,15 +2115,78 @@ fun MusicScreen(
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "Playlists à venir",
+                            "Aucune playlist",
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White
                         )
                         Text(
-                            "Fonctionnalité en développement",
+                            "Créez votre première playlist",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray
                         )
+                    }
+                }
+            }
+        } else {
+            playlists.forEach { playlist ->
+                item {
+                    val playlistId = playlist["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                    val playlistName = playlist["name"]?.jsonPrimitive?.contentOrNull ?: "Sans nom"
+                    val songs = playlist["songs"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                    
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.PlaylistPlay,
+                                        null,
+                                        tint = Color(0xFF9C27B0),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            playlistName,
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "${songs.size} chanson(s)",
+                                            color = Color.Gray,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                api.deleteJson("/api/music/playlists/$playlistId")
+                                                withContext(Dispatchers.Main) {
+                                                    snackbar.showSnackbar("✅ Playlist supprimée")
+                                                    loadPlaylists()
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    snackbar.showSnackbar("❌ ${e.message}")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }) {
+                                    Icon(Icons.Default.Delete, null, tint = Color.Red)
+                                }
+                            }
+                        }
                     }
                 }
             }
