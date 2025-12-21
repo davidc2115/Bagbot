@@ -10,6 +10,8 @@ async function handleMessage(message) {
 
   try {
     const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[message.guildId]) config.guilds[message.guildId] = {};
     const guildConfig = config.guilds[message.guildId] || {};
     const motCache = guildConfig.motCache || {};
 
@@ -59,6 +61,7 @@ async function handleMessage(message) {
 
     // Sauvegarder
     guildConfig.motCache = motCache;
+    config.guilds[message.guildId] = guildConfig;
     await writeConfig(config);
 
     // Ajouter l'emoji au message
