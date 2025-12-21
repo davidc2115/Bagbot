@@ -2651,10 +2651,28 @@ app.get('/api/dashboard/stats', async (req, res) => {
     const currentMemberIds = Object.keys(membersData.names || membersData);
     
     let totalMembers = currentMemberIds.length;
-    let totalHumans = totalMembers; // Par défaut
+    let totalHumans = totalMembers;
     let totalBots = 0;
     let ecoUsers = 0;
     let levelUsers = 0;
+    
+    // Compter les bots via Discord REST API
+    try {
+      const response = await fetch(`https://discord.com/api/v10/guilds/${GUILD}/members?limit=1000`, {
+        headers: {
+          'Authorization': `Bot ${process.env.DISCORD_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const members = await response.json();
+        totalBots = members.filter(m => m.user.bot).length;
+        totalHumans = totalMembers - totalBots;
+      }
+    } catch (e) {
+      console.error('Error counting bots:', e);
+    }
     
     try {
       const configs = readConfig();
