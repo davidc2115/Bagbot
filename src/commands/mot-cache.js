@@ -42,6 +42,16 @@ function buildPublicPanelEmbed(motCache) {
   const modeLabel = motCache.mode === 'probability' ? `🎲 Probabilité (${motCache.probability || 5}%)` : `📅 Programmé (${motCache.lettersPerDay || 1} lettre(s)/jour)`;
   const channelsLabel = motCache.allowedChannels?.length ? `${motCache.allowedChannels.length} salon(s)` : 'Tous les salons';
   const reward = Number.isFinite(Number(motCache.reward)) ? Number(motCache.reward) : 5000;
+  const top3 = Array.isArray(motCache.winners) ? [...motCache.winners].sort((a, b) => (b?.date || 0) - (a?.date || 0)).slice(0, 3) : [];
+  const top3Text = top3.length
+    ? top3
+        .map((w, idx) => {
+          const name = w?.username || (w?.userId ? `<@${w.userId}>` : 'Inconnu');
+          const word = w?.word ? String(w.word).toUpperCase() : '—';
+          return `${idx + 1}) ${name} — **${word}**`;
+        })
+        .join('\n')
+    : 'Aucun gagnant pour le moment';
 
   return new EmbedBuilder()
     .setTitle('🔍 Jeu — Mot caché')
@@ -61,6 +71,7 @@ function buildPublicPanelEmbed(motCache) {
       { name: '📏 Longueur min', value: `${motCache.minMessageLength || 15} caractères`, inline: true },
       { name: '💬 Salon lettres', value: motCache.letterNotificationChannel ? `<#${motCache.letterNotificationChannel}>` : 'Non configuré', inline: true },
       { name: '📢 Salon gagnant', value: motCache.notificationChannel ? `<#${motCache.notificationChannel}>` : 'Non configuré', inline: true },
+      { name: '🏆 Top 3', value: top3Text, inline: false },
     )
     .setColor('#9b59b6')
     .setFooter({ text: 'BAG • Mot caché' });
@@ -259,37 +270,6 @@ module.exports = {
       const id = interaction.customId;
 
       if (id === 'motcache_enter') {
-        const config = await readConfig();
-        const guildConfig = await ensureGuildConfig(config, guildId);
-        const motCache = mergeMotCache(guildConfig.motCache);
-
-        const letters = motCache.collections?.[interaction.user.id] || [];
-        const enabled = !!motCache.enabled && !!motCache.targetWord;
-        const total = (motCache.targetWord || '').length || 0;
-
-        const infoEmbed = new EmbedBuilder()
-          .setTitle('🔍 Mot caché — Tes lettres')
-          .setDescription(
-            enabled
-              ? `📊 Progression: **${letters.length}/${total}**\n\n**Lettres:** ${letters.length ? letters.join(' ') : 'Aucune'}`
-              : '⏸️ Le jeu n’est pas actif actuellement.'
-          )
-          .setColor('#9b59b6')
-          .setFooter({ text: 'Clique ensuite sur "Entrer le mot".' });
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('motcache_open_modal')
-            .setLabel('📝 Entrer le mot')
-            .setStyle(ButtonStyle.Primary)
-            .setDisabled(!enabled),
-        );
-
-        await interaction.reply({ embeds: [infoEmbed], components: [row], ephemeral: true });
-        return true;
-      }
-
-      if (id === 'motcache_open_modal') {
         const modal = new ModalBuilder()
           .setCustomId('motcache_modal_guess')
           .setTitle('📝 Entrer le mot');
@@ -526,13 +506,19 @@ module.exports = {
         const motCache = mergeMotCache(guildConfig.motCache);
 
         if (!motCache.enabled || !motCache.targetWord) {
-          await interaction.reply({ content: '❌ Le jeu du mot caché n\'est pas activé.', ephemeral: true });
+          const embed = new EmbedBuilder()
+            .setTitle('⏸️ Mot caché')
+            .setDescription('Le jeu n’est pas actif actuellement.')
+            .setColor('#9b59b6');
+          await interaction.reply({ embeds: [embed], ephemeral: true });
           return true;
         }
 
         const guessedWord = String(interaction.fields.getTextInputValue('word') || '').toUpperCase().trim();
         const target = String(motCache.targetWord || '').toUpperCase().trim();
         const userId = interaction.user.id;
+        const userLettersBefore = motCache.collections?.[userId] || [];
+        const total = (motCache.targetWord || '').length || 0;
 
         if (guessedWord === target) {
           const reward = Number.isFinite(Number(motCache.reward)) ? Number(motCache.reward) : 5000;
@@ -558,6 +544,10 @@ module.exports = {
           const winEmbed = new EmbedBuilder()
             .setTitle('🎉 FÉLICITATIONS !')
             .setDescription(`**Tu as trouvé le mot caché !**\n\n🎯 Mot: **${guessedWord}**\n💰 Récompense: **${reward} BAG$**`)
+            .addFields(
+              { name: '📊 Progression', value: `${userLettersBefore.length}/${total}`, inline: true },
+              { name: '🔤 Tes lettres', value: userLettersBefore.length ? userLettersBefore.join(' ') : 'Aucune', inline: false },
+            )
             .setColor('#2ecc71')
             .setFooter({ text: 'Bravo !' });
 
@@ -568,16 +558,20 @@ module.exports = {
             }
           }
 
-          await interaction.reply({ embeds: [winEmbed] });
+          // Réponse éphémère (le succès peut être annoncé en salon via notificationChannel)
+          await interaction.reply({ embeds: [winEmbed], ephemeral: true });
           return true;
         }
 
-        const letters = motCache.collections?.[userId] || [];
-        const total = (motCache.targetWord || '').length || 0;
-        await interaction.reply({
-          content: `❌ Ce n'est pas le bon mot. Continue !\n📊 ${letters.length}/${total} • Lettres: ${letters.length ? letters.join(' ') : 'Aucune'}`,
-          ephemeral: true
-        });
+        const failEmbed = new EmbedBuilder()
+          .setTitle('❌ Mauvais mot')
+          .setDescription('Ce n’est pas le bon mot. Continue à collecter des lettres.')
+          .addFields(
+            { name: '📊 Progression', value: `${userLettersBefore.length}/${total}`, inline: true },
+            { name: '🔤 Tes lettres', value: userLettersBefore.length ? userLettersBefore.join(' ') : 'Aucune', inline: false },
+          )
+          .setColor('#e74c3c');
+        await interaction.reply({ embeds: [failEmbed], ephemeral: true });
         return true;
       }
 
