@@ -23,6 +23,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 
+// Helper pour extraire une chaîne d'un JsonElement (primitive ou objet avec id)
+private fun JsonElement.stringOrId(): String? {
+    return this.jsonPrimitive?.contentOrNull ?: this.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+}
+
 @Composable
 fun AdminScreen(
     api: ApiClient,
@@ -41,8 +46,8 @@ fun AdminScreen(
         try {
             val response = api.getJson("/api/admin/allowed-users")
             val data = json.parseToJsonElement(response).jsonObject
-            allowedUsers = data["allowedUsers"]?.jsonArray?.map {
-                it.jsonPrimitive.content
+            allowedUsers = data["allowedUsers"]?.jsonArray?.mapNotNull {
+                it.stringOrId()
             } ?: emptyList()
         } catch (e: Exception) {
             onShowSnackbar("Erreur: ${e.message}")
@@ -174,8 +179,8 @@ fun AccessManagementTab(
                                         
                                         val response = api.getJson("/api/admin/allowed-users")
                                         val data = json.parseToJsonElement(response).jsonObject
-                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.map {
-                                            it.jsonPrimitive.content
+                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
+                                            it.stringOrId()
                                         } ?: emptyList())
                                         
                                         onSelectedMemberChange(null)
@@ -280,8 +285,8 @@ fun AccessManagementTab(
                                                 
                                                 val response = api.getJson("/api/admin/allowed-users")
                                                 val data = json.parseToJsonElement(response).jsonObject
-                                                onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.map {
-                                                    it.jsonPrimitive.content
+                                                onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
+                                                    it.stringOrId()
                                                 } ?: emptyList())
                                                 
                                                 userToRevoke = null
@@ -379,8 +384,8 @@ fun AccessManagementTab(
                                         
                                         val response = api.getJson("/api/admin/allowed-users")
                                         val data = json.parseToJsonElement(response).jsonObject
-                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.map {
-                                            it.jsonPrimitive.content
+                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
+                                            it.stringOrId()
                                         } ?: emptyList())
                                         
                                         onShowSnackbar("✅ Utilisateur retiré")
