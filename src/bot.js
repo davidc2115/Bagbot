@@ -12784,10 +12784,8 @@ client.on(Events.MessageCreate, async (message) => {
       const motCacheHandler = require('./modules/mot-cache-handler');
       await motCacheHandler.handleMessage(message);
     } catch (err) {
-      // Silent fail - don't block message processing
-      if (err.message && !err.message.includes('Cannot find module')) {
-        console.error('[MOT-CACHE] Error in message handler:', err.message);
-      }
+      // Log all errors for debugging
+      console.error('[MOT-CACHE] Error in message handler:', err);
     }
   } catch (_) {}
 });

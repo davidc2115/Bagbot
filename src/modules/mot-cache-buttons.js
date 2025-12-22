@@ -263,35 +263,26 @@ async function handleMotCacheButton(interaction) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    // Pour les messages ephemeral, on doit utiliser reply, pas update
+    // IMPORTANT: Pour un bouton d'interaction, on doit utiliser update() pas reply()
+    // Car l'interaction provient d'un bouton cliqué dans un message existant
     try {
-      // Vérifier si l'interaction vient d'un message ephemeral
-      // Dans ce cas, on fait un nouveau reply ephemeral
-      return await interaction.reply({
+      return await interaction.update({
         embeds: [embed],
-        components: [row1, row2, row3],
-        ephemeral: true
+        components: [row1, row2, row3]
       });
     } catch (err) {
-      console.error('[MOT-CACHE] Error replying to config button:', err);
-      // Si déjà répondu, essayer update
+      console.error('[MOT-CACHE] Error updating config button:', err);
+      // Si l'update échoue, essayer deferUpdate puis editReply
       try {
-        return await interaction.update({
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.deferUpdate();
+        }
+        return await interaction.editReply({
           embeds: [embed],
           components: [row1, row2, row3]
         });
       } catch (err2) {
-        console.error('[MOT-CACHE] Update also failed:', err2);
-        // Dernier recours: followUp
-        try {
-          return await interaction.followUp({
-            embeds: [embed],
-            components: [row1, row2, row3],
-            ephemeral: true
-          });
-        } catch (err3) {
-          console.error('[MOT-CACHE] All attempts failed:', err3);
-        }
+        console.error('[MOT-CACHE] EditReply also failed:', err2);
       }
     }
   }
