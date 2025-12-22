@@ -1,0 +1,83 @@
+═══════════════════════════════════════════════════════════
+🔄 REDÉMARRAGE DU BOT - MÉTHODE SIMPLE
+═══════════════════════════════════════════════════════════
+
+OPTION 1 : Script Automatique
+════════════════════════════════
+
+Sur votre machine locale, exécutez :
+
+bash REDEMARRER_BOT_MAINTENANT.sh
+
+Mot de passe : bagbot
+
+
+OPTION 2 : Commandes Manuelles
+════════════════════════════════
+
+1. Se connecter en SSH :
+
+ssh -p 33000 bagbot@88.174.155.230
+Mot de passe : bagbot
+
+2. Une fois connecté, exécuter :
+
+cd /home/bagbot/Bag-bot
+pm2 restart bagbot
+pm2 status
+pm2 logs bagbot --lines 20
+
+3. Vérifier que le bot est bien démarré :
+   - Statut doit être "online" (vert)
+   - Pas d'erreur dans les logs
+
+
+OPTION 3 : Commande Unique (Copier-Coller)
+═══════════════════════════════════════════
+
+Copiez et collez cette ligne dans votre terminal :
+
+ssh -p 33000 bagbot@88.174.155.230 'cd /home/bagbot/Bag-bot && pm2 restart bagbot && pm2 status && pm2 logs bagbot --lines 20 --nostream'
+
+Mot de passe : bagbot
+
+
+VÉRIFICATION APRÈS REDÉMARRAGE
+═══════════════════════════════
+
+1. Sur Discord, utilisez /mot-cache
+2. Cliquez sur "⚙️ Configurer le jeu" ou "⚙️ Config"
+3. Le menu de configuration doit s'afficher
+4. Pas de message "échec de l'interaction"
+
+Si tout fonctionne : ✅ Correction appliquée avec succès !
+
+
+TROUBLESHOOTING
+═══════════════
+
+Si le bot ne démarre pas :
+
+pm2 logs bagbot --lines 50
+
+Si erreur de module :
+
+cd /home/bagbot/Bag-bot
+npm install
+
+Si erreur persistante :
+
+pm2 delete bagbot
+pm2 start src/bot.js --name bagbot
+
+
+AIDE RAPIDE
+═══════════
+
+Voir les processus : pm2 list
+Voir les logs : pm2 logs bagbot
+Arrêter le bot : pm2 stop bagbot
+Redémarrer : pm2 restart bagbot
+Voir le statut : pm2 status
+
+═══════════════════════════════════════════════════════════
