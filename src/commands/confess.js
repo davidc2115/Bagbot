@@ -17,7 +17,7 @@ module.exports = {
         .setDescription('Image jointe (optionnel)')
         .setRequired(false)
     )
-    .setDMPermission(false),
+    .setDMPermission(true),
   
   async execute(interaction) {
     // Logique de la commande confess gérée par bot.js

@@ -19,7 +19,7 @@ module.exports = {
       option.setName('membre')
         .setDescription('Membre concerné (optionnel)')
         .setRequired(false))
-    .setDMPermission(false),
+    .setDMPermission(true),
 
   description: 'Commande niveau',
   

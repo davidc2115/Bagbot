@@ -5,7 +5,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('pecher')
     .setDescription('Aller à la pêche')
-    .setDMPermission(false),
+    .setDMPermission(true),
   
   async execute(interaction) {
     // Cette commande est gérée par bot.js via handleEconomyAction
