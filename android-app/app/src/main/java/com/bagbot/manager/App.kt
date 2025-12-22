@@ -1914,8 +1914,12 @@ fun MusicScreen(
                             connection.connect()
                             
                             if (connection.responseCode == 200) {
-                                // Créer fichier temporaire dans le cache interne (pas besoin de permission)
-                                val tempFile = java.io.File.createTempFile("music_", ".mp3", context.cacheDir)
+                                // Créer fichier temporaire dans le cache externe (Android 10+ compatible)
+                                val cacheDir = context.externalCacheDir ?: context.cacheDir
+                                val tempFile = java.io.File.createTempFile("music_", ".mp3", cacheDir)
+                                tempFile.deleteOnExit()
+                                
+                                android.util.Log.d("MusicPlayer", "Downloading to: ${tempFile.absolutePath}")
                                 
                                 // Télécharger
                                 connection.inputStream.use { input ->
@@ -1924,7 +1928,7 @@ fun MusicScreen(
                                     }
                                 }
                                 
-                                android.util.Log.d("MusicPlayer", "Downloaded to: ${tempFile.absolutePath}")
+                                android.util.Log.d("MusicPlayer", "Downloaded successfully: ${tempFile.length()} bytes")
                                 
                                 withContext(Dispatchers.Main) {
                                     snackbar.showSnackbar("⏳ Préparation...")
