@@ -1,7 +1,7 @@
 // Handlers pour les boutons de configuration mot-caché
 // À intégrer dans bot.js dans la section client.on('interactionCreate')
 
-const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { readConfig, writeConfig } = require('../storage/jsonStore');
 
 async function handleMotCacheButton(interaction) {
@@ -261,10 +261,43 @@ async function handleMotCacheButton(interaction) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    return interaction.update({
-      embeds: [embed],
-      components: [row1, row2, row3]
-    });
+    // Vérifier si l'interaction peut être mise à jour ou si on doit répondre
+    try {
+      if (interaction.deferred) {
+        return interaction.editReply({
+          embeds: [embed],
+          components: [row1, row2, row3]
+        });
+      } else if (interaction.replied) {
+        return interaction.followUp({
+          embeds: [embed],
+          components: [row1, row2, row3],
+          ephemeral: true
+        });
+      } else {
+        return interaction.reply({
+          embeds: [embed],
+          components: [row1, row2, row3],
+          ephemeral: true
+        });
+      }
+    } catch (err) {
+      console.error('[MOT-CACHE] Error responding to config button:', err);
+      // Fallback: essayer de répondre
+      try {
+        return interaction.reply({
+          embeds: [embed],
+          components: [row1, row2, row3],
+          ephemeral: true
+        });
+      } catch (_) {
+        return interaction.followUp({
+          embeds: [embed],
+          components: [row1, row2, row3],
+          ephemeral: true
+        });
+      }
+    }
   }
 
   // Deviner le mot (modal)

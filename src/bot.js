@@ -12778,6 +12778,17 @@ client.on(Events.MessageCreate, async (message) => {
         console.log(`[ECONOMY DEBUG] Message reward: User ${message.author.id} in guild ${message.guild.id}: ${beforeAmount} + ${reward} = ${userEco.amount}`);
       }
     } catch (_) {}
+
+    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
+    try {
+      const motCacheHandler = require('./modules/mot-cache-handler');
+      await motCacheHandler.handleMessage(message);
+    } catch (err) {
+      // Silent fail - don't block message processing
+      if (err.message && !err.message.includes('Cannot find module')) {
+        console.error('[MOT-CACHE] Error in message handler:', err.message);
+      }
+    }
   } catch (_) {}
 });
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
