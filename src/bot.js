@@ -6704,6 +6704,35 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.isChatInputCommand() && interaction.commandName === 'restore') { try { await global.__backupCmd.handleRestorerCommand(interaction); } catch (e) { try { console.error('[Restore] top-level error', e && e.stack || e); } catch (_) {}  try { if (!interaction.deferred && !interaction.replied) { await interaction.reply({ content: '❌ Erreur restauration.', ephemeral: true }); } else { await interaction.followUp({ content: '❌ Erreur restauration.', ephemeral: true }); } } catch (_) {} } return; }
       if (interaction.isStringSelectMenu() && interaction.customId === 'backup_select') { try { await global.__backupCmd.handleInteraction(interaction); } catch (e) { try { if (!interaction.deferred && !interaction.replied) { await interaction.reply({ content: '❌ Erreur.', ephemeral: true }); } else { await interaction.followUp({ content: '❌ Erreur.', ephemeral: true }); } } catch (_) {} } return; }
       if ((interaction.isButton() && (interaction.customId.startsWith('backup_') || interaction.customId.startsWith('restore_')))) { try { await global.__backupCmd.handleInteraction(interaction); } catch (e) { try { if (!interaction.deferred && !interaction.replied) { await interaction.reply({ content: '❌ Erreur.', ephemeral: true }); } else { await interaction.followUp({ content: '❌ Erreur.', ephemeral: true }); } } catch (_) {} } return; }
+    
+    // Mot-caché handlers
+    try {
+      if (!global.__motCacheHandlers) {
+        global.__motCacheHandlers = require('./modules/mot-cache-buttons');
+      }
+      // Boutons mot-cache
+      if (interaction.isButton() && interaction.customId && interaction.customId.startsWith('motcache_')) {
+        await global.__motCacheHandlers.handleMotCacheButton(interaction);
+        return;
+      }
+      // Modals mot-cache
+      if (interaction.isModalSubmit() && interaction.customId && interaction.customId.startsWith('motcache_modal_')) {
+        await global.__motCacheHandlers.handleMotCacheModal(interaction);
+        return;
+      }
+      // Select menus mot-cache
+      if (interaction.isStringSelectMenu() && interaction.customId && interaction.customId.startsWith('motcache_select_')) {
+        await global.__motCacheHandlers.handleMotCacheSelect(interaction);
+        return;
+      }
+    } catch (motCacheErr) {
+      console.error('[MOT-CACHE] Error handling interaction:', motCacheErr);
+      try {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: '❌ Erreur lors du traitement de l\'interaction.', ephemeral: true });
+        }
+      } catch (_) {}
+    }
     // Handler pour /config serveur (menu classique)
     if (interaction.isChatInputCommand() && interaction.commandName === 'config') {
       console.log("[CONFIG DEBUG] Commande /config reçue");
@@ -12486,6 +12515,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   try {
     if (!message.guild) return;
+    
+    // Mot-caché handler (doit être appelé en premier pour ne pas interférer)
+    try {
+      if (!global.__motCacheMessageHandler) {
+        global.__motCacheMessageHandler = require('./modules/mot-cache-handler');
+      }
+      await global.__motCacheMessageHandler.handleMessage(message);
+    } catch (motCacheErr) {
+      // Silent fail - ne pas bloquer le traitement des messages
+    }
     
     // Track member activity for inactivity kick
     // Track member activity for inactivity kick
