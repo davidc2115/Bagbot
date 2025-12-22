@@ -38,6 +38,10 @@ async function handleMotCacheButton(interaction) {
     await writeConfig(config);
 
     // Reconstruire le panneau de config avec le nouvel état
+    const modeText = motCache.mode === 'daily' 
+      ? `📅 Programmé (${motCache.lettersPerDay || 1} lettre(s)/jour)` 
+      : `🎲 Probabilité (${motCache.probability || 5}%)`;
+
     const embed = new EmbedBuilder()
       .setTitle('⚙️ Configuration Mot-Caché')
       .setDescription('────────────────────────────')
@@ -46,7 +50,9 @@ async function handleMotCacheButton(interaction) {
         { name: '🎯 Mot cible', value: motCache.targetWord || 'Non défini', inline: true },
         { name: '🔍 Emoji', value: motCache.emoji || '🔍', inline: true },
         { name: '💰 Récompense', value: `${motCache.rewardAmount || 5000} BAG$`, inline: true },
-        { name: '📋 Salons jeu', value: motCache.allowedChannels && motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salons` : 'Tous', inline: true },
+        { name: '🎮 Mode de jeu', value: modeText, inline: true },
+        { name: '📏 Longueur min.', value: `${motCache.minMessageLength || 15} caractères`, inline: true },
+        { name: '📋 Salons jeu', value: motCache.allowedChannels && motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salon(s)` : 'Tous', inline: true },
         { name: '💬 Salon lettres', value: motCache.letterNotificationChannel ? `<#${motCache.letterNotificationChannel}>` : 'Non configuré', inline: true },
         { name: '📢 Salon gagnant', value: motCache.winnerNotificationChannel ? `<#${motCache.winnerNotificationChannel}>` : 'Non configuré', inline: true }
       )
@@ -62,16 +68,27 @@ async function handleMotCacheButton(interaction) {
         .setLabel('🎯 Changer le mot')
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId('motcache_emoji')
-        .setLabel('🔍 Emoji')
-        .setStyle(ButtonStyle.Secondary)
+        .setCustomId('motcache_mode')
+        .setLabel('🎮 Mode de jeu')
+        .setStyle(ButtonStyle.Primary)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
+        .setCustomId('motcache_emoji')
+        .setLabel('🔍 Emoji')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('motcache_minlength')
+        .setLabel('📏 Longueur min.')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId('motcache_gamechannels')
         .setLabel('📋 Salons jeu')
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    const row3 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('motcache_letternotifchannel')
         .setLabel('💬 Salon lettres')
@@ -79,10 +96,7 @@ async function handleMotCacheButton(interaction) {
       new ButtonBuilder()
         .setCustomId('motcache_winnernotifchannel')
         .setLabel('📢 Salon gagnant')
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-    const row3 = new ActionRowBuilder().addComponents(
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId('motcache_reset')
         .setLabel('🔄 Reset jeu')
@@ -121,19 +135,21 @@ async function handleMotCacheButton(interaction) {
       .setPlaceholder('Choisir le mode de jeu')
       .addOptions([
         {
-          label: '📅 Programmé',
-          description: 'X lettres par jour à heure fixe',
-          value: 'programmed'
+          label: '📅 Quotidien',
+          description: 'X lettres par jour distribuées automatiquement',
+          value: 'daily',
+          emoji: '📅'
         },
         {
           label: '🎲 Probabilité',
           description: 'Chance aléatoire sur chaque message',
-          value: 'probability'
+          value: 'probability',
+          emoji: '🎲'
         }
       ]);
 
     return interaction.update({
-      content: '🎲 Sélectionne le mode de jeu :',
+      content: '🎮 **Sélectionne le mode de jeu :**\n\n📅 **Quotidien** : Les lettres sont distribuées automatiquement (X par jour)\n🎲 **Probabilité** : Chance aléatoire à chaque message',
       components: [new ActionRowBuilder().addComponents(menu)]
     });
   }
@@ -248,6 +264,24 @@ async function handleMotCacheButton(interaction) {
     return interaction.showModal(modal);
   }
 
+  // Configurer la longueur minimale des messages
+  if (buttonId === 'motcache_minlength') {
+    const modal = new ModalBuilder()
+      .setCustomId('motcache_modal_minlength')
+      .setTitle('📏 Longueur minimale des messages');
+
+    const lengthInput = new TextInputBuilder()
+      .setCustomId('minlength')
+      .setLabel('Longueur minimale (en caractères)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Ex: 15, 20, 30...')
+      .setRequired(true)
+      .setValue(motCache.minMessageLength?.toString() || '15');
+
+    modal.addComponents(new ActionRowBuilder().addComponents(lengthInput));
+    return interaction.showModal(modal);
+  }
+
   // Reset jeu
   if (buttonId === 'motcache_reset') {
     motCache.collections = {};
@@ -289,6 +323,10 @@ async function handleMotCacheButton(interaction) {
 
     console.log(`[MOT-CACHE-HANDLER] Construction de l'embed config`);
     
+    const modeText = motCache.mode === 'daily' 
+      ? `📅 Programmé (${motCache.lettersPerDay || 1} lettre(s)/jour)` 
+      : `🎲 Probabilité (${motCache.probability || 5}%)`;
+
     const embed = new EmbedBuilder()
       .setTitle('⚙️ Configuration Mot-Caché')
       .setDescription('────────────────────────────')
@@ -297,7 +335,9 @@ async function handleMotCacheButton(interaction) {
         { name: '🎯 Mot cible', value: motCache.targetWord || 'Non défini', inline: true },
         { name: '🔍 Emoji', value: motCache.emoji || '🔍', inline: true },
         { name: '💰 Récompense', value: `${motCache.rewardAmount || 5000} BAG$`, inline: true },
-        { name: '📋 Salons jeu', value: motCache.allowedChannels && motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salons` : 'Tous', inline: true },
+        { name: '🎮 Mode de jeu', value: modeText, inline: true },
+        { name: '📏 Longueur min.', value: `${motCache.minMessageLength || 15} caractères`, inline: true },
+        { name: '📋 Salons jeu', value: motCache.allowedChannels && motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salon(s)` : 'Tous', inline: true },
         { name: '💬 Salon lettres', value: motCache.letterNotificationChannel ? `<#${motCache.letterNotificationChannel}>` : 'Non configuré', inline: true },
         { name: '📢 Salon gagnant', value: motCache.winnerNotificationChannel ? `<#${motCache.winnerNotificationChannel}>` : 'Non configuré', inline: true }
       )
@@ -313,16 +353,27 @@ async function handleMotCacheButton(interaction) {
         .setLabel('🎯 Changer le mot')
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId('motcache_emoji')
-        .setLabel('🔍 Emoji')
-        .setStyle(ButtonStyle.Secondary)
+        .setCustomId('motcache_mode')
+        .setLabel('🎮 Mode de jeu')
+        .setStyle(ButtonStyle.Primary)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
+        .setCustomId('motcache_emoji')
+        .setLabel('🔍 Emoji')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('motcache_minlength')
+        .setLabel('📏 Longueur min.')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId('motcache_gamechannels')
         .setLabel('📋 Salons jeu')
-        .setStyle(ButtonStyle.Secondary),
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    const row3 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('motcache_letternotifchannel')
         .setLabel('💬 Salon lettres')
@@ -330,10 +381,7 @@ async function handleMotCacheButton(interaction) {
       new ButtonBuilder()
         .setCustomId('motcache_winnernotifchannel')
         .setLabel('📢 Salon gagnant')
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-    const row3 = new ActionRowBuilder().addComponents(
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId('motcache_reset')
         .setLabel('🔄 Reset jeu')
@@ -474,6 +522,26 @@ async function handleMotCacheModal(interaction) {
 
     return interaction.reply({
       content: `✅ Emoji défini : ${emoji}`,
+      ephemeral: true
+    });
+  }
+
+  if (modalId === 'motcache_modal_minlength') {
+    const minLength = parseInt(interaction.fields.getTextInputValue('minlength'));
+    
+    if (isNaN(minLength) || minLength < 1 || minLength > 500) {
+      return interaction.reply({
+        content: '❌ La longueur minimale doit être entre 1 et 500 caractères.',
+        ephemeral: true
+      });
+    }
+
+    motCache.minMessageLength = minLength;
+    guildConfig.motCache = motCache;
+    await writeConfig(config);
+
+    return interaction.reply({
+      content: `✅ Longueur minimale définie : **${minLength} caractères**`,
       ephemeral: true
     });
   }
@@ -619,8 +687,45 @@ async function handleMotCacheSelect(interaction) {
     guildConfig.motCache = motCache;
     await writeConfig(config);
 
+    // Ouvrir automatiquement le modal de configuration selon le mode choisi
+    if (mode === 'daily') {
+      // Mode quotidien : demander le nombre de lettres par jour
+      const modal = new ModalBuilder()
+        .setCustomId('motcache_modal_lettersperday')
+        .setTitle('📅 Lettres par jour');
+
+      const lettersInput = new TextInputBuilder()
+        .setCustomId('letters')
+        .setLabel('Nombre de lettres par jour')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Ex: 1, 2, 3...')
+        .setRequired(true)
+        .setValue(motCache.lettersPerDay?.toString() || '1');
+
+      modal.addComponents(new ActionRowBuilder().addComponents(lettersInput));
+      
+      return interaction.showModal(modal);
+    } else if (mode === 'probability') {
+      // Mode probabilité : demander le pourcentage
+      const modal = new ModalBuilder()
+        .setCustomId('motcache_modal_probability')
+        .setTitle('📊 Probabilité');
+
+      const probInput = new TextInputBuilder()
+        .setCustomId('probability')
+        .setLabel('Probabilité (%)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Ex: 5 pour 5%')
+        .setRequired(true)
+        .setValue(motCache.probability?.toString() || '5');
+
+      modal.addComponents(new ActionRowBuilder().addComponents(probInput));
+      
+      return interaction.showModal(modal);
+    }
+
     return interaction.update({
-      content: `✅ Mode défini : **${mode === 'programmed' ? '📅 Programmé' : '🎲 Probabilité'}**`,
+      content: `✅ Mode défini : **${mode === 'daily' ? '📅 Quotidien' : '🎲 Probabilité'}**`,
       components: []
     });
   }

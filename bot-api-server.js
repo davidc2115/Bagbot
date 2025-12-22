@@ -1061,6 +1061,247 @@ app.delete('/api/music/playlists/:id', requireAuth, (req, res) => {
   }
 });
 
+// ========== MOT-CACHE ENDPOINTS ==========
+
+// GET - Récupérer l'état du jeu mot-caché
+app.get('/api/mot-cache', requireAuth, async (req, res) => {
+  try {
+    const config = await readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const motCache = guildConfig.motCache || {
+      enabled: false,
+      targetWord: '',
+      mode: 'probability',
+      probability: 5,
+      lettersPerDay: 1,
+      emoji: '🔍',
+      minMessageLength: 15,
+      allowedChannels: [],
+      letterNotificationChannel: null,
+      winnerNotificationChannel: null,
+      rewardAmount: 5000,
+      collections: {},
+      winners: []
+    };
+
+    // Ne pas envoyer le mot cible si le jeu est actif
+    const safeMotCache = {
+      enabled: motCache.enabled,
+      hasWord: !!motCache.targetWord,
+      wordLength: motCache.targetWord ? motCache.targetWord.length : 0,
+      mode: motCache.mode,
+      probability: motCache.probability,
+      lettersPerDay: motCache.lettersPerDay,
+      emoji: motCache.emoji,
+      minMessageLength: motCache.minMessageLength,
+      rewardAmount: motCache.rewardAmount,
+      totalPlayers: Object.keys(motCache.collections || {}).length,
+      totalWinners: (motCache.winners || []).length
+    };
+
+    res.json({
+      success: true,
+      motCache: safeMotCache
+    });
+  } catch (error) {
+    console.error('[API] Error getting mot-cache:', error);
+    res.status(500).json({ error: 'Failed to get mot-cache data' });
+  }
+});
+
+// GET - Récupérer la progression de l'utilisateur
+app.get('/api/mot-cache/my-progress', requireAuth, async (req, res) => {
+  try {
+    const userId = req.userData.userId;
+    const config = await readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const motCache = guildConfig.motCache || {};
+
+    if (!motCache.enabled || !motCache.targetWord) {
+      return res.json({
+        success: true,
+        active: false,
+        message: 'Le jeu n\'est pas activé'
+      });
+    }
+
+    const userLetters = motCache.collections?.[userId] || [];
+    const targetWord = motCache.targetWord.toUpperCase();
+    const wordLength = targetWord.length;
+    const progress = Math.round((userLetters.length / wordLength) * 100);
+
+    // Afficher le mot avec les lettres révélées
+    const wordDisplay = targetWord.split('').map(letter => {
+      return userLetters.includes(letter) ? letter : '_';
+    }).join(' ');
+
+    res.json({
+      success: true,
+      active: true,
+      wordDisplay,
+      letters: userLetters,
+      letterCount: userLetters.length,
+      wordLength,
+      progress
+    });
+  } catch (error) {
+    console.error('[API] Error getting user progress:', error);
+    res.status(500).json({ error: 'Failed to get user progress' });
+  }
+});
+
+// POST - Deviner le mot
+app.post('/api/mot-cache/guess', requireAuth, express.json(), async (req, res) => {
+  try {
+    const userId = req.userData.userId;
+    const { word } = req.body;
+
+    if (!word || typeof word !== 'string') {
+      return res.status(400).json({ error: 'Word is required' });
+    }
+
+    const config = await readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const motCache = guildConfig.motCache || {};
+
+    if (!motCache.enabled || !motCache.targetWord) {
+      return res.json({
+        success: false,
+        message: 'Le jeu n\'est pas actif'
+      });
+    }
+
+    const guessedWord = word.toUpperCase().trim();
+    const targetWord = motCache.targetWord.toUpperCase();
+
+    if (guessedWord === targetWord) {
+      // GAGNÉ !
+      const reward = motCache.rewardAmount || 5000;
+      
+      // Ajouter l'argent
+      if (!guildConfig.economy) guildConfig.economy = { balances: {} };
+      if (!guildConfig.economy.balances) guildConfig.economy.balances = {};
+      if (!guildConfig.economy.balances[userId]) {
+        guildConfig.economy.balances[userId] = { amount: 0, money: 0 };
+      }
+      guildConfig.economy.balances[userId].amount += reward;
+      guildConfig.economy.balances[userId].money += reward;
+
+      // Enregistrer le gagnant
+      if (!motCache.winners) motCache.winners = [];
+      motCache.winners.push({
+        userId,
+        username: req.userData.username || 'Utilisateur',
+        word: targetWord,
+        date: Date.now(),
+        reward
+      });
+
+      // Reset le jeu
+      motCache.collections = {};
+      motCache.targetWord = '';
+      motCache.enabled = false;
+
+      config.guilds[GUILD] = guildConfig;
+      await writeConfig(config);
+
+      // Notifier dans Discord si possible
+      try {
+        const client = req.app.locals.client;
+        const guild = client.guilds.cache.get(GUILD);
+        if (guild && motCache.winnerNotificationChannel) {
+          const notifChannel = guild.channels.cache.get(motCache.winnerNotificationChannel);
+          if (notifChannel) {
+            notifChannel.send(
+              `🎉 **<@${userId}> a trouvé le mot caché depuis l'application Android !**\n\n` +
+              `🎯 Mot: **${targetWord}**\n💰 Récompense: **${reward} BAG$**`
+            );
+          }
+        }
+      } catch (notifError) {
+        console.error('[API] Error sending winner notification:', notifError);
+      }
+
+      return res.json({
+        success: true,
+        correct: true,
+        message: 'Félicitations ! Tu as trouvé le mot !',
+        word: targetWord,
+        reward
+      });
+    } else {
+      const userLetters = motCache.collections?.[userId] || [];
+      return res.json({
+        success: true,
+        correct: false,
+        message: 'Ce n\'est pas le bon mot. Continue à collecter des lettres !',
+        userLetters
+      });
+    }
+  } catch (error) {
+    console.error('[API] Error processing guess:', error);
+    res.status(500).json({ error: 'Failed to process guess' });
+  }
+});
+
+// GET - Config admin
+app.get('/api/mot-cache/config', requireAuth, async (req, res) => {
+  try {
+    const client = req.app.locals.client;
+    const permissions = await checkUserPermissions(req.userData.userId, client);
+    
+    if (!permissions.isAdmin && !permissions.isFounder) {
+      return res.status(403).json({ error: 'Forbidden: Admin only' });
+    }
+
+    const config = await readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const motCache = guildConfig.motCache || {};
+
+    res.json({
+      success: true,
+      config: motCache
+    });
+  } catch (error) {
+    console.error('[API] Error getting mot-cache config:', error);
+    res.status(500).json({ error: 'Failed to get mot-cache config' });
+  }
+});
+
+// POST - Update config admin
+app.post('/api/mot-cache/config', requireAuth, express.json(), async (req, res) => {
+  try {
+    const client = req.app.locals.client;
+    const permissions = await checkUserPermissions(req.userData.userId, client);
+    
+    if (!permissions.isAdmin && !permissions.isFounder) {
+      return res.status(403).json({ error: 'Forbidden: Admin only' });
+    }
+
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+    
+    const motCache = config.guilds[GUILD].motCache || {};
+    
+    // Mettre à jour la config avec les données reçues
+    const updates = req.body;
+    Object.assign(motCache, updates);
+    
+    config.guilds[GUILD].motCache = motCache;
+    await writeConfig(config);
+
+    res.json({
+      success: true,
+      message: 'Configuration mise à jour',
+      config: motCache
+    });
+  } catch (error) {
+    console.error('[API] Error updating mot-cache config:', error);
+    res.status(500).json({ error: 'Failed to update mot-cache config' });
+  }
+});
+
 // ========== FONCTION D'INITIALISATION ==========
 
 function startApiServer(client) {
