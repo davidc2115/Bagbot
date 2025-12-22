@@ -823,54 +823,6 @@ fun StaffChatScreen(
             Column(Modifier.padding(12.dp)) {
                 // Boutons d'actions rapides
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Bouton Mention (@)
-                    var showMentionDialog by remember { mutableStateOf(false) }
-                    Button(
-                        onClick = { showMentionDialog = true },
-                        enabled = !isSending,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2))
-                    ) {
-                        Text("@", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Mention", fontSize = 12.sp)
-                    }
-                    
-                    // Dialog pour sélectionner un membre à mentionner
-                    if (showMentionDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showMentionDialog = false },
-                            title = { Text("@ Mentionner un membre") },
-                            text = {
-                                LazyColumn {
-                                    items(onlineAdmins) { admin ->
-                                        val adminId = admin["userId"].safeStringOrEmpty()
-                                        val adminName = members[adminId] ?: admin["username"].safeString() ?: "Inconnu"
-                                        val currentUserId = userInfo?.get("id").safeStringOrEmpty()
-                                        
-                                        if (adminId != currentUserId) {
-                                            Button(
-                                                onClick = {
-                                                    newMessage += "@$adminName "
-                                                    showMentionDialog = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                                            ) {
-                                                Icon(Icons.Default.Person, null)
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(adminName)
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = { showMentionDialog = false }) {
-                                    Text("Annuler")
-                                }
-                            }
-                        )
-                    }
-                    
                     Button(
                         onClick = { 
                             scope.launch {
@@ -888,13 +840,62 @@ fun StaffChatScreen(
                 
                 Spacer(Modifier.height(8.dp))
                 
+                // Détection des mentions (@)
+                val mentionSuggestions = remember(newMessage, onlineAdmins) {
+                    val lastWord = newMessage.split(" ").lastOrNull() ?: ""
+                    if (lastWord.startsWith("@") && lastWord.length > 1) {
+                        val query = lastWord.substring(1).lowercase()
+                        onlineAdmins.filter { admin ->
+                            val adminId = admin["userId"].safeStringOrEmpty()
+                            val adminName = (members[adminId] ?: admin["username"].safeString() ?: "").lowercase()
+                            val currentUserId = userInfo?.get("id").safeStringOrEmpty()
+                            adminId != currentUserId && adminName.contains(query)
+                        }
+                    } else {
+                        emptyList()
+                    }
+                }
+                
+                // Liste de suggestions de mentions (comme Discord)
+                if (mentionSuggestions.isNotEmpty()) {
+                    Card(
+                        Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                    ) {
+                        LazyColumn {
+                            items(mentionSuggestions) { admin ->
+                                val adminId = admin["userId"].safeStringOrEmpty()
+                                val adminName = members[adminId] ?: admin["username"].safeString() ?: "Inconnu"
+                                
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            // Remplacer la mention partielle par la mention complète
+                                            val words = newMessage.split(" ").toMutableList()
+                                            words[words.lastIndex] = "@$adminName"
+                                            newMessage = words.joinToString(" ") + " "
+                                        }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Person, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(adminName, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                
                 // Champ de texte
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                     OutlinedTextField(
                         value = newMessage,
                         onValueChange = { newMessage = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Écrivez un message...") },
+                        placeholder = { Text("Écrivez un message... (@ pour mentionner)") },
                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
                         maxLines = 4
                     )

@@ -12,8 +12,8 @@ android {
         applicationId = "com.bagbot.manager"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5914
-        versionName = "5.9.14"
+        versionCode = 5915
+        versionName = "5.9.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -95,6 +95,9 @@ dependencies {
     
     // OSMDroid for maps
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+    
+    // WorkManager for background notifications
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

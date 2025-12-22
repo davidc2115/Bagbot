@@ -52,7 +52,7 @@ jobs:
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BagBot-Manager-APK
+        name: BagBotManager-v5.9.15.apk
         path: release/BagBot-Manager-${{ github.ref_name }}.apk
         
     - name: Create Release
@@ -63,26 +63,27 @@ jobs:
         body: |
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
-          ### ✨ NOUVEAUTÉS v5.9.14 - Chat Staff Amélioré !
+          ### ✨ NOUVEAUTÉS v5.9.15 - Notifications + Mentions Discord-like !
           
-          #### 🔔 Notifications Push (NOUVEAU!)
-          - **Alertes automatiques**: Recevez une notification pour chaque nouveau message du chat staff
-          - **Format**: `💬 Chat Staff - [Nom] : [Message]`
-          - **Smart**: Pas de notification pour vos propres messages
-          - **Son & Vibration**: Notifications complètes avec retour haptique
-          - **Canal dédié**: Canal de notification "Chat Staff" avec priorité haute
+          #### 🎯 Auto-Complétion @ comme Discord (NOUVEAU!)
+          - **Système Discord-like**: Tapez @ dans le message pour voir les suggestions
+          - **Filtrage en temps réel**: Les suggestions se filtrent pendant que vous tapez
+          - **UX améliorée**: Plus naturel qu'un bouton séparé
+          - **Inline**: Les suggestions apparaissent directement dans la conversation
+          - **1 clic**: Cliquez sur un nom pour l'insérer automatiquement
           
-          #### 📢 Système de Mention @ (NOUVEAU!)
-          - **Bouton @**: Mentionnez facilement les membres du staff
-          - **Liste intelligente**: Voir tous les admins en ligne
-          - **Insertion automatique**: Clic sur un nom l'insère dans votre message
-          - **Format Discord**: `@NomAdmin` comme sur Discord
+          #### 🔔 Notifications en Arrière-Plan (NOUVEAU!)
+          - **WorkManager**: Vérifications périodiques même app fermée
+          - **Permissions Android 13+**: Support POST_NOTIFICATIONS
+          - **Canal dédié**: "Chat Staff" avec priorité haute
+          - **Son & Vibration**: Notifications complètes
+          - **Persistance**: Continue de fonctionner après redémarrage appareil
           
-          #### 🧹 Interface Chat Staff Épurée
-          - **❌ Retiré**: Boutons `/actionverite` et `/motcache` (non pertinents pour chat staff)
-          - **✅ Ajouté**: Bouton @ Mention pour ping facile
-          - **✅ Conservé**: Bouton 📎 Fichier (à venir)
-          - **Plus propre**: Interface focalisée sur la communication staff
+          #### 🧹 Interface Optimisée
+          - **❌ Bouton @ retiré**: Remplacé par auto-complétion inline
+          - **✅ Auto-complétion @**: Comme Discord/Slack
+          - **✅ Placeholder amélioré**: "Écrivez un message... (@ pour mentionner)"
+          - **Plus fluide**: Navigation et saisie optimisées
           
           ### ✨ CORRECTIONS MAJEURES v5.9.10 - Stabilité & Fixes !
           
@@ -207,17 +208,19 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 5.9.14 (versionCode 5914)
+          - **Version**: 5.9.15 (versionCode 5915)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
-          - **Nouveautés**: Notifications push + Mentions + Interface épurée
+          - **Nouveautés**: Auto-complétion @ + WorkManager + Notifications arrière-plan
+          - **Nouvelles dépendances**: androidx.work:work-runtime-ktx:2.9.0
           
-          ### 🎁 Nouveautés v5.9.14
-          - ✅ **Notifications Push**: Alertes pour nouveaux messages chat staff
-          - ✅ **Système @ Mention**: Ping facile des membres avec bouton dédié
-          - ✅ **Interface Épurée**: Retrait des commandes Discord non pertinentes
-          - ✅ **Smart Notifications**: Détection intelligente (pas pour ses propres messages)
+          ### 🎁 Nouveautés v5.9.15
+          - ✅ **Auto-Complétion @**: Système de mentions comme Discord (taper @ pour suggestions)
+          - ✅ **Notifications Arrière-Plan**: WorkManager pour notifications même app fermée
+          - ✅ **Filtrage Temps Réel**: Les suggestions se mettent à jour pendant la saisie
+          - ✅ **Permissions Android 13+**: Support complet des notifications modernes
+          - ✅ **UX Discord-like**: Interface familière et intuitive
           
           ### 🐛 Corrections de bugs v5.9.10
           - ✅ **URL Placeholder**: Port 33003 au lieu de 33002

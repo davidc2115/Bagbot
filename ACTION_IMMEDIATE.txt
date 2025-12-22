@@ -1,0 +1,105 @@
+╔══════════════════════════════════════════════════════════════╗
+║                  🚀 ACTION IMMÉDIATE REQUISE                 ║
+╚══════════════════════════════════════════════════════════════╝
+
+📅 Date : 22 Décembre 2025
+🔧 Statut : PRÊT POUR DÉPLOIEMENT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ MODIFICATIONS APPLIQUÉES
+
+1. 🤖 Bot Discord
+   └─ Logs debug ajoutés au système mot-caché
+   
+2. 📱 Application Android v5.9.15
+   ├─ Mentions @ comme Discord (auto-complétion)
+   ├─ Notifications en arrière-plan (WorkManager)
+   └─ Permissions Android 13+ ajoutées
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 COMMANDE À EXÉCUTER MAINTENANT
+
+Sur votre machine locale :
+
+    bash DEPLOIEMENT_FINAL_22DEC.sh
+
+Mot de passe SSH : bagbot
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 QUE FAIT CE SCRIPT ?
+
+1. 🔄 Redémarre le bot Discord avec les nouveaux logs
+2. 📊 Affiche les logs récents
+3. 💡 Donne instructions pour compiler l'APK
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 APRÈS LE REDÉMARRAGE
+
+1. Observer les logs mot-caché :
+   
+   pm2 logs bagbot | grep "MOT-CACHE"
+
+2. Configurer le jeu :
+   
+   Discord → /mot-cache → Config
+   - Activer le jeu
+   - Mot : "CALIN"
+   - Probabilité : 50% (pour tester)
+
+3. Envoyer des messages (>15 caractères)
+
+4. Observer les logs en temps réel
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 COMPILER L'APK ANDROID
+
+Option A - GitHub Actions (Recommandé) :
+
+    git tag -a v5.9.15 -m "v5.9.15 - Notifications + Mentions Discord"
+    git push origin v5.9.15
+
+Option B - Local :
+
+    cd android-app
+    ./gradlew clean assembleRelease
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION COMPLÈTE
+
+- CORRECTIONS_FINALES_22DEC2025.md
+- RESUME_MODIFICATIONS_22DEC2025_V2.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 LOGS ATTENDUS (Mot-Caché)
+
+✅ Bon :
+[MOT-CACHE] Message reçu de User - Jeu activé: true, Mot: défini
+[MOT-CACHE] Mode probabilité: 50%, Random: 12.34, ShouldHide: true
+[MOT-CACHE] Letter 'C' given to User (1/5)
+
+❌ Problème - Jeu désactivé :
+[MOT-CACHE] Message reçu de User - Jeu activé: false, Mot: défini
+[MOT-CACHE] Jeu non activé
+
+❌ Problème - Pas de mot :
+[MOT-CACHE] Message reçu de User - Jeu activé: true, Mot: non défini
+[MOT-CACHE] Mot non défini
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ RÉSUMÉ ULTRA-RAPIDE
+
+1. bash DEPLOIEMENT_FINAL_22DEC.sh
+2. pm2 logs bagbot | grep "MOT-CACHE"
+3. /mot-cache → Config → Activer → Mot: CALIN → Probabilité: 50%
+4. Envoyer messages et observer logs
+5. git tag -a v5.9.15 -m "v5.9.15" && git push origin v5.9.15
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
