@@ -1,0 +1,94 @@
+════════════════════════════════════════════════════════════════
+               🔍 LOGS ULTRA-DÉTAILLÉS AJOUTÉS
+════════════════════════════════════════════════════════════════
+
+J'ai ajouté des logs TRÈS détaillés qui vont montrer:
+
+✅ Type d'interaction (Button/Modal/etc)
+✅ ID de l'interaction
+✅ État (replied/deferred)
+✅ Code d'erreur Discord exact
+✅ Message d'erreur précis
+
+════════════════════════════════════════════════════════════════
+🚀 REDÉMARRER LE BOT
+════════════════════════════════════════════════════════════════
+
+ssh -p 33000 bagbot@88.174.155.230 << 'EOF'
+cd /home/bagbot/Bag-bot
+git pull origin cursor/command-deployment-and-emoji-issue-1db6
+pm2 restart bagbot
+sleep 3
+pm2 logs bagbot --lines 30 --nostream
+EOF
+
+Mot de passe: bagbot
+
+════════════════════════════════════════════════════════════════
+🔍 VOIR LES LOGS EN TEMPS RÉEL
+════════════════════════════════════════════════════════════════
+
+Ouvrir un 2ème terminal:
+
+ssh -p 33000 bagbot@88.174.155.230
+pm2 logs bagbot | grep "MOT-CACHE"
+
+════════════════════════════════════════════════════════════════
+🎮 TESTER SUR DISCORD
+════════════════════════════════════════════════════════════════
+
+1. /mot-cache
+2. Cliquer "⚙️ Config"
+3. REGARDER LES LOGS
+
+════════════════════════════════════════════════════════════════
+📊 LOGS ATTENDUS SI TOUT FONCTIONNE
+════════════════════════════════════════════════════════════════
+
+[MOT-CACHE] ✅ Bouton détecté: motcache_open_config
+[MOT-CACHE] Type: 2, ID: 1234567890
+[MOT-CACHE] Replied: false, Deferred: false
+[MOT-CACHE-HANDLER] Bouton reçu: motcache_open_config
+[MOT-CACHE-HANDLER] Traitement bouton: motcache_open_config
+[MOT-CACHE-HANDLER] Bouton config détecté
+[MOT-CACHE-HANDLER] Construction de l'embed config
+[MOT-CACHE-HANDLER] Tentative update (ephemeral button)
+[MOT-CACHE-HANDLER] ✅ Update réussi
+[MOT-CACHE] ✅ Handler terminé avec succès
+
+➜ Panel config s'affiche sur Discord ✅
+
+════════════════════════════════════════════════════════════════
+❌ SI ERREUR "Unknown interaction"
+════════════════════════════════════════════════════════════════
+
+[MOT-CACHE-HANDLER] ❌ Erreur update: Unknown interaction
+[MOT-CACHE-HANDLER] Code erreur: 10062
+[MOT-CACHE-HANDLER] ⚠️ PROBLÈME: Interaction expirée (>3 secondes)
+
+➜ Cause: Le bot met >3s à répondre
+➜ Solution: Vérifier charge serveur / optimiser code
+
+════════════════════════════════════════════════════════════════
+❌ SI ERREUR "already been acknowledged"
+════════════════════════════════════════════════════════════════
+
+[MOT-CACHE-HANDLER] Code erreur: 40060
+[MOT-CACHE-HANDLER] ⚠️ PROBLÈME: Interaction déjà acknowledgée
+
+➜ Cause: Le handler est appelé 2 fois
+➜ Solution: Vérifier qu'il n'y a pas de duplication dans bot.js
+
+════════════════════════════════════════════════════════════════
+📝 APRÈS LE TEST
+════════════════════════════════════════════════════════════════
+
+Copiez EXACTEMENT ce que disent les logs et dites-moi:
+
+1. Le message avec [MOT-CACHE] ✅ Bouton détecté
+2. Les lignes suivantes
+3. Si erreur: le code d'erreur exact
+
+Avec ces logs, je saurai EXACTEMENT le problème ! 🎯
+
+════════════════════════════════════════════════════════════════
