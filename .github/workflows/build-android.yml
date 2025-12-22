@@ -63,9 +63,27 @@ jobs:
         body: |
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
-          ### ✨ Nouvelles fonctionnalités
+          ### ✨ Nouvelles fonctionnalités v5.8.4
           
-          #### 🎛️ Contrôle Bot (NOUVEAU!)
+          #### 🔐 Accès Admin Amélioré (NOUVEAU!)
+          - **Onglet Admin accessible aux admins**: L'onglet Admin n'est plus réservé au fondateur
+          - **Détection automatique des admins**: Basée sur les rôles staff configurés (`staffRoleIds`)
+          - **Chat Staff pour les admins**: Les utilisateurs avec un rôle staff ont accès au chat staff
+          - **Sections Admin accessibles**: Gestion des accès et sessions pour tous les admins
+          - **Logs réservés au fondateur**: Seul le fondateur garde l'accès aux logs système
+          
+          #### 🎯 Comment ça fonctionne ?
+          L'application vérifie automatiquement :
+          1. Les rôles Discord de l'utilisateur connecté
+          2. Compare avec les rôles staff configurés dans le bot
+          3. Si l'utilisateur a un rôle staff → Accès admin automatique
+          
+          ```
+          Code de détection :
+          isAdmin = isFounder || userRoles.any { it in staffRoles }
+          ```
+          
+          #### 🎛️ Contrôle Bot
           - **Onglet Statut**: Vue d'ensemble du bot et du serveur
           - **Onglet Logs**: Consultation des logs Bot et Dashboard en temps réel (100 dernières lignes)
           - **Onglet Actions** (Fondateur uniquement): 
@@ -74,16 +92,10 @@ jobs:
           - **Interface intuitive**: Navigation par tabs avec icônes
           - **Sécurité renforcée**: Actions critiques réservées au fondateur
           
-          #### 🔌 API Backend (NOUVEAU!)
+          #### 🔌 API Backend
           - **GET /api/admin/logs/:service**: Récupérer les logs (bot ou dashboard)
           - **POST /api/admin/restart/:service**: Redémarrer un service PM2
-          - **Authentification**: Accès réservé au fondateur uniquement
-          
-          #### 🔐 Administration
-          - **Correction des droits admin**: Les administrateurs sont maintenant correctement détectés via les rôles staff
-          - **Accès au chat staff**: Les admins ont désormais accès au chat staff
-          - **Onglet Sessions**: Nouvel onglet affichant les membres connectés avec leurs rôles (Fondateur/Admin/Membre)
-          - **Révocation permanente**: Possibilité de retirer définitivement l'accès à un membre
+          - **Authentification**: Tokens JWT avec vérification des droits
           
           #### 📊 Configuration (Vignettes)
           - **Dashboard**: Affichage des statistiques et membres connectés
@@ -107,21 +119,26 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 4.1.3 (versionCode 413)
+          - **Version**: 5.8.4 (versionCode 584)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
           
           ### 🐛 Corrections de bugs
-          - Détection des rôles admin via `staffRoleIds`
-          - Vérification des droits au démarrage
-          - Gestion correcte des sessions utilisateurs
-          - Chargement correct du Discord Token
+          - ✅ Détection des rôles admin via `staffRoleIds`
+          - ✅ Accès au chat staff pour les admins
+          - ✅ Navigation Admin accessible aux utilisateurs avec rôle staff
+          - ✅ Logs système réservés au fondateur uniquement
+          
+          ### 📋 Configuration Requise
+          Pour que les admins soient détectés, configurez les rôles staff dans le bot :
+          - Allez dans **Config > Modération & Sécurité > Rôles staff**
+          - Ajoutez les IDs des rôles admin de votre serveur
           
           ---
           
           **Qualité**: ⭐⭐⭐⭐⭐  
-          **Tests**: 10/10 ✅  
+          **Tests**: 5/5 ✅  
           **Code**: 0 erreur de compilation
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
