@@ -1,0 +1,58 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║         🚀 DÉPLOIEMENT COMMANDES DISCORD - FREEBOX 🚀           ║
+║                                                                  ║
+║                    ✅ PORT 33000 CONFIGURÉ                      ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+⚡ COMMANDE RAPIDE (exécuter depuis VOTRE machine locale)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ssh -p 33000 bagbot@82.67.65.98 'cd /home/bagbot/Bag-bot && node deploy-commands.js'
+
+
+📋 INFORMATIONS DE CONNEXION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   IP            : 82.67.65.98
+   Port SSH      : 33000
+   Utilisateur   : bagbot
+   Mot de passe  : bagbot
+   Répertoire    : /home/bagbot/Bag-bot
+
+
+📊 RÉSULTAT ATTENDU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   ✅ 47 commandes GLOBALES (serveur + MP)
+   ✅ 46 commandes GUILD (serveur uniquement)
+   ✅ Total: 93 commandes déployées
+
+   ⏰ Synchronisation Discord: 5-10 minutes
+
+
+🔧 SCRIPTS DISPONIBLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   1. deploy-now.sh                          (recommandé)
+   2. deploy-discord-commands-freebox.sh     (complet)
+   3. deploy-commands-freebox-local.sh       (sur Freebox)
+
+
+📚 DOCUMENTATION COMPLÈTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   • README_DEPLOIEMENT.md
+   • GUIDE_DEPLOIEMENT_FREEBOX.md
+   • DEPLOIEMENT_COMMANDES.md
+
+
+🎯 TOUT EST PRÊT !
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tous les scripts sont configurés avec le port 33000.
+Il ne reste plus qu'à exécuter la commande depuis votre machine.
+
+╚══════════════════════════════════════════════════════════════════╝
