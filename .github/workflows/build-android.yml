@@ -3,266 +3,74 @@ name: Build Android APK
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*-android'
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
       
-    - name: Accept Android SDK licenses
-      run: yes | sdkmanager --licenses || true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
       
-    - name: Install build tools
-      run: sdkmanager "build-tools;34.0.0" "platforms;android-34" || true
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
       
-    - name: Make gradlew executable
-      working-directory: android-app
-      run: chmod +x gradlew || true
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-app/gradlew
       
-    - name: Clean build
-      working-directory: android-app
-      run: ./gradlew clean --stacktrace
+      - name: Build Release APK
+        run: |
+          cd android-app
+          ./gradlew assembleRelease --no-daemon
       
-    - name: Build APK
-      working-directory: android-app
-      run: ./gradlew assembleRelease --stacktrace
-        
-    - name: Rename APK
-      run: |
-        mkdir -p release
-        cp android-app/app/build/outputs/apk/release/app-release.apk release/BagBot-Manager-${{ github.ref_name }}.apk
-        
-    - name: Upload APK artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: BagBotManager-v5.9.15.apk
-        path: release/BagBot-Manager-${{ github.ref_name }}.apk
-        
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release/BagBot-Manager-${{ github.ref_name }}.apk
-        body: |
-          ## 🎉 BAG Bot Manager ${{ github.ref_name }}
-          
-          ### ✨ NOUVEAUTÉS v5.9.15 - Notifications + Mentions Discord-like !
-          
-          #### 🎯 Auto-Complétion @ comme Discord (NOUVEAU!)
-          - **Système Discord-like**: Tapez @ dans le message pour voir les suggestions
-          - **Filtrage en temps réel**: Les suggestions se filtrent pendant que vous tapez
-          - **UX améliorée**: Plus naturel qu'un bouton séparé
-          - **Inline**: Les suggestions apparaissent directement dans la conversation
-          - **1 clic**: Cliquez sur un nom pour l'insérer automatiquement
-          
-          #### 🔔 Notifications en Arrière-Plan (NOUVEAU!)
-          - **WorkManager**: Vérifications périodiques même app fermée
-          - **Permissions Android 13+**: Support POST_NOTIFICATIONS
-          - **Canal dédié**: "Chat Staff" avec priorité haute
-          - **Son & Vibration**: Notifications complètes
-          - **Persistance**: Continue de fonctionner après redémarrage appareil
-          
-          #### 🧹 Interface Optimisée
-          - **❌ Bouton @ retiré**: Remplacé par auto-complétion inline
-          - **✅ Auto-complétion @**: Comme Discord/Slack
-          - **✅ Placeholder amélioré**: "Écrivez un message... (@ pour mentionner)"
-          - **Plus fluide**: Navigation et saisie optimisées
-          
-          ### ✨ CORRECTIONS MAJEURES v5.9.10 - Stabilité & Fixes !
-          
-          #### 🚨 Fixes Critiques (NOUVEAU!)
-          - **✅ URL Placeholder Corrigé**: Port 33003 au lieu de 33002 dans le champ de configuration
-          - **✅ Erreur JsonObject Résolue**: Fix de l'erreur "Kotlin reflection is not available"
-          - **✅ Configuration Mot-Caché**: Fonctionne maintenant sans crash lors de la sauvegarde
-          - **✅ Canaux de Notification**: Gestion robuste des formats API (string ou objet)
-          
-          #### 🔧 Améliorations Techniques
-          - **Nouvelle fonction `strOrId()`**: Gère automatiquement les deux formats de réponse API
-          - **Compatibilité API étendue**: Supporte les réponses en chaîne simple ou objet JSON
-          - **Stabilité accrue**: Plus de crash lors de la configuration des canaux
-          
-          ### 📋 Changements Détaillés
-          
-          #### 1. Correction du Placeholder URL
-          - Fichier: `App.kt` ligne 3636
-          - Changement: `33002` → `33003`
-          - Impact: Les utilisateurs voient le bon port dans le placeholder
-          
-          #### 2. Fix Erreur JsonObject
-          - Fichier: `ConfigDashboardScreen.kt`
-          - Problème: Les champs `letterNotificationChannel` et `notificationChannel` pouvaient être JsonObject
-          - Solution: Nouvelle fonction `strOrId()` qui gère les deux cas
-          
-          ```kotlin
-          // Gère à la fois:
-          "letterNotificationChannel": "123456789"  // String
-          "letterNotificationChannel": {"id": "123456789", ...}  // Object
-          ```
-          
-          ### ✨ CORRECTIONS MAJEURES v5.9.0 - Tout Fonctionne !
-          
-          #### 🚨 Fixes Critiques v5.9.0
-          - **✅ Membres s'affichent maintenant !** Fix parsing `/api/discord/members` (`members` au lieu de `names`)
-          - **✅ Accès admin section gérer les accès**: Liste complète des membres Discord visible
-          - **✅ Membres connectés**: Affichage correct avec rôles (Fondateur/Admin/Membre)
-          - **✅ Configuration**: Plus d'erreur "Cannot POST /api/counting"
-          
-          ### ✨ Corrections Critiques v5.8.9
-          
-          #### 🔧 Fixes Majeurs (NOUVEAU!)
-          - **Accès Admin Restauré**: Utilise maintenant les permissions Discord du backend (`isAdmin`, `isFounder`)
-          - **Plus de calcul côté client**: Fini les bugs de `staffRoleIds` manquants
-          - **Logs étendus**: Debug complet pour membres connectés et configuration
-          - **Compatibilité backend**: Utilise `/api/me` pour déterminer les permissions
-          
-          ### ✨ Nouvelles fonctionnalités v5.8.7
-          
-          #### 🔧 Corrections Importantes (NOUVEAU!)
-          - **Endpoint Bot Status**: Ajout de `/api/bot/status` manquant → affiche "Bot en ligne" ✅
-          - **URL API Corrigée**: L'app utilise maintenant le port 33003 (bot-api) au lieu de 33002 (dashboard)
-          - **Erreur 404 Résolue**: Configuration fonctionne correctement, plus d'erreur HTTP 404
-          - **Backend amélioré**: Retourne les rôles Discord dans les sessions
-          
-          ### ✨ Nouvelles fonctionnalités v5.8.6
-          
-          #### 🔐 Accès Admins Corrigé (NOUVEAU!)
-          - **Admins = Chat Staff uniquement**: Les admins voient UNIQUEMENT l'onglet Chat Staff
-          - **Fondateur = Tous les onglets**: Le fondateur a accès à Chat Staff + Admin + Logs
-          - **API Sessions améliorée**: Retourne maintenant les rôles Discord de chaque membre connecté
-          - **Détection fiable**: Calcul des rôles côté client avec les rôles Discord réels
-          - **Affichage du statut**: "👑 Fondateur", "⚡ Administrateur", ou "✅ Membre autorisé"
-          
-          #### 🔐 Affichage des Rôles Corrigé (v5.8.5)
-          - **Statut utilisateur corrigé**: Affiche maintenant "Fondateur", "Admin" ou "Membre autorisé" correctement
-          - **Membres connectés avec rôles**: L'écran d'accueil affiche tous les membres connectés avec leurs rôles
-          - **Icônes par rôle**: 👑 Fondateur (or), ⚡ Admin (rouge), 👤 Membre (vert)
-          - **Admin tab Sessions**: Affiche correctement les rôles de tous les membres connectés
-          
-          #### 🔐 Accès Admin Amélioré (v5.8.4)
-          - **Onglet Admin accessible aux admins**: L'onglet Admin n'est plus réservé au fondateur
-          - **Chat Staff pour les admins**: Les utilisateurs avec un rôle staff ont accès au chat staff
-          - **Sections Admin accessibles**: Gestion des accès et sessions pour tous les admins
-          - **Logs réservés au fondateur**: Seul le fondateur garde l'accès aux logs système
-          
-          #### 🎯 Comment ça fonctionne ?
-          L'application vérifie automatiquement :
-          1. Les rôles Discord de l'utilisateur connecté
-          2. Compare avec les rôles staff configurés dans le bot
-          3. Si l'utilisateur a un rôle staff → Accès admin automatique
-          
-          ```
-          Code de détection :
-          isAdmin = isFounder || userRoles.any { it in staffRoles }
-          ```
-          
-          #### 🎛️ Contrôle Bot
-          - **Onglet Statut**: Vue d'ensemble du bot et du serveur
-          - **Onglet Logs**: Consultation des logs Bot et Dashboard en temps réel (100 dernières lignes)
-          - **Onglet Actions** (Fondateur uniquement): 
-            - 🔄 Redémarrage Bot PM2
-            - 🔄 Redémarrage Dashboard PM2
-          - **Interface intuitive**: Navigation par tabs avec icônes
-          - **Sécurité renforcée**: Actions critiques réservées au fondateur
-          
-          #### 🔌 API Backend
-          - **GET /api/admin/logs/:service**: Récupérer les logs (bot ou dashboard)
-          - **POST /api/admin/restart/:service**: Redémarrer un service PM2
-          - **Authentification**: Tokens JWT avec vérification des droits
-          
-          #### 📊 Configuration (Vignettes)
-          - **Dashboard**: Affichage des statistiques et membres connectés
-          - **Économie**: Gestion complète (Karma, Boutique, Utilisateurs)
-          - **Niveaux**: Configuration XP, Récompenses, Cartes
-          - **Tickets**: Panel de configuration des tickets
-          - **Géo**: Carte interactive des membres (OSMDroid)
-          
-          #### 🎨 Interface
-          - Design violet/rose moderne
-          - Écran de chargement animé
-          - Navigation Material 3
-          - Sélecteurs de membres, canaux et rôles
-          
-          ### 📥 Installation
-          1. Téléchargez l'APK ci-dessous
-          2. Activez "Sources inconnues" dans les paramètres Android
-          3. Installez et connectez-vous !
-          
-          ### 🔗 Dashboard Web
-          http://88.174.155.230:33002
-          
-          ### 📊 Informations Techniques
-          - **Version**: 5.9.15 (versionCode 5915)
-          - **Min SDK**: 26 (Android 8.0)
-          - **Target SDK**: 34 (Android 14)
-          - **Taille**: ~15-25 MB
-          - **Nouveautés**: Auto-complétion @ + WorkManager + Notifications arrière-plan
-          - **Nouvelles dépendances**: androidx.work:work-runtime-ktx:2.9.0
-          
-          ### 🎁 Nouveautés v5.9.15
-          - ✅ **Auto-Complétion @**: Système de mentions comme Discord (taper @ pour suggestions)
-          - ✅ **Notifications Arrière-Plan**: WorkManager pour notifications même app fermée
-          - ✅ **Filtrage Temps Réel**: Les suggestions se mettent à jour pendant la saisie
-          - ✅ **Permissions Android 13+**: Support complet des notifications modernes
-          - ✅ **UX Discord-like**: Interface familière et intuitive
-          
-          ### 🐛 Corrections de bugs v5.9.10
-          - ✅ **URL Placeholder**: Port 33003 au lieu de 33002
-          - ✅ **Erreur JsonObject**: Fix complet avec fonction `strOrId()`
-          - ✅ **Configuration Mot-Caché**: Plus de crash lors de la sauvegarde
-          - ✅ **Canaux Notification**: Gestion robuste des deux formats API
-          
-          ### 🐛 Corrections de bugs v5.9.0
-          - ✅ **Parsing membres corrigé** : `membersData["members"]` au lieu de `["names"]`
-          - ✅ **Liste membres admin** : Tous les membres Discord s'affichent dans "Gérer les accès"
-          - ✅ **Membres connectés** : Liste correcte avec rôles calculés
-          - ✅ **Configuration counting** : Compatible avec PUT /api/configs/counting
-          
-          ### 🐛 Corrections de bugs v5.8.9
-          - ✅ Accès admin restauré : utilise les permissions Discord du backend
-          - ✅ `isFounder` et `isAdmin` viennent de `/api/me` (pas de calcul client)
-          - ✅ Logs détaillés pour debug membres connectés et configuration
-          - ✅ Fini les bugs de `staffRoleIds` non configurés
-          
-          ### 🐛 Corrections de bugs v5.8.7
-          - ✅ Ajout de l'endpoint `/api/bot/status` manquant → "Bot en ligne" s'affiche
-          - ✅ URL API corrigée : port 33003 au lieu de 33002
-          - ✅ Erreur HTTP 404 dans la config corrigée
-          - ✅ Backend retourne les rôles Discord dans `/api/admin/sessions`
-          
-          ### 🐛 Corrections de bugs v5.8.6
-          - ✅ Les admins ne voient QUE le Chat Staff (pas Admin ni Logs)
-          - ✅ Le fondateur garde l'accès à tous les onglets (Chat Staff + Admin + Logs)
-          - ✅ API Sessions retourne les rôles Discord de chaque utilisateur
-          - ✅ Affichage correct du statut utilisateur (Fondateur/Admin/Membre)
-          - ✅ Liste des membres connectés avec rôles calculés côté client
-          - ✅ Icônes et couleurs par rôle (👑 or, ⚡ rouge, 👤 vert)
-          
-          ### 📋 Configuration Requise
-          Pour que les admins soient détectés, configurez les rôles staff dans le bot :
-          - Allez dans **Config > Modération & Sécurité > Rôles staff**
-          - Ajoutez les IDs des rôles admin de votre serveur
-          
-          ---
-          
-          **Qualité**: ⭐⭐⭐⭐⭐  
-          **Tests**: 5/5 ✅  
-          **Code**: 0 erreur de compilation
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign APK
+        run: |
+          cd android-app/app/build/outputs/apk/release
+          mv app-release.apk BagBot-Manager-v${{ github.ref_name }}.apk
+      
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BagBot-Manager-APK
+          path: android-app/app/build/outputs/apk/release/*.apk
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android-app/app/build/outputs/apk/release/*.apk
+          body: |
+            🎉 Nouvelle version de BAG Bot Manager Android !
+            
+            ## 📱 Installation
+            Téléchargez le fichier APK et installez-le sur votre appareil Android.
+            
+            ## ✨ Nouveautés v5.9.16
+            - 🔍 **Nouveau jeu Mot-Caché** : Jouez au jeu mot-caché directement depuis l'app !
+            - 📊 Suivez votre progression en temps réel
+            - ✍️ Proposez vos réponses et gagnez des BAG$
+            - 💬 Système de mentions amélioré dans le chat staff (@ pour mentionner)
+            - 🐛 Corrections de bugs et améliorations de performance
+            
+            ## 📋 Changelog complet
+            Voir CHANGELOG_v5.9.16.md pour tous les détails
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
