@@ -18,14 +18,27 @@ for (const file of commandFiles) {
     const command = require(filePath);
     
     if (!command.data) continue;
-    
+
+    // Source de vérité: propriété exportée (fallback sur heuristique)
+    const dmPermission =
+      command.dmPermission === true ||
+      content.includes('dmPermission: true') ||
+      content.includes('setDMPermission(true)');
+
+    // Forcer la permission MP sur la commande (corrige les fichiers incohérents)
+    if (typeof command.data.setDMPermission === 'function') {
+      try {
+        command.data.setDMPermission(dmPermission);
+      } catch (_) {
+        // ignore: certains builders peuvent refuser dans des cas rares
+      }
+    }
+
     const cmdData = command.data.toJSON();
-    
-    // Vérifier si la commande a dmPermission: true
-    const hasDMPermission = content.includes('dmPermission: true') || 
-                           content.includes('setDMPermission(true)');
-    
-    if (hasDMPermission) {
+    // Sécurité: s'assurer que le JSON envoyé reflète bien dmPermission
+    cmdData.dm_permission = dmPermission;
+
+    if (dmPermission) {
       // Commande disponible sur serveur ET en MP -> GLOBALE
       globalCommands.push(cmdData);
       console.log(`  🌐 ${cmdData.name} (global - serveur + MP)`);
@@ -46,7 +59,7 @@ console.log(`🏰 Commandes GUILD (serveur uniquement): ${guildCommands.length}`
 console.log('');
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-const GUILD_ID = '1360897918504271882';
+const GUILD_ID = process.env.GUILD_ID || process.env.FORCE_GUILD_ID || '1360897918504271882';
 
 (async () => {
   try {
