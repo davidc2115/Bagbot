@@ -690,24 +690,47 @@ fun StaffMainScreen(
         return
     }
     
-    // Si admin: afficher l'interface normale
-    Column(Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
-            Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Chat Staff")
+    // Si admin simple (non-fondateur): afficher UNIQUEMENT le Chat Staff
+    if (isAdmin && !isFounder) {
+        Column(Modifier.fillMaxSize()) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Chat, null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "💬 Chat Staff",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
-            })
-            Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Admin")
-                }
-            })
-            if (isFounder) {
+            }
+            StaffChatScreen(api, json, scope, snackbar, members, userInfo)
+        }
+    } else if (isFounder) {
+        // Si fondateur: afficher tous les onglets
+        Column(Modifier.fillMaxSize()) {
+            TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
+                Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Chat Staff")
+                    }
+                })
+                Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Admin")
+                    }
+                })
                 Tab(selected = selectedStaffTab == 2, onClick = { selectedStaffTab = 2 }, text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp))
@@ -716,12 +739,10 @@ fun StaffMainScreen(
                     }
                 })
             }
-        }
-        when (selectedStaffTab) {
-            0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
-            1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
-            2 -> if (isFounder) {
-                LogsScreen(api, json, scope, snackbar)
+            when (selectedStaffTab) {
+                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
+                1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
+                2 -> LogsScreen(api, json, scope, snackbar)
             }
         }
     }

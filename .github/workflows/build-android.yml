@@ -63,13 +63,19 @@ jobs:
         body: |
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
-          ### ✨ Nouvelles fonctionnalités v5.8.5
+          ### ✨ Nouvelles fonctionnalités v5.8.6
           
-          #### 🔐 Affichage des Rôles Corrigé (NOUVEAU!)
+          #### 🔐 Accès Admins Corrigé (NOUVEAU!)
+          - **Admins = Chat Staff uniquement**: Les admins voient UNIQUEMENT l'onglet Chat Staff
+          - **Fondateur = Tous les onglets**: Le fondateur a accès à Chat Staff + Admin + Logs
+          - **API Sessions améliorée**: Retourne maintenant les rôles Discord de chaque membre connecté
+          - **Détection fiable**: Calcul des rôles côté client avec les rôles Discord réels
+          - **Affichage du statut**: "👑 Fondateur", "⚡ Administrateur", ou "✅ Membre autorisé"
+          
+          #### 🔐 Affichage des Rôles Corrigé (v5.8.5)
           - **Statut utilisateur corrigé**: Affiche maintenant "Fondateur", "Admin" ou "Membre autorisé" correctement
           - **Membres connectés avec rôles**: L'écran d'accueil affiche tous les membres connectés avec leurs rôles
           - **Icônes par rôle**: 👑 Fondateur (or), ⚡ Admin (rouge), 👤 Membre (vert)
-          - **Détection automatique**: Basée sur les rôles staff configurés (`staffRoleIds`)
           - **Admin tab Sessions**: Affiche correctement les rôles de tous les membres connectés
           
           #### 🔐 Accès Admin Amélioré (v5.8.4)
@@ -125,18 +131,18 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 5.8.5 (versionCode 585)
+          - **Version**: 5.8.6 (versionCode 586)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
           
-          ### 🐛 Corrections de bugs v5.8.5
+          ### 🐛 Corrections de bugs v5.8.6
+          - ✅ Les admins ne voient QUE le Chat Staff (pas Admin ni Logs)
+          - ✅ Le fondateur garde l'accès à tous les onglets (Chat Staff + Admin + Logs)
+          - ✅ API Sessions retourne les rôles Discord de chaque utilisateur
           - ✅ Affichage correct du statut utilisateur (Fondateur/Admin/Membre)
-          - ✅ Liste des membres connectés affichée avec leurs rôles
-          - ✅ Icônes et couleurs par rôle dans l'écran d'accueil
-          - ✅ Admin tab Sessions affiche les bons rôles
-          - ✅ Détection des rôles basée sur staffRoleIds configurés
-          - ✅ Calcul des rôles côté client pour plus de fiabilité
+          - ✅ Liste des membres connectés avec rôles calculés côté client
+          - ✅ Icônes et couleurs par rôle (👑 or, ⚡ rouge, 👤 vert)
           
           ### 📋 Configuration Requise
           Pour que les admins soient détectés, configurez les rôles staff dans le bot :

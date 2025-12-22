@@ -589,12 +589,28 @@ app.get('/api/music/stream/:filename', (req, res) => {
 
 // ========== ADMIN ==========
 
-// GET /api/admin/sessions - Membres connectés
-app.get('/api/admin/sessions', requireAuth, (req, res) => {
+// GET /api/admin/sessions - Membres connectés avec rôles Discord
+app.get('/api/admin/sessions', requireAuth, async (req, res) => {
   try {
+    const client = req.app.locals.client;
+    const guild = client?.guilds.cache.get(GUILD);
+    
     const sessions = [];
     for (const [key, data] of appTokens.entries()) {
       if (key.startsWith('token_')) {
+        // Récupérer les rôles Discord de l'utilisateur
+        let roles = [];
+        try {
+          if (guild) {
+            const member = await guild.members.fetch(data.userId).catch(() => null);
+            if (member) {
+              roles = member.roles.cache.map(r => r.id).filter(id => id !== guild.id);
+            }
+          }
+        } catch (e) {
+          console.warn(`[BOT-API] Could not fetch roles for ${data.userId}:`, e.message);
+        }
+        
         sessions.push({
           userId: data.userId,
           username: data.username,
@@ -602,11 +618,15 @@ app.get('/api/admin/sessions', requireAuth, (req, res) => {
           avatar: data.avatar,
           isAdmin: data.isAdmin || false,
           isFounder: data.isFounder || false,
+          roles: roles, // Ajouter les rôles Discord
           connectedAt: new Date(data.timestamp).toISOString(),
-          lastActivity: new Date(data.timestamp).toISOString()
+          lastActivity: new Date(data.timestamp).toISOString(),
+          isOnline: true
         });
       }
     }
+    
+    console.log(`[BOT-API] Returning ${sessions.length} sessions with roles`);
     res.json({ sessions, count: sessions.length });
   } catch (error) {
     console.error('[BOT-API] Error in /api/admin/sessions:', error);
