@@ -12536,6 +12536,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (_) {}
 });
 client.on(Events.MessageCreate, async (message) => {
+  console.log(`[MESSAGE-DEBUG] Message reçu de ${message.author?.username || 'unknown'}`);
   try {
     if (!message.guild) return;
     
@@ -12746,6 +12747,20 @@ client.on(Events.MessageCreate, async (message) => {
       }
     } catch (_) {}
 
+    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
+    // IMPORTANT: Doit être AVANT le check des levels pour ne pas être bloqué
+    console.log('[DEBUG] Avant appel mot-cache handler');
+    try {
+      const motCacheHandler = require('./modules/mot-cache-handler');
+      console.log('[DEBUG] Handler chargé, appel handleMessage...');
+      await motCacheHandler.handleMessage(message);
+      console.log('[DEBUG] handleMessage terminé');
+    } catch (err) {
+      // Log all errors for debugging
+      console.error('[MOT-CACHE] Error in message handler:', err);
+      console.error('[MOT-CACHE] Error stack:', err.stack);
+    }
+
     const levels = await getLevelsConfig(message.guild.id);
     if (!levels?.enabled) return;
     const stats = await getUserStats(message.guild.id, message.author.id);
@@ -12795,16 +12810,10 @@ client.on(Events.MessageCreate, async (message) => {
         console.log(`[ECONOMY DEBUG] Message reward: User ${message.author.id} in guild ${message.guild.id}: ${beforeAmount} + ${reward} = ${userEco.amount}`);
       }
     } catch (_) {}
-
-    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
-    try {
-      const motCacheHandler = require('./modules/mot-cache-handler');
-      await motCacheHandler.handleMessage(message);
-    } catch (err) {
-      // Log all errors for debugging
-      console.error('[MOT-CACHE] Error in message handler:', err);
-    }
-  } catch (_) {}
+  } catch (mainErr) {
+    console.error('[MESSAGE-CREATE] ERREUR PRINCIPALE:', mainErr.message);
+    console.error('[MESSAGE-CREATE] STACK:', mainErr.stack);
+  }
 });
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
   try {
