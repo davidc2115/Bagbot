@@ -572,20 +572,64 @@ app.get('/api/discord/roles', async (req, res) => {
 
 const staffMessages = [];
 
+// ========== CHAT STAFF AMÉLIORÉ ==========
+
+// Configurer multer pour les uploads staff chat
+const staffChatStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadsDir = path.join(__dirname, '../data/staff-uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  }
+});
+
+const staffChatUpload = multer({
+  storage: staffChatStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|mov|avi|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Type de fichier non supporté'));
+    }
+  }
+});
+
+// GET messages (avec option de filtrer par room pour chat privé)
 app.get('/api/staff/chat/messages', requireAuth, (req, res) => {
   try {
-    console.log(`📥 [BOT-API] GET /api/staff/chat/messages`);
-    res.json({ messages: staffMessages });
+    const { room } = req.query; // "global" ou "user-{userId1}-{userId2}"
+    console.log(`📥 [BOT-API] GET /api/staff/chat/messages?room=${room || 'global'}`);
+    
+    let filtered = staffMessages;
+    if (room && room !== 'global') {
+      filtered = staffMessages.filter(m => m.room === room);
+    } else {
+      // Par défaut, afficher les messages globaux
+      filtered = staffMessages.filter(m => !m.room || m.room === 'global');
+    }
+    
+    res.json({ messages: filtered });
   } catch (error) {
     console.error('[BOT-API] Error fetching staff messages:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// POST message texte (avec support room pour chat privé)
 app.post('/api/staff/chat/send', requireAuth, express.json(), (req, res) => {
   try {
-    const { userId, username, message } = req.body;
-    console.log(`📥 [BOT-API] POST /api/staff/chat/send from ${username}`);
+    const { userId, username, message, room, commandType, commandData } = req.body;
+    console.log(`📥 [BOT-API] POST /api/staff/chat/send from ${username} (room: ${room || 'global'})`);
     
     if (!message || !userId || !username) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -596,19 +640,89 @@ app.post('/api/staff/chat/send', requireAuth, express.json(), (req, res) => {
       userId,
       username,
       message,
-      timestamp: new Date().toISOString()
+      room: room || 'global',
+      timestamp: new Date().toISOString(),
+      type: commandType || 'text', // 'text', 'command', 'attachment'
+      commandData: commandData || null
     };
     
     staffMessages.push(newMessage);
     
-    // Garder seulement les 100 derniers messages
-    if (staffMessages.length > 100) {
+    // Garder seulement les 200 derniers messages
+    if (staffMessages.length > 200) {
       staffMessages.shift();
     }
     
     res.json({ success: true, message: newMessage });
   } catch (error) {
     console.error('[BOT-API] Error sending staff message:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST upload image/video/fichier
+app.post('/api/staff/chat/upload', requireAuth, staffChatUpload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    const { userId, username, room } = req.body;
+    console.log(`📥 [BOT-API] POST /api/staff/chat/upload from ${username} - ${req.file.originalname}`);
+    
+    const newMessage = {
+      id: Date.now().toString(),
+      userId,
+      username,
+      message: req.file.originalname,
+      room: room || 'global',
+      timestamp: new Date().toISOString(),
+      type: 'attachment',
+      attachmentUrl: `/api/staff/chat/file/${req.file.filename}`,
+      attachmentType: req.file.mimetype.startsWith('image') ? 'image' : 
+                      req.file.mimetype.startsWith('video') ? 'video' : 'file'
+    };
+    
+    staffMessages.push(newMessage);
+    
+    if (staffMessages.length > 200) {
+      staffMessages.shift();
+    }
+    
+    res.json({ success: true, message: newMessage });
+  } catch (error) {
+    console.error('[BOT-API] Error uploading staff file:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET fichier staff
+app.get('/api/staff/chat/file/:filename', (req, res) => {
+  try {
+    const filepath = path.join(__dirname, '../data/staff-uploads', req.params.filename);
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).send('File not found');
+    }
+    res.sendFile(filepath);
+  } catch (error) {
+    console.error('[BOT-API] Error serving staff file:', error);
+    res.status(500).send('Error serving file');
+  }
+});
+
+// GET liste des admins en ligne (pour chat privé)
+app.get('/api/staff/online', requireAuth, (req, res) => {
+  try {
+    // Récupérer la liste des sessions actives
+    const onlineAdmins = sessions.map(s => ({
+      userId: s.userId,
+      username: s.username,
+      lastActivity: s.lastActivity
+    }));
+    
+    res.json({ admins: onlineAdmins });
+  } catch (error) {
+    console.error('[BOT-API] Error fetching online admins:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -477,7 +477,11 @@ data class StaffMessage(
     val userId: String,
     val username: String,
     val message: String,
-    val timestamp: String
+    val timestamp: String,
+    val type: String = "text", // "text", "attachment", "command"
+    val attachmentUrl: String? = null,
+    val attachmentType: String? = null, // "image", "video", "file"
+    val room: String = "global"
 )
 
 @Composable
@@ -493,13 +497,16 @@ fun StaffChatScreen(
     var newMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var isSending by remember { mutableStateOf(false) }
+    var selectedRoom by remember { mutableStateOf("global") }
+    var showRoomSelector by remember { mutableStateOf(false) }
+    var onlineAdmins by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
     
     fun loadMessages() {
         scope.launch {
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val response = api.getJson("/api/staff/chat/messages")
+                    val response = api.getJson("/api/staff/chat/messages?room=$selectedRoom")
                     val data = json.parseToJsonElement(response).jsonObject
                     withContext(Dispatchers.Main) {
                         messages = data["messages"]?.jsonArray?.map {
@@ -509,7 +516,11 @@ fun StaffChatScreen(
                                 userId = msg["userId"]?.jsonPrimitive?.content ?: "",
                                 username = msg["username"]?.jsonPrimitive?.content ?: "Inconnu",
                                 message = msg["message"]?.jsonPrimitive?.content ?: "",
-                                timestamp = msg["timestamp"]?.jsonPrimitive?.content ?: ""
+                                timestamp = msg["timestamp"]?.jsonPrimitive?.content ?: "",
+                                type = msg["type"]?.jsonPrimitive?.content ?: "text",
+                                attachmentUrl = msg["attachmentUrl"]?.jsonPrimitive?.contentOrNull,
+                                attachmentType = msg["attachmentType"]?.jsonPrimitive?.contentOrNull,
+                                room = msg["room"]?.jsonPrimitive?.content ?: "global"
                             )
                         } ?: emptyList()
                     }
@@ -524,8 +535,24 @@ fun StaffChatScreen(
         }
     }
     
-    fun sendMessage() {
-        if (newMessage.isBlank()) return
+    fun loadOnlineAdmins() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val response = api.getJson("/api/staff/online")
+                    val data = json.parseToJsonElement(response).jsonObject
+                    withContext(Dispatchers.Main) {
+                        onlineAdmins = data["admins"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Load admins error: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    fun sendMessage(commandType: String = "text", commandData: String? = null) {
+        if (newMessage.isBlank() && commandType == "text") return
         scope.launch {
             isSending = true
             withContext(Dispatchers.IO) {
@@ -535,7 +562,10 @@ fun StaffChatScreen(
                     val body = buildJsonObject {
                         put("userId", userId)
                         put("username", username)
-                        put("message", newMessage)
+                        put("message", if (commandType == "text") newMessage else "[Commande: $commandData]")
+                        put("room", selectedRoom)
+                        put("commandType", commandType)
+                        if (commandData != null) put("commandData", commandData)
                     }
                     api.postJson("/api/staff/chat/send", body.toString())
                     withContext(Dispatchers.Main) {
@@ -544,6 +574,9 @@ fun StaffChatScreen(
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Send error: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                    }
                 } finally {
                     withContext(Dispatchers.Main) {
                         isSending = false
@@ -555,10 +588,16 @@ fun StaffChatScreen(
     
     LaunchedEffect(Unit) {
         loadMessages()
+        loadOnlineAdmins()
         while (true) {
             kotlinx.coroutines.delay(5000)
             loadMessages()
+            loadOnlineAdmins()
         }
+    }
+    
+    LaunchedEffect(selectedRoom) {
+        loadMessages()
     }
     
     Column(Modifier.fillMaxSize()) {
@@ -570,12 +609,69 @@ fun StaffChatScreen(
                 Icon(Icons.Default.Chat, null, tint = Color.White)
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("💬 Chat Staff", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        if (selectedRoom == "global") "💬 Chat Staff (Global)" else "💬 Chat Privé",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                     Text("${messages.size} messages", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
                 }
                 Spacer(Modifier.weight(1f))
+                IconButton(onClick = { showRoomSelector = !showRoomSelector }) {
+                    Icon(Icons.Default.People, "Changer de room", tint = Color.White)
+                }
                 IconButton(onClick = { loadMessages() }) {
                     Icon(Icons.Default.Refresh, "Actualiser", tint = Color.White)
+                }
+            }
+        }
+        
+        // Sélecteur de room
+        if (showRoomSelector) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("📂 Salons de chat", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Global room
+                    Button(
+                        onClick = { selectedRoom = "global"; showRoomSelector = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedRoom == "global") Color(0xFF5865F2) else Color(0xFF1E1E1E)
+                        )
+                    ) {
+                        Icon(Icons.Default.Public, null, tint = Color.White)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Global - Tous les admins")
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    Text("💬 Chats privés", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    
+                    // Liste des admins en ligne
+                    onlineAdmins.forEach { admin ->
+                        val adminId = admin["userId"]?.jsonPrimitive?.content ?: ""
+                        val adminName = members[adminId] ?: admin["username"]?.jsonPrimitive?.content ?: "Inconnu"
+                        val currentUserId = userInfo?.get("id")?.jsonPrimitive?.content ?: ""
+                        
+                        if (adminId != currentUserId) {
+                            val roomId = if (currentUserId < adminId) "user-$currentUserId-$adminId" else "user-$adminId-$currentUserId"
+                            
+                            Button(
+                                onClick = { selectedRoom = roomId; showRoomSelector = false },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedRoom == roomId) Color(0xFF5865F2) else Color(0xFF1E1E1E)
+                                )
+                            ) {
+                                Icon(Icons.Default.Person, null, tint = Color.White)
+                                Spacer(Modifier.width(8.dp))
+                                Text(adminName)
+                            }
+                        }
+                    }
                 }
             }
         }
