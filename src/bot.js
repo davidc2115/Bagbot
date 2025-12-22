@@ -5898,6 +5898,58 @@ client.once(Events.ClientReady, async (readyClient) => {
   })();
   // Boot persistance dès le départ et journaliser le mode choisi
   ensureStorageExists().then(()=>{console.log('[bot] Storage initialized'); loadTDState();}).catch((e)=>console.warn('[bot] Storage init error:', e?.message||e));
+
+  // === SYSTÈME DE SAUVEGARDE HORAIRE ===
+  try {
+    const HourlyBackupSystem = require('./storage/hourlyBackupSystem');
+    global.hourlyBackupSystem = new HourlyBackupSystem();
+    global.hourlyBackupSystem.start();
+    console.log('[Bot] ✅ Système de backup horaire démarré (rétention: 3 jours)');
+  } catch (error) {
+    console.error('[Bot] ❌ Erreur démarrage backup horaire:', error.message);
+  }
+
+  // === NETTOYAGE AUTOMATIQUE DES UTILISATEURS PARTIS ===
+  // Nettoyer tous les jours à 3h du matin
+  const scheduleDailyCleanup = () => {
+    const now = new Date();
+    const next3AM = new Date(now);
+    next3AM.setHours(3, 0, 0, 0);
+    
+    // Si 3h est déjà passé aujourd'hui, programmer pour demain
+    if (next3AM <= now) {
+      next3AM.setDate(next3AM.getDate() + 1);
+    }
+    
+    const msUntil3AM = next3AM.getTime() - now.getTime();
+    
+    console.log(`[Bot] Nettoyage automatique programmé pour ${next3AM.toLocaleString('fr-FR')}`);
+    
+    setTimeout(async () => {
+      try {
+        console.log('[Bot] === NETTOYAGE AUTOMATIQUE DES UTILISATEURS ===');
+        const { cleanAllGuilds } = require('./utils/userCleanup');
+        const result = await cleanAllGuilds(client);
+        
+        if (result.success) {
+          console.log(`[Bot] ✅ Nettoyage terminé: ${result.totalRemoved} utilisateurs supprimés`);
+        } else {
+          console.error('[Bot] ❌ Erreur nettoyage:', result.error);
+        }
+      } catch (error) {
+        console.error('[Bot] ❌ Erreur nettoyage automatique:', error.message);
+      }
+      
+      // Reprogrammer pour le lendemain
+      scheduleDailyCleanup();
+    }, msUntil3AM);
+  };
+  
+  try {
+    scheduleDailyCleanup();
+  } catch (error) {
+    console.error('[Bot] ❌ Erreur programmation nettoyage:', error.message);
+  }
   
   // Initialiser le gestionnaire de guilds
   try {
