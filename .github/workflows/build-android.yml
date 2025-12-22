@@ -63,6 +63,14 @@ jobs:
         body: |
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
+          ### ✨ CORRECTIONS MAJEURES v5.9.0 - Tout Fonctionne !
+          
+          #### 🚨 Fixes Critiques (NOUVEAU!)
+          - **✅ Membres s'affichent maintenant !** Fix parsing `/api/discord/members` (`members` au lieu de `names`)
+          - **✅ Accès admin section gérer les accès**: Liste complète des membres Discord visible
+          - **✅ Membres connectés**: Affichage correct avec rôles (Fondateur/Admin/Membre)
+          - **✅ Configuration**: Plus d'erreur "Cannot POST /api/counting"
+          
           ### ✨ Corrections Critiques v5.8.9
           
           #### 🔧 Fixes Majeurs (NOUVEAU!)
@@ -147,10 +155,16 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 5.8.9 (versionCode 589)
+          - **Version**: 5.9.0 (versionCode 590)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
+          
+          ### 🐛 Corrections de bugs v5.9.0
+          - ✅ **Parsing membres corrigé** : `membersData["members"]` au lieu de `["names"]`
+          - ✅ **Liste membres admin** : Tous les membres Discord s'affichent dans "Gérer les accès"
+          - ✅ **Membres connectés** : Liste correcte avec rôles calculés
+          - ✅ **Configuration counting** : Compatible avec PUT /api/configs/counting
           
           ### 🐛 Corrections de bugs v5.8.9
           - ✅ Accès admin restauré : utilise les permissions Discord du backend

@@ -884,8 +884,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     val membersData = json.parseToJsonElement(membersJson).jsonObject
                     
                     withContext(Dispatchers.Main) {
-                        membersData["names"]?.jsonObject?.let { namesObj ->
-                            members = namesObj.mapValues { it.value.jsonPrimitive.content }
+                        // L'API retourne { "members": {...}, "roles": {...} }
+                        membersData["members"]?.jsonObject?.let { membersObj ->
+                            members = membersObj.mapValues { it.value.jsonPrimitive.content }
                         }
                         
                         membersData["roles"]?.jsonObject?.let { rolesObj ->
@@ -894,7 +895,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             }
                         }
                     }
-                    Log.d(TAG, "Loaded ${members.size} members")
+                    Log.d(TAG, "Loaded ${members.size} members with ${memberRoles.size} role mappings")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/discord/members: ${e.message}")
                 }
