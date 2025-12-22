@@ -976,6 +976,19 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
     val json = remember { Json { ignoreUnknownKeys = true; coerceInputValues = true } }
 
+    // Vérifier si une migration d'URL a eu lieu
+    LaunchedEffect(Unit) {
+        if (store.wasUrlMigrated()) {
+            snackbar.showSnackbar("🔄 URL mise à jour vers le port 33003 - Veuillez vous reconnecter")
+            store.clearMigrationFlag()
+            // Forcer la déconnexion si encore connecté
+            if (!token.isNullOrBlank()) {
+                token = null
+                store.clearToken()
+            }
+        }
+    }
+
     // Gestion du deep link OAuth
     LaunchedEffect(deepLink) {
         deepLink?.getQueryParameter("token")?.takeIf { it.isNotBlank() }?.let { t ->
@@ -3021,8 +3034,43 @@ fun AppConfigScreen(
                         color = Color.White
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("URL Dashboard: $baseUrl", color = Color.White)
-                    Text("Version: 3.1.0", color = Color.Gray)
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("URL Dashboard: ", color = Color.Gray)
+                        Text(
+                            baseUrl,
+                            color = if (baseUrl.contains(":33002")) Color(0xFFFF9800) else Color.White,
+                            fontWeight = if (baseUrl.contains(":33002")) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                    
+                    // Avertissement si URL obsolète
+                    if (baseUrl.contains(":33002")) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFFF9800).copy(alpha = 0.2f), shape = MaterialTheme.shapes.small)
+                                .padding(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                null,
+                                tint = Color(0xFFFF9800),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "⚠️ URL obsolète (port 33002). Utilisez le bouton ci-dessous pour corriger.",
+                                color = Color(0xFFFF9800),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    Text("Version: 5.9.13", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
@@ -3047,6 +3095,30 @@ fun AppConfigScreen(
                         color = Color.White
                     )
                     Spacer(Modifier.height(16.dp))
+                    
+                    // Bouton pour réinitialiser l'URL
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                store.resetToDefaults()
+                                snackbar.showSnackbar("✅ URL réinitialisée vers http://88.174.155.230:33003")
+                                onDisconnect()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (baseUrl.contains(":33002")) Color(0xFFFF9800) else Color(0xFF2196F3)
+                        )
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (baseUrl.contains(":33002")) "🔄 Corriger l'URL (33003)" else "🔄 Réinitialiser l'URL"
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    
                     Button(
                         onClick = {
                             scope.launch {
