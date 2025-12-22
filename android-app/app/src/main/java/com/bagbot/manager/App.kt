@@ -826,14 +826,16 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 Log.d(TAG, "Fetching /api/me")
                 try {
                     val meJson = api.getJson("/api/me")
-                    Log.d(TAG, "Response /api/me: ${meJson.take(100)}")
+                    Log.d(TAG, "Response /api/me: ${meJson.take(200)}")
                     val me = json.parseToJsonElement(meJson).jsonObject
                     withContext(Dispatchers.Main) {
                         userId = me["userId"]?.jsonPrimitive?.contentOrNull ?: ""
                         userName = me["username"]?.jsonPrimitive?.contentOrNull ?: ""
-                        isFounder = userId == "943487722738311219"  // Votre vrai ID
+                        // Utiliser isFounder et isAdmin du backend (qui vérifie les permissions Discord)
+                        isFounder = me["isFounder"]?.jsonPrimitive?.booleanOrNull ?: false
+                        isAdmin = me["isAdmin"]?.jsonPrimitive?.booleanOrNull ?: false
                     }
-                    Log.d(TAG, "User loaded: $userName ($userId)")
+                    Log.d(TAG, "User loaded: $userName ($userId) - Founder: $isFounder, Admin: $isAdmin")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/me: ${e.message}")
                     withContext(Dispatchers.Main) {
@@ -944,26 +946,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     }
                 }
                 
-                // 7. Vérification des droits admin
+                // 7. Vérification des droits admin via /api/me
                 withContext(Dispatchers.Main) {
-                    if (userId.isNotEmpty()) {
-                        // Vérifier si l'utilisateur a un rôle staff
-                        val userRoles = memberRoles[userId] ?: emptyList()
-                        val staffRoles = configData?.get("staffRoleIds")?.jsonArray?.mapNotNull { 
-                            it.jsonPrimitive.contentOrNull 
-                        } ?: emptyList()
-                        
-                        // L'utilisateur est admin s'il a au moins un rôle staff ou s'il est fondateur
-                        isAdmin = isFounder || userRoles.any { it in staffRoles }
-                        
-                        Log.d(TAG, "User $userName - isFounder: $isFounder, isAdmin: $isAdmin")
-                        Log.d(TAG, "User roles: ${userRoles.size}, Staff roles configured: ${staffRoles.size}")
-                        
-                        if (isAdmin) {
-                            Log.d(TAG, "✅ User has admin access")
-                        } else {
-                            Log.d(TAG, "⚠️ User does NOT have admin access")
-                        }
+                    // On utilise directement les infos de /api/me qui vérifie les permissions Discord
+                    Log.d(TAG, "User $userName - isFounder: $isFounder, isAdmin: $isAdmin (from /api/me)")
+                    
+                    if (isAdmin) {
+                        Log.d(TAG, "✅ User has admin access (Administrator permission)")
+                    } else {
+                        Log.d(TAG, "⚠️ User does NOT have admin access")
                     }
                 }
                 

@@ -63,6 +63,14 @@ jobs:
         body: |
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
+          ### ✨ Corrections Critiques v5.8.9
+          
+          #### 🔧 Fixes Majeurs (NOUVEAU!)
+          - **Accès Admin Restauré**: Utilise maintenant les permissions Discord du backend (`isAdmin`, `isFounder`)
+          - **Plus de calcul côté client**: Fini les bugs de `staffRoleIds` manquants
+          - **Logs étendus**: Debug complet pour membres connectés et configuration
+          - **Compatibilité backend**: Utilise `/api/me` pour déterminer les permissions
+          
           ### ✨ Nouvelles fonctionnalités v5.8.7
           
           #### 🔧 Corrections Importantes (NOUVEAU!)
@@ -139,10 +147,16 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 5.8.7 (versionCode 587)
+          - **Version**: 5.8.9 (versionCode 589)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
+          
+          ### 🐛 Corrections de bugs v5.8.9
+          - ✅ Accès admin restauré : utilise les permissions Discord du backend
+          - ✅ `isFounder` et `isAdmin` viennent de `/api/me` (pas de calcul client)
+          - ✅ Logs détaillés pour debug membres connectés et configuration
+          - ✅ Fini les bugs de `staffRoleIds` non configurés
           
           ### 🐛 Corrections de bugs v5.8.7
           - ✅ Ajout de l'endpoint `/api/bot/status` manquant → "Bot en ligne" s'affiche
