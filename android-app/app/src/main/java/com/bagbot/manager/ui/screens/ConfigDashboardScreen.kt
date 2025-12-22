@@ -3994,14 +3994,17 @@ private fun TruthDareConfigTab(
                             )
                         }
                     } else {
-                        filteredPrompts.sortedBy { it["id"]?.jsonPrimitive?.intOrNull ?: 0 }.forEach { p ->
-                        val id = p["id"]?.jsonPrimitive?.intOrNull ?: 0
+                        filteredPrompts.sortedBy { 
+                            val idStr = it["id"]?.jsonPrimitive?.contentOrNull ?: "0"
+                            idStr.toLongOrNull() ?: 0L
+                        }.forEach { p ->
+                        val id = p["id"]?.jsonPrimitive?.contentOrNull ?: "0"
                         val type = p["type"]?.jsonPrimitive?.contentOrNull ?: "v"
                         var text by remember(id, mode) { mutableStateOf(p["text"]?.jsonPrimitive?.contentOrNull ?: "") }
 
                         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
                             Column(Modifier.padding(12.dp)) {
-                                Text("ID #$id • ${if (type == "a") "Action" else "Vérité"}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text("ID #$id • ${if (type == "a" || type == "action") "Action" else "Vérité"}", color = Color.White, fontWeight = FontWeight.SemiBold)
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(
                                     value = text,
