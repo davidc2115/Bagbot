@@ -1338,8 +1338,12 @@ fun BotControlScreen(
                     
                     // Charger les sessions
                     val resp = api.getJson("/api/admin/sessions")
+                    Log.d("BotControl", "Sessions response: ${resp.take(300)}")
                     val obj = json.parseToJsonElement(resp).jsonObject
-                    val sessions = obj["sessions"]?.jsonArray?.mapNotNull {
+                    val sessionsArray = obj["sessions"]?.jsonArray
+                    Log.d("BotControl", "Sessions count: ${sessionsArray?.size ?: 0}")
+                    
+                    val sessions = sessionsArray?.mapNotNull {
                         val session = it.jsonObject
                         val userId = session["userId"]?.jsonPrimitive?.contentOrNull
                         val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
@@ -1349,14 +1353,21 @@ fun BotControlScreen(
                             it.jsonPrimitive.contentOrNull
                         } ?: emptyList()
                         
+                        Log.d("BotControl", "User $username ($userId) has ${userRoles.size} roles, staffRoles: ${staffRoleIds.size}")
+                        
                         val role = when {
                             userId == founderId -> "👑 Fondateur"
                             userRoles.any { it in staffRoleIds } -> "⚡ Admin"
                             else -> "👤 Membre"
                         }
                         
+                        Log.d("BotControl", "User $username assigned role: $role")
+                        
                         if (userId != null) Triple(userId, username, role) else null
                     } ?: emptyList()
+                    
+                    Log.d("BotControl", "Final sessions list: ${sessions.size} members")
+                    
                     withContext(Dispatchers.Main) {
                         connectedUsers = sessions
                     }
