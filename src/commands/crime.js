@@ -10,7 +10,7 @@ module.exports = {
       option.setName('cible')
         .setDescription('Personne à cibler')
         .setRequired(false))
-    .setDMPermission(false)
+    .setDMPermission(true)
     .setContexts([0, 1, 2])
     .setIntegrationTypes([0, 1]),
   

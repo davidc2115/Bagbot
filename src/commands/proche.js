@@ -18,7 +18,7 @@ module.exports = {
       option.setName('cible')
         .setDescription('Personne à cibler')
         .setRequired(false))
-    .setDMPermission(false),
+    .setDMPermission(true),
 
   description: "Trouver les membres proches",
   

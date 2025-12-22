@@ -14,7 +14,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('config')
     .setDescription('Commande config')
-    .setDMPermission(true),
+    .setDMPermission(false),
 
   description: "Configuration du serveur",
   

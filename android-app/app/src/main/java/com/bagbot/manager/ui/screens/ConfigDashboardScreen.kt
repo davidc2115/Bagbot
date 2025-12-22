@@ -38,6 +38,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
+import com.bagbot.manager.safeString
+import com.bagbot.manager.safeInt
+import com.bagbot.manager.safeBoolean
+import com.bagbot.manager.safeStringOrEmpty
+import com.bagbot.manager.safeIntOrZero
+import com.bagbot.manager.safeBooleanOrFalse
+import com.bagbot.manager.safeStringList
+import com.bagbot.manager.safeObjectList
 
 private const val TAG = "BAG_CONFIG"
 
@@ -63,7 +71,6 @@ private enum class DashTab(val label: String) {
     MotCache("🔍 Mot-Caché"),
     Backups("💾 Backups"),
     Control("🎮 Contrôle"),
-    Music("🎵 Musique"),
     Raw("🧾 JSON Brut"),
 }
 
@@ -164,7 +171,6 @@ fun ConfigDashboardScreen(
                 DashTab.Geo -> GeoConfigTab(configData, members)
                 DashTab.Backups -> BackupsTab(api, json, scope, snackbar)
                 DashTab.Control -> ControlTab(api, json, scope, snackbar)
-                DashTab.Music -> MusicTab(api, json, scope, snackbar)
                 DashTab.Raw -> RawConfigTab(configData, json)
                 null -> {} // Should not happen
             }
@@ -191,7 +197,6 @@ private fun CategoryCard(
         "👋 Bienvenue" -> Icons.Default.WavingHand
         "👋 Au revoir" -> Icons.Default.ExitToApp
         "🌍 Géolocalisation" -> Icons.Default.Place
-        "🎵 Musique" -> Icons.Default.MusicNote
         "💾 Backups" -> Icons.Default.Storage
         "⚙️ Contrôle" -> Icons.Default.Settings
         else -> Icons.Default.Settings
@@ -268,6 +273,12 @@ private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.con
 private fun JsonObject.bool(key: String): Boolean? = this[key]?.jsonPrimitive?.booleanOrNull
 private fun JsonObject.int(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
 private fun JsonObject.double(key: String): Double? = this[key]?.jsonPrimitive?.doubleOrNull
+
+// Helper pour extraire une chaîne qui peut être soit un primitif, soit un objet avec un champ "id"
+private fun JsonObject.strOrId(key: String): String? {
+    val element = this[key] ?: return null
+    return element.jsonPrimitive?.contentOrNull ?: element.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+}
 
 @Composable
 private fun SectionCard(
@@ -658,7 +669,7 @@ private fun EconomyConfigTab(
 
     // Cooldowns (settings.cooldowns: object of key -> seconds)
     val initialCooldowns = remember(settings) {
-        settings?.obj("cooldowns")?.mapValues { it.value.jsonPrimitive.intOrNull ?: 0 } ?: emptyMap()
+        settings?.obj("cooldowns")?.mapValues { it.value.safeIntOrZero() } ?: emptyMap()
     }
     var cooldowns by remember(initialCooldowns) { mutableStateOf(initialCooldowns) }
     var newCooldownKey by remember { mutableStateOf("") }
@@ -1602,7 +1613,7 @@ private fun LevelsConfigTab(
     var curveFactor by remember { mutableStateOf((curve?.double("factor") ?: 1.12).toString()) }
 
     val initialRewards = remember(levels) {
-        levels?.obj("rewards")?.mapValues { it.value.jsonPrimitive.contentOrNull ?: "" } ?: emptyMap()
+        levels?.obj("rewards")?.mapValues { it.value.safeStringOrEmpty() } ?: emptyMap()
     }
     var rewards by remember(initialRewards) { mutableStateOf(initialRewards) }
     var newRewardLevel by remember { mutableStateOf("") }
@@ -1932,10 +1943,10 @@ private fun LevelsConfigTab(
                 // Cartes - Level card backgrounds
                 val cardsConfig = levels?.obj("cards")
                 var femaleRoleIds by remember(cardsConfig) {
-                    mutableStateOf(cardsConfig?.arr("femaleRoleIds")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableList() ?: mutableListOf())
+                    mutableStateOf(cardsConfig?.arr("femaleRoleIds").safeStringList().toMutableList())
                 }
                 var certifiedRoleIds by remember(cardsConfig) {
-                    mutableStateOf(cardsConfig?.arr("certifiedRoleIds")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableList() ?: mutableListOf())
+                    mutableStateOf(cardsConfig?.arr("certifiedRoleIds").safeStringList().toMutableList())
                 }
                 val backgrounds = cardsConfig?.obj("backgrounds")
                 var defaultBg by remember(backgrounds) { mutableStateOf(backgrounds?.str("default") ?: "") }
@@ -2143,7 +2154,7 @@ private fun BoosterConfigTab(
     var actionCooldownMult by remember { mutableStateOf((boost?.double("actionCooldownMult") ?: 0.5).toString()) }
     var shopPriceMult by remember { mutableStateOf((boost?.double("shopPriceMult") ?: 0.5).toString()) }
 
-    val initialRoles = remember(boost) { boost?.arr("roles")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
+    val initialRoles = remember(boost) { boost?.arr("roles").safeStringList() }
     var boosterRoles by remember { mutableStateOf(initialRoles) }
     var newRoleId by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
@@ -2315,10 +2326,10 @@ private fun ActionGifsTab(
 ) {
     val gifsData = actions?.obj("gifs")?.obj(selectedActionKey)
     val successGifs = remember(gifsData) {
-        gifsData?.arr("success")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableList() ?: mutableListOf()
+        gifsData?.arr("success").safeStringList().toMutableList()
     }
     val failGifs = remember(gifsData) {
-        gifsData?.arr("fail")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableList() ?: mutableListOf()
+        gifsData?.arr("fail").safeStringList().toMutableList()
     }
     
     var showAddSuccess by remember { mutableStateOf(false) }
@@ -2626,10 +2637,10 @@ private fun ActionMessagesTab(
 ) {
     val messagesData = actions?.obj("messages")?.obj(selectedActionKey)
     val successMessages = remember(messagesData, selectedActionKey) {
-        messagesData?.arr("success")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableStateList() ?: mutableStateListOf()
+        messagesData?.arr("success").safeStringList().toMutableStateList()
     }
     val failMessages = remember(messagesData, selectedActionKey) {
-        messagesData?.arr("fail")?.mapNotNull { it.jsonPrimitive.contentOrNull }?.toMutableStateList() ?: mutableStateListOf()
+        messagesData?.arr("fail").safeStringList().toMutableStateList()
     }
     
     var showAddSuccess by remember { mutableStateOf(false) }
@@ -3469,13 +3480,13 @@ private fun MotCacheConfigTab(
     var minMessageLength by remember { mutableStateOf(motCache?.int("minMessageLength")?.toString() ?: "15") }
     
     val initialAllowedChannels = remember(motCache) {
-        motCache?.arr("allowedChannels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        motCache?.arr("allowedChannels").safeStringList()
     }
     var allowedChannels by remember(initialAllowedChannels) { mutableStateOf(initialAllowedChannels) }
     var newChannelId by remember { mutableStateOf<String?>(null) }
     
-    var letterNotifChannel by remember { mutableStateOf(motCache?.str("letterNotificationChannel")) }
-    var winnerNotifChannel by remember { mutableStateOf(motCache?.str("notificationChannel")) }
+    var letterNotifChannel by remember { mutableStateOf(motCache?.strOrId("letterNotificationChannel")) }
+    var winnerNotifChannel by remember { mutableStateOf(motCache?.strOrId("notificationChannel")) }
     
     var isSaving by remember { mutableStateOf(false) }
 
@@ -3733,7 +3744,7 @@ private fun CountingConfigTab(
     val counting = configData?.obj("counting")
     var allowFormulas by remember { mutableStateOf(counting?.bool("allowFormulas") ?: false) }
     val initialChannels = remember(counting) {
-        counting?.arr("channels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        counting?.arr("channels").safeStringList()
     }
     var channelIds by remember(initialChannels) { mutableStateOf(initialChannels) }
     var newChannelId by remember { mutableStateOf<String?>(null) }
@@ -3841,8 +3852,8 @@ private fun TruthDareConfigTab(
                 try {
                     val resp = api.getJson("/api/truthdare/$mode")
                     val obj = json.parseToJsonElement(resp).jsonObject
-                    val p = obj["prompts"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
-                    val ch = obj["channels"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                    val p = obj["prompts"]?.jsonArray.safeObjectList()
+                    val ch = obj["channels"]?.jsonArray.safeStringList()
                     withContext(Dispatchers.Main) {
                         prompts = p
                         channelIds = ch
@@ -4405,10 +4416,10 @@ private fun TicketsConfigTab(
                     var description by remember(idx) { mutableStateOf(cat["description"]?.jsonPrimitive?.contentOrNull ?: "") }
                     var banner by remember(idx) { mutableStateOf(cat["bannerUrl"]?.jsonPrimitive?.contentOrNull ?: "") }
                     val staffPing = remember(idx) {
-                        cat["staffPingRoleIds"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                        cat["staffPingRoleIds"]?.jsonArray.safeStringList()
                     }
                     val viewers = remember(idx) {
-                        cat["extraViewerRoleIds"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                        cat["extraViewerRoleIds"]?.jsonArray.safeStringList()
                     }
                     var staffPingRoleIds by remember(idx) { mutableStateOf(staffPing) }
                     var extraViewerRoleIds by remember(idx) { mutableStateOf(viewers) }
@@ -4609,16 +4620,16 @@ private fun LogsConfigTab(
 
     val categoriesObj = logs?.obj("categories") ?: buildJsonObject { }
     var categories by remember(categoriesObj) {
-        mutableStateOf(categoriesObj.mapValues { it.value.jsonPrimitive.booleanOrNull ?: false })
+        mutableStateOf(categoriesObj.mapValues { it.value.safeBooleanOrFalse() })
     }
     val channelsObj = logs?.obj("channels") ?: buildJsonObject { }
     var categoryChannels by remember(channelsObj) {
-        mutableStateOf(channelsObj.mapValues { it.value.jsonPrimitive.contentOrNull ?: "" })
+        mutableStateOf(channelsObj.mapValues { it.value.safeStringOrEmpty() })
     }
 
-    val initialIgnoreUsers = remember(logs) { logs?.obj("filters")?.arr("ignoreUsers")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
-    val initialIgnoreChannels = remember(logs) { logs?.obj("filters")?.arr("ignoreChannels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
-    val initialIgnoreRoles = remember(logs) { logs?.obj("filters")?.arr("ignoreRoles")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
+    val initialIgnoreUsers = remember(logs) { logs?.obj("filters")?.arr("ignoreUsers").safeStringList() }
+    val initialIgnoreChannels = remember(logs) { logs?.obj("filters")?.arr("ignoreChannels").safeStringList() }
+    val initialIgnoreRoles = remember(logs) { logs?.obj("filters")?.arr("ignoreRoles").safeStringList() }
 
     var ignoreUsers by remember { mutableStateOf(initialIgnoreUsers) }
     var ignoreChannels by remember { mutableStateOf(initialIgnoreChannels) }
@@ -4816,12 +4827,12 @@ private fun ConfessConfigTab(
     var logChannelId by remember { mutableStateOf(confess?.str("logChannelId")) }
     var allowReplies by remember { mutableStateOf(confess?.bool("allowReplies") ?: false) }
     var threadNaming by remember { mutableStateOf(confess?.str("threadNaming") ?: "") }
-    val initialNames = remember(confess) { confess?.arr("nsfwNames")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
+    val initialNames = remember(confess) { confess?.arr("nsfwNames").safeStringList() }
     var nsfwNames by remember { mutableStateOf(initialNames) }
     var newName by remember { mutableStateOf("") }
 
-    val sfwChannelsInit = remember(confess) { confess?.obj("sfw")?.arr("channels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
-    val nsfwChannelsInit = remember(confess) { confess?.obj("nsfw")?.arr("channels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
+    val sfwChannelsInit = remember(confess) { confess?.obj("sfw")?.arr("channels").safeStringList() }
+    val nsfwChannelsInit = remember(confess) { confess?.obj("nsfw")?.arr("channels").safeStringList() }
     var sfwChannels by remember { mutableStateOf(sfwChannelsInit) }
     var nsfwChannels by remember { mutableStateOf(nsfwChannelsInit) }
     var newChannelId by remember { mutableStateOf<String?>(null) }
@@ -5206,7 +5217,7 @@ private fun StaffConfigTab(
     snackbar: SnackbarHostState
 ) {
     val initial = remember(configData) {
-        configData?.arr("staffRoleIds")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        configData?.arr("staffRoleIds").safeStringList()
     }
     var staffRoles by remember { mutableStateOf(initial) }
     var newRoleId by remember { mutableStateOf<String?>(null) }
@@ -5387,8 +5398,8 @@ private fun InactivityConfigTab(
                     withContext(Dispatchers.Main) {
                         enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
                         delayDays = (obj["delayDays"]?.jsonPrimitive?.intOrNull ?: 30).toString()
-                        inactiveRoleId = obj["inactiveRoleId"]?.jsonPrimitive?.contentOrNull
-                        excludedRoleIds = obj["excludedRoleIds"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                        inactiveRoleId = obj["inactiveRoleId"].safeString()
+                        excludedRoleIds = obj["excludedRoleIds"]?.jsonArray.safeStringList()
                         trackingCount = tracking
                     }
                 } catch (e: Exception) {
@@ -5540,13 +5551,13 @@ private fun AutoThreadConfigTab(
     snackbar: SnackbarHostState
 ) {
     val at = configData?.obj("autothread")
-    val initialChannels = remember(at) { at?.arr("channels")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
+    val initialChannels = remember(at) { at?.arr("channels").safeStringList() }
     var channelIds by remember { mutableStateOf(initialChannels) }
     var namingMode by remember { mutableStateOf(at?.obj("naming")?.str("mode") ?: "nsfw") }
     var customPattern by remember { mutableStateOf(at?.obj("naming")?.str("customPattern") ?: "") }
     var policy by remember { mutableStateOf(at?.str("policy") ?: "new_messages") }
     var archivePolicy by remember { mutableStateOf(at?.str("archivePolicy") ?: "1w") }
-    val initialNames = remember(at) { at?.arr("nsfwNames")?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList() }
+    val initialNames = remember(at) { at?.arr("nsfwNames").safeStringList() }
     var nsfwNames by remember { mutableStateOf(initialNames) }
     var newChannelId by remember { mutableStateOf<String?>(null) }
     var newName by remember { mutableStateOf("") }

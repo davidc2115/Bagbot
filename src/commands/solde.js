@@ -14,7 +14,7 @@ module.exports = {
         .setDescription("Le membre dont vous voulez voir le solde (vous par défaut)")
         .setRequired(false)
     )
-    .setDMPermission(false),
+    .setDMPermission(true),
 
   description: "Afficher le solde d'un membre",
   

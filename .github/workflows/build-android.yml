@@ -63,9 +63,40 @@ jobs:
         body: |
           ## 🎉 BAG Bot Manager ${{ github.ref_name }}
           
-          ### ✨ CORRECTIONS MAJEURES v5.9.0 - Tout Fonctionne !
+          ### ✨ CORRECTIONS MAJEURES v5.9.10 - Stabilité & Fixes !
           
           #### 🚨 Fixes Critiques (NOUVEAU!)
+          - **✅ URL Placeholder Corrigé**: Port 33003 au lieu de 33002 dans le champ de configuration
+          - **✅ Erreur JsonObject Résolue**: Fix de l'erreur "Kotlin reflection is not available"
+          - **✅ Configuration Mot-Caché**: Fonctionne maintenant sans crash lors de la sauvegarde
+          - **✅ Canaux de Notification**: Gestion robuste des formats API (string ou objet)
+          
+          #### 🔧 Améliorations Techniques
+          - **Nouvelle fonction `strOrId()`**: Gère automatiquement les deux formats de réponse API
+          - **Compatibilité API étendue**: Supporte les réponses en chaîne simple ou objet JSON
+          - **Stabilité accrue**: Plus de crash lors de la configuration des canaux
+          
+          ### 📋 Changements Détaillés
+          
+          #### 1. Correction du Placeholder URL
+          - Fichier: `App.kt` ligne 3636
+          - Changement: `33002` → `33003`
+          - Impact: Les utilisateurs voient le bon port dans le placeholder
+          
+          #### 2. Fix Erreur JsonObject
+          - Fichier: `ConfigDashboardScreen.kt`
+          - Problème: Les champs `letterNotificationChannel` et `notificationChannel` pouvaient être JsonObject
+          - Solution: Nouvelle fonction `strOrId()` qui gère les deux cas
+          
+          ```kotlin
+          // Gère à la fois:
+          "letterNotificationChannel": "123456789"  // String
+          "letterNotificationChannel": {"id": "123456789", ...}  // Object
+          ```
+          
+          ### ✨ CORRECTIONS MAJEURES v5.9.0 - Tout Fonctionne !
+          
+          #### 🚨 Fixes Critiques v5.9.0
           - **✅ Membres s'affichent maintenant !** Fix parsing `/api/discord/members` (`members` au lieu de `names`)
           - **✅ Accès admin section gérer les accès**: Liste complète des membres Discord visible
           - **✅ Membres connectés**: Affichage correct avec rôles (Fondateur/Admin/Membre)
@@ -155,10 +186,16 @@ jobs:
           http://88.174.155.230:33002
           
           ### 📊 Informations Techniques
-          - **Version**: 5.9.0 (versionCode 590)
+          - **Version**: 5.9.10 (versionCode 5910)
           - **Min SDK**: 26 (Android 8.0)
           - **Target SDK**: 34 (Android 14)
           - **Taille**: ~15-25 MB
+          
+          ### 🐛 Corrections de bugs v5.9.10
+          - ✅ **URL Placeholder**: Port 33003 au lieu de 33002
+          - ✅ **Erreur JsonObject**: Fix complet avec fonction `strOrId()`
+          - ✅ **Configuration Mot-Caché**: Plus de crash lors de la sauvegarde
+          - ✅ **Canaux Notification**: Gestion robuste des deux formats API
           
           ### 🐛 Corrections de bugs v5.9.0
           - ✅ **Parsing membres corrigé** : `membersData["members"]` au lieu de `["names"]`

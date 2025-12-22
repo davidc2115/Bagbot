@@ -14,7 +14,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('localisation')
     .setDescription('Commande localisation')
-    .setDMPermission(false),
+    .setDMPermission(true),
 
   description: "Définir votre localisation",
   
