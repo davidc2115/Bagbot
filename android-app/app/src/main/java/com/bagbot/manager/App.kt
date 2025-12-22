@@ -737,7 +737,19 @@ fun StaffChatScreen(
                                     }
                                 }
                                 else -> {
-                                    Text(msg.message, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                    // Parser les mentions <@userId> et les remplacer par les noms
+                                    val parsedMessage = remember(msg.message, members) {
+                                        var text = msg.message
+                                        // Regex pour trouver les mentions <@123456789>
+                                        val mentionRegex = Regex("<@(\\d+)>")
+                                        mentionRegex.findAll(text).forEach { match ->
+                                            val userId = match.groupValues[1]
+                                            val userName = members[userId] ?: "Inconnu"
+                                            text = text.replace(match.value, "@$userName")
+                                        }
+                                        text
+                                    }
+                                    Text(parsedMessage, style = MaterialTheme.typography.bodyMedium, color = Color.White)
                                 }
                             }
                         }
