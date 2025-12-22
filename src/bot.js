@@ -6742,8 +6742,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
       }
       
-      // Select menus mot-caché
-      if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && interaction.customId?.startsWith('motcache_select')) {
+      // Select menus mot-caché (string et channel)
+      if ((interaction.isStringSelectMenu && interaction.isStringSelectMenu() && interaction.customId?.startsWith('motcache_select')) ||
+          (interaction.isChannelSelectMenu && interaction.isChannelSelectMenu() && interaction.customId?.startsWith('motcache_channelselect'))) {
         console.log(`[MOT-CACHE] Select menu détecté: ${interaction.customId}`);
         try {
           await motCacheHandlers.handleMotCacheSelect(interaction);

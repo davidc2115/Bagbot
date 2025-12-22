@@ -1,7 +1,7 @@
 // Handlers pour les boutons de configuration mot-caché
 // À intégrer dans bot.js dans la section client.on('interactionCreate')
 
-const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { readConfig, writeConfig } = require('../storage/jsonStore');
 
 async function handleMotCacheButton(interaction) {
@@ -139,20 +139,22 @@ async function handleMotCacheButton(interaction) {
 
   // Salons de jeu (où les lettres apparaissent)
   if (buttonId === 'motcache_gamechannels') {
-    const modal = new ModalBuilder()
-      .setCustomId('motcache_modal_gamechannels')
-      .setTitle('📋 Salons de jeu');
+    const channelSelect = new ChannelSelectMenuBuilder()
+      .setCustomId('motcache_channelselect_game')
+      .setPlaceholder('Sélectionner les salons de jeu (vide = tous)')
+      .setChannelTypes([ChannelType.GuildText])
+      .setMinValues(0)
+      .setMaxValues(25);
+    
+    // Si des channels sont déjà configurés, les pré-sélectionner
+    if (motCache.allowedChannels && motCache.allowedChannels.length > 0) {
+      channelSelect.setDefaultChannels(motCache.allowedChannels);
+    }
 
-    const channelsInput = new TextInputBuilder()
-      .setCustomId('channels')
-      .setLabel('IDs des salons (séparés par des virgules)')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Ex: 123456789,987654321\nVide = tous les salons')
-      .setRequired(false)
-      .setValue(motCache.allowedChannels?.join(',') || '');
-
-    modal.addComponents(new ActionRowBuilder().addComponents(channelsInput));
-    return interaction.showModal(modal);
+    return interaction.update({
+      content: '📋 **Sélectionne les salons où les lettres peuvent apparaître**\n💡 Ne rien sélectionner = tous les salons',
+      components: [new ActionRowBuilder().addComponents(channelSelect)]
+    });
   }
 
   // Salon notification lettres (où on annonce les lettres trouvées)
@@ -421,26 +423,7 @@ async function handleMotCacheModal(interaction) {
     });
   }
 
-  if (modalId === 'motcache_modal_gamechannels') {
-    const channelsStr = interaction.fields.getTextInputValue('channels').trim();
-    
-    if (channelsStr === '') {
-      // Vide = tous les salons
-      motCache.allowedChannels = [];
-    } else {
-      // Parser les IDs
-      const channelIds = channelsStr.split(',').map(id => id.trim()).filter(id => id.length > 0);
-      motCache.allowedChannels = channelIds;
-    }
-    
-    guildConfig.motCache = motCache;
-    await writeConfig(config);
-
-    return interaction.reply({
-      content: `✅ Salons de jeu configurés : ${motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salons` : 'Tous les salons'}`,
-      ephemeral: true
-    });
-  }
+  // Supprimé : géré maintenant par le channel select menu
 
   if (modalId === 'motcache_modal_letternotifchannel') {
     const channelId = interaction.fields.getTextInputValue('channel').trim();
@@ -583,6 +566,25 @@ async function handleMotCacheSelect(interaction) {
 
     return interaction.update({
       content: `✅ Mode défini : **${mode === 'programmed' ? '📅 Programmé' : '🎲 Probabilité'}**`,
+      components: []
+    });
+  }
+
+  if (interaction.customId === 'motcache_channelselect_game') {
+    const selectedChannels = interaction.values; // Array of channel IDs
+    
+    if (selectedChannels.length === 0) {
+      // Aucun salon sélectionné = tous les salons
+      motCache.allowedChannels = [];
+    } else {
+      motCache.allowedChannels = selectedChannels;
+    }
+    
+    guildConfig.motCache = motCache;
+    await writeConfig(config);
+
+    return interaction.update({
+      content: `✅ Salons de jeu configurés : ${motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salon(s)` : 'Tous les salons'}`,
       components: []
     });
   }

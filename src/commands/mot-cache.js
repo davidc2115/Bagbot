@@ -63,7 +63,18 @@ module.exports = {
     const wordLength = motCache.targetWord.length;
     const progress = Math.round((userLetters.length / wordLength) * 100);
     
+    // Afficher le mot avec les lettres trouvées révélées
+    const wordDisplay = motCache.targetWord.toUpperCase().split('').map((letter, index) => {
+      // Vérifier si cette lettre a été trouvée
+      if (userLetters.includes(letter)) {
+        return letter;
+      } else {
+        return '_';
+      }
+    }).join(' ');
+    
     embed.setDescription(
+      `**Mot à trouver:**\n\`\`\`\n${wordDisplay}\n\`\`\`\n` +
       `**Lettres collectées:**\n\`\`\`\n${userLetters.length > 0 ? userLetters.join('  ') : '(Aucune lettre)'}\n\`\`\`\n` +
       `**Progression:** ${userLetters.length}/${wordLength} lettres (${progress}%)`
     );
