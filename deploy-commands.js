@@ -42,23 +42,45 @@ for (const file of commandFiles) {
 console.log('');
 console.log('='.repeat(80));
 console.log(`📊 Total: ${allCommands.length} commandes`);
-console.log('   Toutes déployées en GLOBAL avec dm_permission contrôlé');
+console.log('   Déployées en GLOBAL par lots de 10 pour éviter le rate limiting');
 console.log('');
 
 const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
+// Fonction pour attendre
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 (async () => {
   try {
-    console.log('🚀 Déploiement GLOBAL de toutes les commandes...');
+    console.log('🚀 Déploiement GLOBAL par lots...');
     console.log('');
     
-    // Déployer TOUTES les commandes en global
-    console.log(`📤 Déploiement de ${allCommands.length} commandes...`);
-    await rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: allCommands }
-    );
-    console.log('✅ Toutes les commandes déployées en GLOBAL');
+    // Déployer par lots de 10 commandes
+    const BATCH_SIZE = 10;
+    let deployed = 0;
+    
+    for (let i = 0; i < allCommands.length; i += BATCH_SIZE) {
+      const batch = allCommands.slice(i, i + BATCH_SIZE);
+      console.log(`📤 Déploiement du lot ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(allCommands.length/BATCH_SIZE)} (${batch.length} commandes)...`);
+      
+      try {
+        await rest.put(
+          Routes.applicationCommands(process.env.CLIENT_ID),
+          { body: allCommands.slice(0, i + batch.length) } // Envoyer toutes les commandes jusqu'à maintenant
+        );
+        deployed += batch.length;
+        console.log(`✅ ${deployed}/${allCommands.length} commandes déployées`);
+        
+        // Attendre 2 secondes entre chaque lot
+        if (i + BATCH_SIZE < allCommands.length) {
+          console.log('⏳ Attente 2s avant le prochain lot...');
+          await wait(2000);
+        }
+      } catch (error) {
+        console.error(`❌ Erreur lot ${Math.floor(i/BATCH_SIZE) + 1}:`, error.message);
+        // Continuer malgré l'erreur
+      }
+    }
     
     console.log('');
     console.log('🎉 Déploiement terminé !');
@@ -68,7 +90,7 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Erreur:', error);
+    console.error('❌ Erreur globale:', error);
     process.exit(1);
   }
 })();

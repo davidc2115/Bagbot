@@ -1914,8 +1914,8 @@ fun MusicScreen(
                             connection.connect()
                             
                             if (connection.responseCode == 200) {
-                                // Créer fichier temporaire
-                                val tempFile = java.io.File.createTempFile("music_", ".mp3", android.os.Environment.getExternalStorageDirectory())
+                                // Créer fichier temporaire dans le cache interne (pas besoin de permission)
+                                val tempFile = java.io.File.createTempFile("music_", ".mp3", context.cacheDir)
                                 
                                 // Télécharger
                                 connection.inputStream.use { input ->
