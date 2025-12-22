@@ -2309,6 +2309,100 @@ fun PlaylistsTab(
         )
     }
     
+    // Dialog ajouter une chanson
+    if (showAddSongDialog && selectedPlaylistForAdd != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { 
+                showAddSongDialog = false
+                selectedSong = null
+            },
+            title = { Text("Ajouter une chanson") },
+            text = {
+                Column {
+                    Text("Sélectionnez une chanson à ajouter à la playlist")
+                    Spacer(Modifier.height(16.dp))
+                    
+                    if (availableSongs.isEmpty()) {
+                        Text("Aucune musique disponible", color = Color.Gray)
+                    } else {
+                        LazyColumn(Modifier.heightIn(max = 300.dp)) {
+                            items(availableSongs.size) { index ->
+                                val song = availableSongs[index]
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedSong = song }
+                                        .background(if (selectedSong == song) Color(0xFF9C27B0).copy(alpha = 0.3f) else Color.Transparent)
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.MusicNote,
+                                        null,
+                                        tint = if (selectedSong == song) Color(0xFF9C27B0) else Color.Gray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        song,
+                                        color = if (selectedSong == song) Color.White else Color.Gray,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                if (index < availableSongs.size - 1) {
+                                    Divider(color = Color(0xFF2E2E2E))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedSong?.let { song ->
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    try {
+                                        val body = buildJsonObject {
+                                            put("filename", song)
+                                            put("title", song)
+                                        }
+                                        api.postJson(
+                                            "/api/music/playlists/$selectedPlaylistForAdd/songs",
+                                            json.encodeToString(JsonObject.serializer(), body)
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            snackbar.showSnackbar("✅ Chanson ajoutée")
+                                            showAddSongDialog = false
+                                            selectedSong = null
+                                            loadPlaylists()
+                                        }
+                                    } catch (e: Exception) {
+                                        withContext(Dispatchers.Main) {
+                                            snackbar.showSnackbar("❌ ${e.message}")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    enabled = selectedSong != null
+                ) {
+                    Text("Ajouter")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showAddSongDialog = false
+                    selectedSong = null
+                }) {
+                    Text("Annuler")
+                }
+            }
+        )
+    }
+    
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
