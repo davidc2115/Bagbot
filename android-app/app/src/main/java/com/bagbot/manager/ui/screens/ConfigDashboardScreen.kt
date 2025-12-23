@@ -71,7 +71,6 @@ private enum class DashTab(val label: String) {
     MotCache("🔍 Mot-Caché"),
     Backups("💾 Backups"),
     Control("🎮 Contrôle"),
-    Raw("🧾 JSON Brut"),
 }
 
 @Composable
@@ -171,7 +170,6 @@ fun ConfigDashboardScreen(
                 DashTab.Geo -> GeoConfigTab(configData, members)
                 DashTab.Backups -> BackupsTab(api, json, scope, snackbar)
                 DashTab.Control -> ControlTab(api, json, scope, snackbar)
-                DashTab.Raw -> RawConfigTab(configData, json)
                 null -> {} // Should not happen
             }
         }

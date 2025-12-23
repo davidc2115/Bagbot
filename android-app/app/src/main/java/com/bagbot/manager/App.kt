@@ -1363,12 +1363,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.MusicNote, "Musique") },
                                 label = { Text("Musique") }
                             )
-                            NavigationBarItem(
-                                selected = tab == 5,
-                                onClick = { tab = 5 },
-                                icon = { Icon(Icons.Default.Search, "Mot-Caché") },
-                                label = { Text("Mot-Caché") }
-                            )
                         }
                     }
                 }
@@ -1498,10 +1492,6 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 snackbar = snackbar,
                                 baseUrl = baseUrl
                             )
-                        }
-                        tab == 5 -> {
-                            // Onglet Mot-Caché
-                            MotCacheScreen(api, json, scope, snackbar)
                         }
                         // Accès Admin : Fondateur OU Admin (avec rôle staff)
                         tab == 3 && (isFounder || isAdmin) -> {
