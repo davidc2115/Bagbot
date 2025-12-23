@@ -1,8 +1,8 @@
 #!/bin/bash
 # Script pour compiler l'APK Bagbot Manager
-# Version avec nouvelles fonctionnalités Mot-Caché
+# Version 6.0.0
 
-echo "🤖 Bagbot Manager - Build APK v5.9.18"
+echo "🤖 Bagbot Manager - Build APK v6.0.0"
 echo "======================================"
 echo ""
 
@@ -68,10 +68,10 @@ if [ $? -eq 0 ]; then
     
     # Renommer avec numéro de version
     echo ""
-    echo "📝 Création de BagBot-Manager-v5.9.18-android.apk..."
+    echo "📝 Création de BagBot-Manager-v6.0.3-android.apk..."
     mkdir -p ../BagBot-Manager-APK
-    cp app/build/outputs/apk/release/app-release.apk ../BagBot-Manager-APK/BagBot-Manager-v5.9.18-android.apk
-    echo "✅ Fichier final: BagBot-Manager-APK/BagBot-Manager-v5.9.18-android.apk"
+    cp app/build/outputs/apk/release/app-release.apk ../BagBot-Manager-APK/BagBot-Manager-v6.0.3-android.apk
+    echo "✅ Fichier final: BagBot-Manager-APK/BagBot-Manager-v6.0.3-android.apk"
     
 else
     echo ""
@@ -83,13 +83,12 @@ fi
 echo ""
 echo "🎉 Build terminé avec succès !"
 echo ""
-echo "📱 Nouveautés v5.9.18:"
-echo "   - 🧹 Retrait onglet Mot-Caché de la navigation"
-echo "   - 🧹 Retrait vignette JSON Brut de Config"
-echo "   - 🎨 Interface simplifiée et épurée"
-echo "   - ✅ Autocomplétion @ déjà fonctionnelle"
+echo "📱 Version v6.0.0:"
+echo "   - 🎯 Nouvelle version majeure 6.0.0"
+echo "   - 🧹 Interface simplifiée et épurée"
+echo "   - ✅ Autocomplétion @ fonctionnelle"
 echo "   - ✅ Conversations privées fonctionnelles"
 echo ""
 echo "📲 Installation:"
-echo "   adb install -r ../BagBot-Manager-APK/BagBot-Manager-v5.9.18-android.apk"
+echo "   adb install -r ../BagBot-Manager-APK/BagBot-Manager-v6.0.0-android.apk"
 echo ""

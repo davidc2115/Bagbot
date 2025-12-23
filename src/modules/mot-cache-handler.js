@@ -80,12 +80,13 @@ async function handleMessage(message) {
       try {
         const notifChannel = message.guild.channels.cache.get(motCache.letterNotificationChannel);
         if (notifChannel) {
-          const notifMessage = await notifChannel.send(
-            `🔍 **${message.author} a trouvé une lettre cachée !**\n\n` +
-            `Lettre: **${letter}**\n` +
-            `Progression: ${motCache.collections[message.author.id].length}/${targetWord.length}\n` +
-            `💡 Utilise \`/mot-cache\` puis clique sur "✍️ Entrer le mot" quand tu penses avoir trouvé !`
-          );
+          const notifMessage = await notifChannel.send({
+            content: `🔍 <@${message.author.id}> **a trouvé une lettre cachée !**\n\n` +
+              `Lettre: **${letter}**\n` +
+              `Progression: ${motCache.collections[message.author.id].length}/${targetWord.length}\n` +
+              `💡 Utilise \`/mot-cache\` puis clique sur "✍️ Entrer le mot" quand tu penses avoir trouvé !`,
+            allowedMentions: { users: [message.author.id] }
+          });
           
           // Supprimer après 15 secondes
           setTimeout(async () => {

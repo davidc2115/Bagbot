@@ -676,7 +676,8 @@ async function handleMotCacheModal(interaction) {
         if (notifChannel) {
           notifChannel.send({
             content: `🎉 <@${userId}> a trouvé le mot caché : **${guessedWord}** et gagne **${reward} BAG$** !`,
-            embeds: [embed]
+            embeds: [embed],
+            allowedMentions: { users: [userId] }
           });
         }
       }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
@@ -53,6 +54,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import com.bagbot.manager.ui.theme.BagBotTheme
 import com.bagbot.manager.ui.screens.SplashScreen
+import com.bagbot.manager.ui.screens.AdminScreen
 import com.bagbot.manager.ui.screens.ConfigDashboardScreen
 import com.bagbot.manager.ui.screens.MotCacheScreen
 import com.bagbot.manager.ui.components.MemberSelector
@@ -732,27 +734,49 @@ fun StaffChatScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("💬 Chats privés", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text("💬 Chats privés (Tous les membres)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Spacer(Modifier.height(4.dp))
                     
-                    // Liste des admins en ligne
-                    onlineAdmins.forEach { admin ->
-                        val adminId = admin["userId"].safeStringOrEmpty()
-                        val adminName = members[adminId] ?: admin["username"].safeString() ?: "Inconnu"
-                        val currentUserId = userInfo?.get("id").safeStringOrEmpty()
+                    // Liste de TOUS les membres (en ligne et hors ligne)
+                    val currentUserId = userInfo?.get("id").safeStringOrEmpty()
+                    val onlineAdminIds = onlineAdmins.map { it["userId"].safeStringOrEmpty() }.toSet()
+                    
+                    // Trier: en ligne d'abord, puis hors ligne
+                    val sortedMembers = members.entries
+                        .filter { it.key != currentUserId } // Exclure l'utilisateur actuel
+                        .sortedWith(compareByDescending<Map.Entry<String, String>> { 
+                            onlineAdminIds.contains(it.key) 
+                        }.thenBy { it.value }) // Puis alphabétique
+                    
+                    sortedMembers.forEach { (memberId, memberName) ->
+                        val isOnline = onlineAdminIds.contains(memberId)
+                        val roomId = if (currentUserId < memberId) "user-$currentUserId-$memberId" else "user-$memberId-$currentUserId"
                         
-                        if (adminId != currentUserId) {
-                            val roomId = if (currentUserId < adminId) "user-$currentUserId-$adminId" else "user-$adminId-$currentUserId"
-                            
-                            Button(
-                                onClick = { selectedRoom = roomId; showRoomSelector = false },
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedRoom == roomId) Color(0xFF5865F2) else Color(0xFF1E1E1E)
-                                )
-                            ) {
-                                Icon(Icons.Default.Person, null, tint = Color.White)
-                                Spacer(Modifier.width(8.dp))
-                                Text(adminName)
+                        Button(
+                            onClick = { selectedRoom = roomId; showRoomSelector = false },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedRoom == roomId) Color(0xFF5865F2) else Color(0xFF1E1E1E)
+                            )
+                        ) {
+                            // Indicateur de statut (vert = en ligne, gris = hors ligne)
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(
+                                        if (isOnline) Color(0xFF57F287) else Color.Gray,
+                                        shape = CircleShape
+                                    )
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Default.Person, null, tint = Color.White)
+                            Spacer(Modifier.width(8.dp))
+                            Text(memberName)
+                            Spacer(Modifier.weight(1f))
+                            if (isOnline) {
+                                Text("●", color = Color(0xFF57F287), style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                Text("○", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -841,32 +865,44 @@ fun StaffChatScreen(
                 
                 Spacer(Modifier.height(8.dp))
                 
-                // Détection des mentions (@)
-                val mentionSuggestions = remember(newMessage, onlineAdmins) {
+                // Détection des mentions (@) - TOUS les membres
+                val mentionSuggestions = remember(newMessage, members, onlineAdmins) {
                     val lastWord = newMessage.split(" ").lastOrNull() ?: ""
                     if (lastWord.startsWith("@") && lastWord.length > 1) {
                         val query = lastWord.substring(1).lowercase()
-                        onlineAdmins.filter { admin ->
-                            val adminId = admin["userId"].safeStringOrEmpty()
-                            val adminName = (members[adminId] ?: admin["username"].safeString() ?: "").lowercase()
-                            val currentUserId = userInfo?.get("id").safeStringOrEmpty()
-                            adminId != currentUserId && adminName.contains(query)
-                        }
+                        val currentUserId = userInfo?.get("id").safeStringOrEmpty()
+                        val onlineAdminIds = onlineAdmins.map { it["userId"].safeStringOrEmpty() }.toSet()
+                        
+                        members.entries
+                            .filter { (memberId, memberName) ->
+                                memberId != currentUserId && memberName.lowercase().contains(query)
+                            }
+                            .sortedWith(compareByDescending<Map.Entry<String, String>> {
+                                onlineAdminIds.contains(it.key) // En ligne d'abord
+                            }.thenBy { it.value }) // Puis alphabétique
+                            .map { (memberId, memberName) ->
+                                buildJsonObject {
+                                    put("userId", memberId)
+                                    put("username", memberName)
+                                    put("isOnline", onlineAdminIds.contains(memberId))
+                                }
+                            }
                     } else {
                         emptyList()
                     }
                 }
                 
-                // Liste de suggestions de mentions (comme Discord)
+                // Liste de suggestions de mentions (comme Discord) - avec statut en ligne/hors ligne
                 if (mentionSuggestions.isNotEmpty()) {
                     Card(
                         Modifier.fillMaxWidth().heightIn(max = 200.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
                     ) {
                         LazyColumn {
-                            items(mentionSuggestions) { admin ->
-                                val adminId = admin["userId"].safeStringOrEmpty()
-                                val adminName = members[adminId] ?: admin["username"].safeString() ?: "Inconnu"
+                            items(mentionSuggestions) { member ->
+                                val memberId = member["userId"].safeStringOrEmpty()
+                                val memberName = member["username"].safeString() ?: "Inconnu"
+                                val isOnline = member["isOnline"]?.jsonPrimitive?.booleanOrNull ?: false
                                 
                                 Row(
                                     Modifier
@@ -874,15 +910,29 @@ fun StaffChatScreen(
                                         .clickable {
                                             // Remplacer la mention partielle par la mention complète
                                             val words = newMessage.split(" ").toMutableList()
-                                            words[words.lastIndex] = "@$adminName"
+                                            words[words.lastIndex] = "@$memberName"
                                             newMessage = words.joinToString(" ") + " "
                                         }
                                         .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    // Indicateur de statut (vert = en ligne, gris = hors ligne)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(
+                                                if (isOnline) Color(0xFF57F287) else Color.Gray,
+                                                shape = CircleShape
+                                            )
+                                    )
+                                    Spacer(Modifier.width(8.dp))
                                     Icon(Icons.Default.Person, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text(adminName, color = Color.White)
+                                    Text(memberName, color = Color.White)
+                                    if (!isOnline) {
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("(Hors ligne)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
                         }
@@ -1018,8 +1068,8 @@ fun StaffMainScreen(
                 })
             }
             when (selectedStaffTab) {
-                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
-                1 -> AdminScreenWithAccess(members, api, json, scope, snackbar)
+                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)  // members ici contient déjà les admins passés depuis StaffMainScreen
+                1 -> AdminScreen(api, members) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
                 2 -> LogsScreen(api, json, scope, snackbar)
             }
         }
@@ -1062,6 +1112,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     
     // États données serveur
     var members by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var adminMembers by remember { mutableStateOf<Map<String, String>>(emptyMap()) } // Uniquement les admins (pour chat staff)
     var memberRoles by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
     var channels by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var roles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -1166,7 +1217,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     }
                 }
                 
-                // 3. Membres et rôles
+                // 3. Membres et rôles (TOUS les membres pour la config)
                 loadingMessage = "Chargement des membres..."
                 Log.d(TAG, "Fetching /api/discord/members")
                 try {
@@ -1189,6 +1240,25 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     Log.d(TAG, "Loaded ${members.size} members with ${memberRoles.size} role mappings")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/discord/members: ${e.message}")
+                }
+                
+                // 3b. Admins uniquement (pour chat staff - exclut bots et membres simples)
+                loadingMessage = "Chargement des admins..."
+                Log.d(TAG, "Fetching /api/discord/admins")
+                try {
+                    val adminsJson = api.getJson("/api/discord/admins")
+                    Log.d(TAG, "Response /api/discord/admins: ${adminsJson.take(150)}")
+                    val adminsData = json.parseToJsonElement(adminsJson).jsonObject
+                    
+                    withContext(Dispatchers.Main) {
+                        // L'API retourne { "members": {...}, "roles": {...} }
+                        adminsData["members"]?.jsonObject?.let { adminsObj ->
+                            adminMembers = adminsObj.mapValues { it.value.safeStringOrEmpty() }
+                        }
+                    }
+                    Log.d(TAG, "Loaded ${adminMembers.size} admin members (bots and simple members excluded)")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error /api/discord/admins: ${e.message}")
                 }
                 
                 // 4. Salons
@@ -1500,7 +1570,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 json = json,
                                 scope = scope,
                                 snackbar = snackbar,
-                                members = members,
+                                members = adminMembers, // Utiliser adminMembers (uniquement les admins)
                                 userInfo = userInfo,
                                 isFounder = isFounder,
                                 isAdmin = isAdmin
