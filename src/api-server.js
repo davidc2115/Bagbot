@@ -1918,10 +1918,47 @@ app.post('/backup', requireAuth, async (req, res) => {
     if (!fs.existsSync(backupsDir)) {
       fs.mkdirSync(backupsDir, { recursive: true });
     }
+
+    // Anti-spam: si un backup a été créé très récemment, ne pas en recréer un.
+    // (Certaines UIs peuvent déclencher plusieurs requêtes à la suite.)
+    const RECENT_WINDOW_MS = 60 * 1000; // 1 minute
+    try {
+      const entries = fs.readdirSync(backupsDir)
+        .filter((f) => f && f.endsWith('.json') && f.startsWith('config-'))
+        .map((f) => {
+          const p = path.join(backupsDir, f);
+          try { return { f, mtimeMs: fs.statSync(p).mtimeMs }; } catch (_) { return null; }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+      const latest = entries[0];
+      if (latest && (Date.now() - latest.mtimeMs) < RECENT_WINDOW_MS) {
+        return res.json({ success: true, skipped: true, filename: latest.f });
+      }
+    } catch (_) {}
     
     const filename = `config-${new Date().toISOString().replace(/:/g, '-')}.json`;
     const filepath = path.join(backupsDir, filename);
     fs.writeFileSync(filepath, JSON.stringify(config.guilds[GUILD], null, 2));
+
+    // Rétention simple: garder uniquement les 50 derniers backups "config-*"
+    try {
+      const keep = 50;
+      const entries = fs.readdirSync(backupsDir)
+        .filter((f) => f && f.endsWith('.json') && f.startsWith('config-'))
+        .map((f) => {
+          const p = path.join(backupsDir, f);
+          try { return { f, mtimeMs: fs.statSync(p).mtimeMs }; } catch (_) { return null; }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+      const toDelete = entries.slice(keep);
+      for (const e of toDelete) {
+        try { fs.unlinkSync(path.join(backupsDir, e.f)); } catch (_) {}
+      }
+    } catch (_) {}
     
     res.json({ success: true, filename });
   } catch (error) {
