@@ -1417,6 +1417,15 @@ app.post('/api/inactivity', requireAuth, express.json(), async (req, res) => {
     };
     
     await writeConfig(config);
+
+    // Déclencher le reload du bot (même comportement que /api/configs/:section)
+    const signalPath = path.join(__dirname, '../data/config-updated.signal');
+    try {
+      fs.writeFileSync(signalPath, Date.now().toString(), 'utf8');
+      console.log(`🔄 [BOT-API] Config reload signal sent (inactivity)`);
+    } catch (signalError) {
+      console.warn('[BOT-API] Could not write reload signal (inactivity):', signalError.message);
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -11,7 +11,9 @@ import kotlinx.serialization.json.*
 fun JsonElement?.safeString(): String? {
     if (this == null) return null
     return try {
-        this.jsonPrimitive?.contentOrNull ?: this.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+        this.jsonPrimitive?.contentOrNull
+            ?: this.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+            ?: this.jsonObject?.get("userId")?.jsonPrimitive?.contentOrNull
     } catch (e: Exception) {
         null
     }

@@ -184,8 +184,12 @@ fun AccessManagementTab(
                                 scope.launch {
                                     onIsLoadingChange(true)
                                     try {
-                                        val body = """{"userId":"$userId"}"""
-                                        api.postJson("/api/admin/allowed-users/add", body)
+                                        val username = members[userId] ?: "Unknown"
+                                        val body = buildJsonObject {
+                                            put("userId", userId)
+                                            put("username", username)
+                                        }
+                                        api.postJson("/api/admin/allowed-users", body.toString())
                                         
                                         val response = api.getJson("/api/admin/allowed-users")
                                         val data = json.parseToJsonElement(response).jsonObject
@@ -290,8 +294,8 @@ fun AccessManagementTab(
                                         scope.launch {
                                             onIsLoadingChange(true)
                                             try {
-                                                val body = """{"userId":"$userToRevoke","permanent":true}"""
-                                                api.postJson("/api/admin/allowed-users/revoke", body)
+                                                val uid = userToRevoke ?: return@launch
+                                                api.deleteJson("/api/admin/allowed-users/$uid")
                                                 
                                                 val response = api.getJson("/api/admin/allowed-users")
                                                 val data = json.parseToJsonElement(response).jsonObject
@@ -301,7 +305,7 @@ fun AccessManagementTab(
                                                 
                                                 userToRevoke = null
                                                 showRevokeConfirm = false
-                                                onShowSnackbar("✅ Accès révoqué définitivement")
+                                                onShowSnackbar("✅ Accès retiré")
                                             } catch (e: Exception) {
                                                 onShowSnackbar("❌ Erreur: ${e.message}")
                                             } finally {
@@ -389,8 +393,7 @@ fun AccessManagementTab(
                                 scope.launch {
                                     onIsLoadingChange(true)
                                     try {
-                                        val body = """{"userId":"$userId"}"""
-                                        api.postJson("/api/admin/allowed-users/remove", body)
+                                        api.deleteJson("/api/admin/allowed-users/$userId")
                                         
                                         val response = api.getJson("/api/admin/allowed-users")
                                         val data = json.parseToJsonElement(response).jsonObject

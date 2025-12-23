@@ -734,10 +734,10 @@ fun StaffChatScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("💬 Chats privés (Tous les membres)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text("💬 Chats privés (Admins autorisés)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                     Spacer(Modifier.height(4.dp))
                     
-                    // Liste de TOUS les membres (en ligne et hors ligne)
+                    // Liste des admins autorisés (en ligne et hors ligne)
                     val currentUserId = userInfo?.get("id").safeStringOrEmpty()
                     val onlineAdminIds = onlineAdmins.map { it["userId"].safeStringOrEmpty() }.toSet()
                     
@@ -974,7 +974,8 @@ fun StaffMainScreen(
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    members: Map<String, String>,
+    chatMembers: Map<String, String>,
+    allMembers: Map<String, String>,
     userInfo: JsonObject?,
     isFounder: Boolean,
     isAdmin: Boolean  // Vérification admin pour chat
@@ -1039,7 +1040,7 @@ fun StaffMainScreen(
                     )
                 }
             }
-            StaffChatScreen(api, json, scope, snackbar, members, userInfo)
+            StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
         }
     } else if (isFounder) {
         // Si fondateur: afficher tous les onglets
@@ -1068,8 +1069,8 @@ fun StaffMainScreen(
                 })
             }
             when (selectedStaffTab) {
-                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)  // members ici contient déjà les admins passés depuis StaffMainScreen
-                1 -> AdminScreen(api, members) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+                0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
+                1 -> AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
                 2 -> LogsScreen(api, json, scope, snackbar)
             }
         }
@@ -1099,6 +1100,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var isFounder by remember { mutableStateOf(false) }
     var isAdmin by remember { mutableStateOf(false) }
     var isAuthorized by remember { mutableStateOf(false) }
+    var allowedUserIds by remember { mutableStateOf<List<String>>(emptyList()) }
     
     // Créer userInfo JsonObject pour StaffChat
     val userInfo = remember(userId, userName) {
@@ -1129,6 +1131,17 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var selectedConfigSection by remember { mutableStateOf<String?>(null) }
 
     val json = remember { Json { ignoreUnknownKeys = true; coerceInputValues = true } }
+
+    // Annuaire utilisé par le chat staff: par défaut admins, sinon users autorisés (inclut offline)
+    val staffChatMembers = remember(members, adminMembers, allowedUserIds) {
+        if (allowedUserIds.isNotEmpty()) {
+            allowedUserIds.associateWith { uid ->
+                members[uid] ?: adminMembers[uid] ?: "Utilisateur $uid"
+            }
+        } else {
+            adminMembers
+        }
+    }
 
     // Vérifier si une migration d'URL a eu lieu
     LaunchedEffect(Unit) {
@@ -1329,6 +1342,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     val allowedUsers = allowedData["allowedUsers"]?.jsonArray.safeStringList()
                     
                     withContext(Dispatchers.Main) {
+                        allowedUserIds = allowedUsers
                         isAuthorized = userId in allowedUsers || isFounder
                         Log.d(TAG, "User authorized: $isAuthorized")
                     }
@@ -1336,6 +1350,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     Log.e(TAG, "Error checking authorization: ${e.message}")
                     withContext(Dispatchers.Main) {
                         // Si erreur, autoriser le fondateur par défaut
+                        allowedUserIds = emptyList()
                         isAuthorized = isFounder
                     }
                 }
@@ -1570,7 +1585,8 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 json = json,
                                 scope = scope,
                                 snackbar = snackbar,
-                                members = adminMembers, // Utiliser adminMembers (uniquement les admins)
+                                chatMembers = staffChatMembers,
+                                allMembers = members,
                                 userInfo = userInfo,
                                 isFounder = isFounder,
                                 isAdmin = isAdmin
