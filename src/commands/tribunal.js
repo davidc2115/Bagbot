@@ -193,6 +193,14 @@ function canActAsJudge(member) {
   }
 }
 
+function isAdmin(member) {
+  try {
+    return Boolean(member?.permissions?.has?.(PermissionFlagsBits.Administrator));
+  } catch (_) {
+    return false;
+  }
+}
+
 async function buildStaffRoleOverwrites(guild) {
   // Try to allow staff roles (moderation/admin) to view the case channel.
   const roles = Array.from(guild.roles.cache.values());
@@ -307,9 +315,9 @@ module.exports = {
           if (action === 'close') {
             try { await interaction.deferUpdate(); } catch (_) {}
             const member = interaction.member;
-            const isJudge = rec.judgeId && interaction.user.id === String(rec.judgeId);
-            if (!(isJudge || canActAsJudge(member))) {
-              try { await interaction.followUp({ content: '⛔ Seul le juge ou le staff peut clôturer.', ephemeral: true }); } catch (_) {}
+            const isJudgeUser = rec.judgeId && interaction.user.id === String(rec.judgeId);
+            if (!(isJudgeUser || isAdmin(member))) {
+              try { await interaction.followUp({ content: '⛔ Seul le juge (ou un admin) peut clôturer.', ephemeral: true }); } catch (_) {}
               return true;
             }
             const updated = await storage.upsertTribunalCase(guild.id, caseId, { status: 'closed', closedAt: Date.now() });
@@ -317,7 +325,14 @@ module.exports = {
               const ch = guild.channels.cache.get(updated.channelId) || await guild.channels.fetch(updated.channelId).catch(() => null);
               const msg = ch && updated.panelMessageId ? await ch.messages.fetch(updated.panelMessageId).catch(() => null) : null;
               if (msg) await msg.edit({ embeds: [caseEmbedFromRecord(updated)], components: [] }).catch(() => {});
-              if (ch) await ch.send({ content: '✅ Procès clôturé.' }).catch(() => {});
+              if (ch) {
+                await ch.send({ content: `✅ Dossier clôturé par <@${interaction.user.id}>.` }).catch(() => {});
+                // Ensure channel is age-restricted
+                try { await ch.setNSFW?.(true); } catch (_) {}
+                // Lock the channel: keep visible, but prevent everyone from writing.
+                await ch.permissionOverwrites.edit(guild.roles.everyone.id, { SendMessages: false, AddReactions: false }).catch(() => {});
+                await ch.setName(`cloture-${String(ch.name || 'proces').replace(/^cloture-/, '').slice(0, 80)}`.slice(0, 90)).catch(() => {});
+              }
             } catch (_) {}
             return true;
           }
@@ -420,17 +435,20 @@ module.exports = {
           const accusedName = accusedMember?.displayName || accusedMember?.user?.username || 'accuse';
           const chanName = `proces-${slugifyChannelName(accusedName)}`.slice(0, 90);
 
+          // Public case channel: visible & writable by everyone.
+          // Keep minimal overwrites (only ensure bot can manage).
           const overwrites = [
-            { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-            { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
-            { id: record.plaintiffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-            { id: record.accusedId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+            {
+              id: guild.members.me.id,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ManageChannels,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageMessages,
+              ],
+            },
           ];
-          if (record.plaintiffLawyerId) {
-            overwrites.push({ id: record.plaintiffLawyerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
-          }
-          const staffOverwrites = await buildStaffRoleOverwrites(guild);
-          overwrites.push(...staffOverwrites);
 
           const caseChannel = await guild.channels.create({
             name: chanName,
@@ -438,6 +456,7 @@ module.exports = {
             parent: category.id,
             topic: `Dossier tribunal ${caseId} • Accusé=${record.accusedId} • Plaignant=${record.plaintiffId}`,
             permissionOverwrites: overwrites,
+            nsfw: true, // soumis à l'âge
           });
 
           await storage.upsertTribunalCase(guild.id, caseId, { channelId: caseChannel.id });
