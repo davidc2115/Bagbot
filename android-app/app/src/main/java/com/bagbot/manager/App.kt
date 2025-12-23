@@ -1310,8 +1310,23 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 try {
                     val configJson = api.getJson("/api/configs")
                     Log.d(TAG, "Response /api/configs: ${configJson.take(200)}")
+                    val baseConfig = json.parseToJsonElement(configJson).jsonObject
+
+                    // Injecter une vue fiable de l'inactivité via /api/inactivity
+                    val mergedConfig = try {
+                        val inactivityJson = api.getJson("/api/inactivity")
+                        val inactivityObj = json.parseToJsonElement(inactivityJson).jsonObject
+                        buildJsonObject {
+                            baseConfig.forEach { (k, v) -> put(k, v) }
+                            put("inactivity", inactivityObj)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not fetch /api/inactivity for config tile: ${e.message}")
+                        baseConfig
+                    }
+
                     withContext(Dispatchers.Main) {
-                        configData = json.parseToJsonElement(configJson).jsonObject
+                        configData = mergedConfig
                     }
                     Log.d(TAG, "Config loaded: ${configData?.keys?.size} sections")
                 } catch (e: Exception) {
@@ -3533,8 +3548,21 @@ fun renderKeyInfo(
             }
             "inactivity" -> {
                 val obj = sectionData.jsonObject
-                obj["kickAfterDays"]?.jsonPrimitive?.intOrNull?.let { days ->
-                    keyInfos.add("⏰ Kick après" to "$days jours")
+                val enabled = obj["enabled"].safeBooleanOrFalse()
+                val delayDays = obj["delayDays"].safeInt()
+                    ?: obj["kickAfterDays"]?.jsonPrimitive?.intOrNull
+
+                keyInfos.add("État" to (if (enabled) "Activé ✅" else "Désactivé ⛔"))
+                if (delayDays != null) keyInfos.add("⏰ Délai" to "$delayDays jours")
+
+                val inactiveRoleId = obj["inactiveRoleId"].safeString()
+                if (!inactiveRoleId.isNullOrBlank()) {
+                    keyInfos.add("🏷️ Rôle inactif" to "${roles[inactiveRoleId] ?: "Inconnu"} ($inactiveRoleId)")
+                }
+
+                val excluded = obj["excludedRoleIds"]?.jsonArray.safeStringList()
+                if (excluded.isNotEmpty()) {
+                    keyInfos.add("🚫 Rôles exclus" to excluded.joinToString(", ") { rid -> roles[rid] ?: rid })
                 }
             }
             "economy" -> {

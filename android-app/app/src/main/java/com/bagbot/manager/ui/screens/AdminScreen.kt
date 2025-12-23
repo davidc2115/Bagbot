@@ -48,11 +48,12 @@ fun AdminScreen(
     LaunchedEffect(Unit) {
         isLoading = true
         try {
-            val response = api.getJson("/api/admin/allowed-users")
-            val data = json.parseToJsonElement(response).jsonObject
-            allowedUsers = data["allowedUsers"]?.jsonArray?.mapNotNull {
-                it.stringOrId()
-            } ?: emptyList()
+            val loaded = withContext(Dispatchers.IO) {
+                val response = api.getJson("/api/admin/allowed-users")
+                val data = json.parseToJsonElement(response).jsonObject
+                data["allowedUsers"]?.jsonArray?.mapNotNull { it.stringOrId() } ?: emptyList()
+            }
+            allowedUsers = loaded
         } catch (e: Exception) {
             onShowSnackbar("Erreur: ${e.message ?: e.toString()}")
         } finally {
@@ -184,18 +185,19 @@ fun AccessManagementTab(
                                 scope.launch {
                                     onIsLoadingChange(true)
                                     try {
-                                        val username = members[userId] ?: "Unknown"
-                                        val body = buildJsonObject {
-                                            put("userId", userId)
-                                            put("username", username)
+                                        val updated = withContext(Dispatchers.IO) {
+                                            val username = members[userId] ?: "Unknown"
+                                            val body = buildJsonObject {
+                                                put("userId", userId)
+                                                put("username", username)
+                                            }
+                                            api.postJson("/api/admin/allowed-users", body.toString())
+
+                                            val response = api.getJson("/api/admin/allowed-users")
+                                            val data = json.parseToJsonElement(response).jsonObject
+                                            data["allowedUsers"]?.jsonArray?.mapNotNull { it.stringOrId() } ?: emptyList()
                                         }
-                                        api.postJson("/api/admin/allowed-users", body.toString())
-                                        
-                                        val response = api.getJson("/api/admin/allowed-users")
-                                        val data = json.parseToJsonElement(response).jsonObject
-                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
-                                            it.stringOrId()
-                                        } ?: emptyList())
+                                        onAllowedUsersChange(updated)
                                         
                                         onSelectedMemberChange(null)
                                         onShowSnackbar("✅ Utilisateur ajouté")
@@ -294,14 +296,15 @@ fun AccessManagementTab(
                                         scope.launch {
                                             onIsLoadingChange(true)
                                             try {
-                                                val uid = userToRevoke ?: return@launch
-                                                api.deleteJson("/api/admin/allowed-users/$uid")
-                                                
-                                                val response = api.getJson("/api/admin/allowed-users")
-                                                val data = json.parseToJsonElement(response).jsonObject
-                                                onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
-                                                    it.stringOrId()
-                                                } ?: emptyList())
+                                                val updated = withContext(Dispatchers.IO) {
+                                                    val uid = userToRevoke ?: return@withContext emptyList()
+                                                    api.deleteJson("/api/admin/allowed-users/$uid")
+
+                                                    val response = api.getJson("/api/admin/allowed-users")
+                                                    val data = json.parseToJsonElement(response).jsonObject
+                                                    data["allowedUsers"]?.jsonArray?.mapNotNull { it.stringOrId() } ?: emptyList()
+                                                }
+                                                onAllowedUsersChange(updated)
                                                 
                                                 userToRevoke = null
                                                 showRevokeConfirm = false
@@ -393,13 +396,13 @@ fun AccessManagementTab(
                                 scope.launch {
                                     onIsLoadingChange(true)
                                     try {
-                                        api.deleteJson("/api/admin/allowed-users/$userId")
-                                        
-                                        val response = api.getJson("/api/admin/allowed-users")
-                                        val data = json.parseToJsonElement(response).jsonObject
-                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
-                                            it.stringOrId()
-                                        } ?: emptyList())
+                                        val updated = withContext(Dispatchers.IO) {
+                                            api.deleteJson("/api/admin/allowed-users/$userId")
+                                            val response = api.getJson("/api/admin/allowed-users")
+                                            val data = json.parseToJsonElement(response).jsonObject
+                                            data["allowedUsers"]?.jsonArray?.mapNotNull { it.stringOrId() } ?: emptyList()
+                                        }
+                                        onAllowedUsersChange(updated)
                                         
                                         onShowSnackbar("✅ Utilisateur retiré")
                                     } catch (e: Exception) {
