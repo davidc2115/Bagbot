@@ -40,6 +40,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import com.bagbot.manager.safeString
 import com.bagbot.manager.safeInt
+import com.bagbot.manager.safeLong
 import com.bagbot.manager.safeBoolean
 import com.bagbot.manager.safeStringOrEmpty
 import com.bagbot.manager.safeIntOrZero
@@ -5562,12 +5563,32 @@ private fun InactivityConfigTab(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
+    data class InactivityRow(
+        val userId: String,
+        val lastActivityMs: Long,
+        val inactiveForMs: Long
+    )
+
+    fun formatDuration(ms: Long): String {
+        if (ms <= 0) return "0m"
+        val totalMinutes = ms / 60_000L
+        val days = totalMinutes / (60L * 24L)
+        val hours = (totalMinutes % (60L * 24L)) / 60L
+        val minutes = totalMinutes % 60L
+        return buildString {
+            if (days > 0) append("${days}j ")
+            if (hours > 0 || days > 0) append("${hours}h ")
+            append("${minutes}m")
+        }.trim()
+    }
+
     var isLoading by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(false) }
     var delayDays by remember { mutableStateOf("30") }
     var inactiveRoleId by remember { mutableStateOf<String?>(null) }
     var excludedRoleIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var trackingCount by remember { mutableIntStateOf(0) }
+    var trackingRows by remember { mutableStateOf<List<InactivityRow>>(emptyList()) }
     var selectedMember by remember { mutableStateOf<String?>(null) }
     var newExcludedRole by remember { mutableStateOf<String?>(null) }
 
@@ -5578,13 +5599,26 @@ private fun InactivityConfigTab(
                 try {
                     val resp = api.getJson("/api/inactivity")
                     val obj = json.parseToJsonElement(resp).jsonObject
-                    val tracking = obj["tracking"]?.jsonObject?.size ?: 0
+                    val trackingObj = obj["tracking"]?.jsonObject
+                    val tracking = trackingObj?.size ?: 0
+                    val now = System.currentTimeMillis()
+                    val rows = trackingObj
+                        ?.entries
+                        ?.mapNotNull { (uid, v) ->
+                            val last = v.jsonObject["lastActivity"]?.safeLong() ?: 0L
+                            if (last <= 0L) return@mapNotNull null
+                            val inactiveFor = (now - last).coerceAtLeast(0L)
+                            InactivityRow(userId = uid, lastActivityMs = last, inactiveForMs = inactiveFor)
+                        }
+                        ?.sortedByDescending { it.inactiveForMs }
+                        ?: emptyList()
                     withContext(Dispatchers.Main) {
                         enabled = obj["enabled"].safeBooleanOrFalse()
                         delayDays = (obj["delayDays"].safeInt() ?: 30).toString()
                         inactiveRoleId = obj["inactiveRoleId"].safeString()
                         excludedRoleIds = obj["excludedRoleIds"]?.jsonArray.safeStringList()
                         trackingCount = tracking
+                        trackingRows = rows
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message ?: e.toString()}") }
@@ -5720,6 +5754,59 @@ private fun InactivityConfigTab(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("➕ Ajouter tous les membres au tracking") }
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "👥 Membres trackés",
+                subtitle = "Durée d'inactivité + reset rapide"
+            ) {
+                if (trackingRows.isEmpty()) {
+                    Text("Aucun membre tracké (ou aucune activité enregistrée).", color = Color.Gray)
+                    return@SectionCard
+                }
+                trackingRows.take(80).forEach { row ->
+                    val name = members[row.userId] ?: row.userId
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Inactif: ${formatDuration(row.inactiveForMs)}",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            api.postJson("/api/inactivity/reset/${row.userId}", "{}")
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("✅ Reset inactivité: ${members[row.userId] ?: row.userId}")
+                                            }
+                                            load()
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isLoading
+                        ) {
+                            Text("Reset")
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+                if (trackingRows.size > 80) {
+                    Text("… ${trackingRows.size - 80} autres membres", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
