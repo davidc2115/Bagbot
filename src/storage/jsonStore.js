@@ -1710,6 +1710,14 @@ function ensureDisboardShape(g) {
   if (typeof d.reminded !== 'boolean') d.reminded = false;
 }
 
+function ensureTribunalShape(g) {
+  if (!g.tribunal || typeof g.tribunal !== 'object') g.tribunal = {};
+  const t = g.tribunal;
+  if (typeof t.categoryId !== 'string') t.categoryId = '';
+  if (typeof t.judgeRoleId !== 'string') t.judgeRoleId = ''; // optional
+  if (!t.cases || typeof t.cases !== 'object') t.cases = {};
+}
+
 function ensureLogsShape(g) {
   if (!g.logs || typeof g.logs !== 'object') {
     g.logs = {
@@ -1829,6 +1837,40 @@ async function getDisboardConfig(guildId) {
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   ensureDisboardShape(cfg.guilds[guildId]);
   return cfg.guilds[guildId].disboard;
+}
+
+async function getTribunalConfig(guildId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureTribunalShape(cfg.guilds[guildId]);
+  return cfg.guilds[guildId].tribunal;
+}
+
+async function updateTribunalConfig(guildId, partial) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureTribunalShape(cfg.guilds[guildId]);
+  cfg.guilds[guildId].tribunal = { ...cfg.guilds[guildId].tribunal, ...partial };
+  await writeConfig(cfg, "tribunal");
+  return cfg.guilds[guildId].tribunal;
+}
+
+async function upsertTribunalCase(guildId, caseId, patch) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureTribunalShape(cfg.guilds[guildId]);
+  const t = cfg.guilds[guildId].tribunal;
+  const cur = (t.cases && t.cases[String(caseId)]) ? t.cases[String(caseId)] : {};
+  t.cases[String(caseId)] = { ...cur, ...patch, id: String(caseId), updatedAt: Date.now() };
+  await writeConfig(cfg, "tribunal");
+  return t.cases[String(caseId)];
+}
+
+async function getTribunalCase(guildId, caseId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) return null;
+  ensureTribunalShape(cfg.guilds[guildId]);
+  return cfg.guilds[guildId].tribunal.cases[String(caseId)] || null;
 }
 async function updateDisboardConfig(guildId, partial) {
   const cfg = await readConfig();
@@ -2090,6 +2132,11 @@ module.exports = {
   setCountingState,
   getDisboardConfig,
   updateDisboardConfig,
+  // Tribunal
+  getTribunalConfig,
+  updateTribunalConfig,
+  getTribunalCase,
+  upsertTribunalCase,
   // Confess
   getConfessConfig,
   updateConfessConfig,
