@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
     name: 'tribunal',
@@ -116,14 +116,12 @@ module.exports = {
             };
 
             // Bouton pour devenir juge
-            const buttonRow = new ActionRowBuilder().addComponents(
-                {
-                    type: 2,
-                    style: 1,
-                    label: '👨‍⚖️ Devenir Juge',
-                    custom_id: 'tribunal_devenir_juge:' + tribunalChannel.id,
-                }
-            );
+            const jugeButton = new ButtonBuilder()
+                .setCustomId('tribunal_devenir_juge:' + tribunalChannel.id)
+                .setLabel('👨‍⚖️ Devenir Juge')
+                .setStyle(ButtonStyle.Primary);
+            
+            const buttonRow = new ActionRowBuilder().addComponents(jugeButton);
 
             // Message permanent
             await tribunalChannel.send({ embeds: [embed], components: [buttonRow] });
