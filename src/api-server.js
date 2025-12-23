@@ -1647,6 +1647,389 @@ app.post('/bot/control', requireAuth, express.json(), (req, res) => {
   res.json({ success: true, message: `Bot control action '${action}' received` });
 });
 
+// ========== SYSTÈME & MAINTENANCE ==========
+
+// GET /api/system/stats - Statistiques système
+app.get('/api/system/stats', requireAuth, async (req, res) => {
+  try {
+    const os = require('os');
+    const { execSync } = require('child_process');
+    
+    // Mémoire
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memUsagePercent = ((usedMem / totalMem) * 100).toFixed(1);
+    
+    // CPU
+    const cpus = os.cpus();
+    const cpuModel = cpus[0].model;
+    const cpuCores = cpus.length;
+    
+    // Uptime
+    const uptime = os.uptime();
+    const uptimeDays = Math.floor(uptime / 86400);
+    const uptimeHours = Math.floor((uptime % 86400) / 3600);
+    const uptimeMinutes = Math.floor((uptime % 3600) / 60);
+    
+    // Disque
+    let diskInfo = { total: 0, used: 0, free: 0, usagePercent: 0 };
+    try {
+      const dfOutput = execSync('df -h / | tail -1').toString();
+      const parts = dfOutput.split(/\s+/);
+      diskInfo = {
+        total: parts[1],
+        used: parts[2],
+        free: parts[3],
+        usagePercent: parts[4]
+      };
+    } catch (e) {
+      console.error('[SYSTEM] Error getting disk info:', e.message);
+    }
+    
+    // Backups
+    const BACKUP_DIR = path.join(__dirname, '../data/backups');
+    let backupCount = 0;
+    let backupTotalSize = 0;
+    try {
+      if (fs.existsSync(BACKUP_DIR)) {
+        const backupFiles = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.json'));
+        backupCount = backupFiles.length;
+        backupFiles.forEach(file => {
+          try {
+            const stats = fs.statSync(path.join(BACKUP_DIR, file));
+            backupTotalSize += stats.size;
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error reading backups:', e.message);
+    }
+    
+    // Logs
+    const LOG_DIR = path.join(__dirname, '../logs');
+    let logCount = 0;
+    let logTotalSize = 0;
+    try {
+      if (fs.existsSync(LOG_DIR)) {
+        const logFiles = fs.readdirSync(LOG_DIR);
+        logCount = logFiles.length;
+        logFiles.forEach(file => {
+          try {
+            const stats = fs.statSync(path.join(LOG_DIR, file));
+            logTotalSize += stats.size;
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error reading logs:', e.message);
+    }
+    
+    // Cache (data.json, backup files, etc.)
+    const DATA_DIR = path.join(__dirname, '../data');
+    let cacheSize = 0;
+    try {
+      if (fs.existsSync(DATA_DIR)) {
+        const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.json') && !f.includes('backup'));
+        files.forEach(file => {
+          try {
+            const stats = fs.statSync(path.join(DATA_DIR, file));
+            cacheSize += stats.size;
+          } catch (e) {}
+        });
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error reading cache:', e.message);
+    }
+    
+    // Fichiers temporaires
+    const TEMP_DIRS = [
+      path.join(__dirname, '../public/uploads/temp'),
+      path.join(__dirname, '../public/uploads/staff-chat'),
+      '/tmp'
+    ];
+    let tempFileCount = 0;
+    let tempTotalSize = 0;
+    TEMP_DIRS.forEach(dir => {
+      try {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          files.forEach(file => {
+            try {
+              const filePath = path.join(dir, file);
+              const stats = fs.statSync(filePath);
+              if (stats.isFile()) {
+                tempFileCount++;
+                tempTotalSize += stats.size;
+              }
+            } catch (e) {}
+          });
+        }
+      } catch (e) {}
+    });
+    
+    res.json({
+      memory: {
+        total: totalMem,
+        free: freeMem,
+        used: usedMem,
+        usagePercent: parseFloat(memUsagePercent),
+        totalGB: (totalMem / 1024 / 1024 / 1024).toFixed(2),
+        usedGB: (usedMem / 1024 / 1024 / 1024).toFixed(2),
+        freeGB: (freeMem / 1024 / 1024 / 1024).toFixed(2)
+      },
+      cpu: {
+        model: cpuModel,
+        cores: cpuCores
+      },
+      uptime: {
+        seconds: uptime,
+        formatted: `${uptimeDays}j ${uptimeHours}h ${uptimeMinutes}m`
+      },
+      disk: diskInfo,
+      backups: {
+        count: backupCount,
+        totalSize: backupTotalSize,
+        totalSizeMB: (backupTotalSize / 1024 / 1024).toFixed(2)
+      },
+      logs: {
+        count: logCount,
+        totalSize: logTotalSize,
+        totalSizeMB: (logTotalSize / 1024 / 1024).toFixed(2)
+      },
+      cache: {
+        totalSize: cacheSize,
+        totalSizeMB: (cacheSize / 1024 / 1024).toFixed(2)
+      },
+      temp: {
+        count: tempFileCount,
+        totalSize: tempTotalSize,
+        totalSizeMB: (tempTotalSize / 1024 / 1024).toFixed(2)
+      }
+    });
+  } catch (error) {
+    console.error('[SYSTEM] Error getting system stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/system/cleanup/logs - Nettoyer les anciens logs
+app.post('/api/system/cleanup/logs', requireAuth, async (req, res) => {
+  try {
+    const LOG_DIR = path.join(__dirname, '../logs');
+    let deletedCount = 0;
+    let freedSpace = 0;
+    
+    if (fs.existsSync(LOG_DIR)) {
+      const logFiles = fs.readdirSync(LOG_DIR);
+      const now = Date.now();
+      const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+      
+      for (const file of logFiles) {
+        try {
+          const filePath = path.join(LOG_DIR, file);
+          const stats = fs.statSync(filePath);
+          
+          // Supprimer les logs de plus de 7 jours
+          if (now - stats.mtimeMs > SEVEN_DAYS) {
+            freedSpace += stats.size;
+            fs.unlinkSync(filePath);
+            deletedCount++;
+          }
+        } catch (e) {
+          console.error(`[SYSTEM] Error deleting log ${file}:`, e.message);
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      deletedCount,
+      freedSpace,
+      freedSpaceMB: (freedSpace / 1024 / 1024).toFixed(2)
+    });
+  } catch (error) {
+    console.error('[SYSTEM] Error cleaning logs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/system/cleanup/backups - Nettoyer les anciens backups
+app.post('/api/system/cleanup/backups', requireAuth, async (req, res) => {
+  try {
+    const BACKUP_DIR = path.join(__dirname, '../data/backups');
+    let deletedCount = 0;
+    let freedSpace = 0;
+    
+    if (fs.existsSync(BACKUP_DIR)) {
+      const backupFiles = fs.readdirSync(BACKUP_DIR)
+        .filter(f => f.endsWith('.json'))
+        .map(f => ({
+          name: f,
+          path: path.join(BACKUP_DIR, f),
+          mtime: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs,
+          size: fs.statSync(path.join(BACKUP_DIR, f)).size
+        }))
+        .sort((a, b) => b.mtime - a.mtime);
+      
+      // Garder les 10 backups les plus récents, supprimer le reste
+      const toDelete = backupFiles.slice(10);
+      
+      for (const backup of toDelete) {
+        try {
+          freedSpace += backup.size;
+          fs.unlinkSync(backup.path);
+          deletedCount++;
+        } catch (e) {
+          console.error(`[SYSTEM] Error deleting backup ${backup.name}:`, e.message);
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      deletedCount,
+      keptCount: 10,
+      freedSpace,
+      freedSpaceMB: (freedSpace / 1024 / 1024).toFixed(2)
+    });
+  } catch (error) {
+    console.error('[SYSTEM] Error cleaning backups:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/system/cleanup/temp - Nettoyer les fichiers temporaires
+app.post('/api/system/cleanup/temp', requireAuth, async (req, res) => {
+  try {
+    const TEMP_DIRS = [
+      path.join(__dirname, '../public/uploads/temp'),
+      path.join(__dirname, '../public/uploads/staff-chat')
+    ];
+    
+    let deletedCount = 0;
+    let freedSpace = 0;
+    const now = Date.now();
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    
+    for (const dir of TEMP_DIRS) {
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir);
+        
+        for (const file of files) {
+          try {
+            const filePath = path.join(dir, file);
+            const stats = fs.statSync(filePath);
+            
+            // Supprimer les fichiers de plus de 1 jour
+            if (stats.isFile() && now - stats.mtimeMs > ONE_DAY) {
+              freedSpace += stats.size;
+              fs.unlinkSync(filePath);
+              deletedCount++;
+            }
+          } catch (e) {
+            console.error(`[SYSTEM] Error deleting temp file ${file}:`, e.message);
+          }
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      deletedCount,
+      freedSpace,
+      freedSpaceMB: (freedSpace / 1024 / 1024).toFixed(2)
+    });
+  } catch (error) {
+    console.error('[SYSTEM] Error cleaning temp files:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/system/cleanup/all - Nettoyer tout
+app.post('/api/system/cleanup/all', requireAuth, async (req, res) => {
+  try {
+    const results = {
+      logs: { deletedCount: 0, freedSpaceMB: '0' },
+      backups: { deletedCount: 0, freedSpaceMB: '0' },
+      temp: { deletedCount: 0, freedSpaceMB: '0' }
+    };
+    
+    // Nettoyer logs
+    try {
+      const logsResp = await fetch(`http://localhost:${PORT}/api/system/cleanup/logs`, {
+        method: 'POST',
+        headers: {
+          'Authorization': req.headers['authorization']
+        }
+      });
+      const logsData = await logsResp.json();
+      if (logsData.success) {
+        results.logs = { 
+          deletedCount: logsData.deletedCount, 
+          freedSpaceMB: logsData.freedSpaceMB 
+        };
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error in cleanup logs:', e.message);
+    }
+    
+    // Nettoyer backups
+    try {
+      const backupsResp = await fetch(`http://localhost:${PORT}/api/system/cleanup/backups`, {
+        method: 'POST',
+        headers: {
+          'Authorization': req.headers['authorization']
+        }
+      });
+      const backupsData = await backupsResp.json();
+      if (backupsData.success) {
+        results.backups = { 
+          deletedCount: backupsData.deletedCount, 
+          freedSpaceMB: backupsData.freedSpaceMB 
+        };
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error in cleanup backups:', e.message);
+    }
+    
+    // Nettoyer temp
+    try {
+      const tempResp = await fetch(`http://localhost:${PORT}/api/system/cleanup/temp`, {
+        method: 'POST',
+        headers: {
+          'Authorization': req.headers['authorization']
+        }
+      });
+      const tempData = await tempResp.json();
+      if (tempData.success) {
+        results.temp = { 
+          deletedCount: tempData.deletedCount, 
+          freedSpaceMB: tempData.freedSpaceMB 
+        };
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error in cleanup temp:', e.message);
+    }
+    
+    const totalFreedMB = parseFloat(results.logs.freedSpaceMB) + 
+                        parseFloat(results.backups.freedSpaceMB) + 
+                        parseFloat(results.temp.freedSpaceMB);
+    
+    res.json({
+      success: true,
+      results,
+      totalFreedMB: totalFreedMB.toFixed(2),
+      totalDeletedCount: results.logs.deletedCount + 
+                        results.backups.deletedCount + 
+                        results.temp.deletedCount
+    });
+  } catch (error) {
+    console.error('[SYSTEM] Error in cleanup all:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ========== FONCTION D'INITIALISATION ==========
 
 function startApiServer(client) {
