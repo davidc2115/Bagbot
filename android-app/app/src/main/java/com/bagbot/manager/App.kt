@@ -1068,7 +1068,7 @@ fun StaffMainScreen(
                 })
             }
             when (selectedStaffTab) {
-                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)
+                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)  // members ici contient déjà les admins passés depuis StaffMainScreen
                 1 -> AdminScreen(api, members) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
                 2 -> LogsScreen(api, json, scope, snackbar)
             }
