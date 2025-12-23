@@ -97,7 +97,7 @@ val configGroups = listOf(
         "👮 Modération & Sécurité",
         Icons.Default.Security,
         Color(0xFFE53935),
-        listOf("logs", "autokick", "inactivity", "staffRoleIds", "quarantineRoleId", "tribunal")
+        listOf("logs", "autokick", "staffRoleIds", "quarantineRoleId", "tribunal")
     ),
     ConfigGroup(
         "gamification",
@@ -3537,20 +3537,32 @@ fun renderKeyInfo(
                     keyInfos.add("📁 Catégorie Tribunaux" to "${channels[categoryId] ?: "Inconnue"} ($categoryId)")
                 }
             }
-            "inactivity" -> {
+            "autokick" -> {
+                // Structure: autokick contient inactivityKick et inactivityTracking
                 val obj = sectionData.jsonObject
-                val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                val delayDays = obj["delayDays"]?.jsonPrimitive?.intOrNull
-                val trackedUsersCount = obj["trackedUsers"]?.jsonObject?.size ?: 0
-                val inactivityTracking = obj["inactivityTracking"]?.jsonObject?.size ?: 0
+                val inactivityKick = obj["inactivityKick"]?.jsonObject
+                val inactivityTracking = obj["inactivityTracking"]?.jsonObject
                 
-                keyInfos.add("🔔 Statut" to if (enabled) "✅ Activé" else "❌ Désactivé")
-                if (delayDays != null && delayDays > 0) {
-                    keyInfos.add("⏰ Kick après" to "$delayDays jours d'inactivité")
+                if (inactivityKick != null) {
+                    val enabled = inactivityKick["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    val delayDays = inactivityKick["delayDays"]?.jsonPrimitive?.intOrNull
+                    val trackedCount = inactivityTracking?.size ?: 0
+                    
+                    keyInfos.add("🔔 Inactivité" to if (enabled) "✅ Activé" else "❌ Désactivé")
+                    if (delayDays != null && delayDays > 0) {
+                        keyInfos.add("⏰ Kick après" to "$delayDays jours")
+                    }
+                    if (trackedCount > 0) {
+                        keyInfos.add("👥 Surveillés" to "$trackedCount membres")
+                    }
                 }
-                val totalTracked = maxOf(trackedUsersCount, inactivityTracking)
-                if (totalTracked > 0) {
-                    keyInfos.add("👥 Membres surveillés" to "$totalTracked membres")
+                
+                // Auto-kick rapide (nouveau membre)
+                val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                val delayMs = obj["delayMs"]?.jsonPrimitive?.longOrNull
+                if (enabled && delayMs != null) {
+                    val delayMin = delayMs / 60000
+                    keyInfos.add("⚡ Auto-kick rapide" to "✅ $delayMin min")
                 }
             }
             "economy" -> {
@@ -3773,7 +3785,7 @@ fun getSectionDisplayName(key: String): String {
         "tickets" -> "🎫 Tickets"
         "welcome" -> "👋 Bienvenue"
         "goodbye" -> "👋 Au revoir"
-        "inactivity" -> "💤 Inactivité"
+        "autokick" -> "🦶 Auto-kick & Inactivité"
         "levels" -> "📈 Niveaux/XP"
         "logs" -> "📝 Logs"
         "autokick" -> "🦶 Auto-kick"
@@ -4337,12 +4349,14 @@ fun ConfigEditorScreen(
                     goodbyeChannel = data["channelId"]?.jsonPrimitive?.contentOrNull
                     goodbyeMessage = data["message"]?.jsonPrimitive?.contentOrNull ?: ""
                 }
-                "inactivity" -> {
-                    // Structure: autokick.inactivityKick.delayDays
-                    val enabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                    val delayDays = data["delayDays"]?.jsonPrimitive?.intOrNull ?: 30
-                    inactivityThresholdDays = delayDays.toString()
-                    inactivityExemptRoles = data["excludedRoleIds"]?.jsonArray.safeStringList()
+                "autokick" -> {
+                    // Structure: autokick.inactivityKick
+                    val inactivityKick = data["inactivityKick"]?.jsonObject
+                    if (inactivityKick != null) {
+                        val delayDays = inactivityKick["delayDays"]?.jsonPrimitive?.intOrNull ?: 30
+                        inactivityThresholdDays = delayDays.toString()
+                        inactivityExemptRoles = inactivityKick["excludedRoleIds"]?.jsonArray.safeStringList()
+                    }
                 }
             }
         }
@@ -4378,13 +4392,17 @@ fun ConfigEditorScreen(
                                 goodbyeChannel?.let { put("channelId", it) }
                                 if (goodbyeMessage.isNotBlank()) put("message", goodbyeMessage)
                             }
-                            "inactivity" -> {
-                                put("enabled", true) // Activer lors de la sauvegarde
-                                if (inactivityThresholdDays.isNotBlank()) {
-                                    put("delayDays", inactivityThresholdDays.toIntOrNull() ?: 30)
+                            "autokick" -> {
+                                // Sauvegarder dans inactivityKick
+                                val inactivityKick = buildJsonObject {
+                                    put("enabled", true) // Activer lors de la sauvegarde
+                                    if (inactivityThresholdDays.isNotBlank()) {
+                                        put("delayDays", inactivityThresholdDays.toIntOrNull() ?: 30)
+                                    }
+                                    put("excludedRoleIds", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
+                                    put("trackActivity", true)
                                 }
-                                put("excludedRoleIds", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
-                                put("trackActivity", true)
+                                put("inactivityKick", inactivityKick)
                             }
                         }
                     }
@@ -4426,7 +4444,7 @@ fun ConfigEditorScreen(
                             "tickets" -> "🎫 Configuration Tickets"
                             "welcome" -> "👋 Configuration Bienvenue"
                             "goodbye" -> "👋 Configuration Au revoir"
-                            "inactivity" -> "💤 Configuration Inactivité"
+                            "autokick" -> "🦶 Configuration Auto-kick & Inactivité"
                             else -> "Configuration: $sectionKey"
                         },
                         style = MaterialTheme.typography.titleLarge,
@@ -4627,7 +4645,7 @@ fun ConfigEditorScreen(
                 }
             }
             
-            "inactivity" -> {
+            "autokick" -> {
                 item {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
                         Column(Modifier.padding(16.dp)) {

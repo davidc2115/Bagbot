@@ -50,11 +50,18 @@ fun AdminScreen(
         try {
             val response = api.getJson("/api/admin/allowed-users")
             val data = json.parseToJsonElement(response).jsonObject
-            allowedUsers = data["allowedUsers"]?.jsonArray?.mapNotNull {
-                it.stringOrId()
+            allowedUsers = data["allowedUsers"]?.jsonArray?.mapNotNull { element ->
+                when {
+                    // Si c'est un objet avec userId
+                    element is JsonObject -> element["userId"]?.safeString()
+                    // Si c'est juste une string
+                    element is JsonPrimitive -> element.safeString()
+                    else -> null
+                }
             } ?: emptyList()
         } catch (e: Exception) {
-            onShowSnackbar("Erreur: ${e.message}")
+            android.util.Log.e("AdminScreen", "Error loading allowed users", e)
+            onShowSnackbar("❌ Erreur chargement: ${e.message ?: "Inconnue"}")
         } finally {
             isLoading = false
         }
@@ -189,8 +196,12 @@ fun AccessManagementTab(
                                         
                                         val response = api.getJson("/api/admin/allowed-users")
                                         val data = json.parseToJsonElement(response).jsonObject
-                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
-                                            it.stringOrId()
+                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull { element ->
+                                            when {
+                                                element is JsonObject -> element["userId"]?.safeString()
+                                                element is JsonPrimitive -> element.safeString()
+                                                else -> null
+                                            }
                                         } ?: emptyList())
                                         
                                         onSelectedMemberChange(null)
@@ -295,8 +306,12 @@ fun AccessManagementTab(
                                                 
                                                 val response = api.getJson("/api/admin/allowed-users")
                                                 val data = json.parseToJsonElement(response).jsonObject
-                                                onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
-                                                    it.stringOrId()
+                                                onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull { element ->
+                                                    when {
+                                                        element is JsonObject -> element["userId"]?.safeString()
+                                                        element is JsonPrimitive -> element.safeString()
+                                                        else -> null
+                                                    }
                                                 } ?: emptyList())
                                                 
                                                 userToRevoke = null
@@ -394,8 +409,12 @@ fun AccessManagementTab(
                                         
                                         val response = api.getJson("/api/admin/allowed-users")
                                         val data = json.parseToJsonElement(response).jsonObject
-                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull {
-                                            it.stringOrId()
+                                        onAllowedUsersChange(data["allowedUsers"]?.jsonArray?.mapNotNull { element ->
+                                            when {
+                                                element is JsonObject -> element["userId"]?.safeString()
+                                                element is JsonPrimitive -> element.safeString()
+                                                else -> null
+                                            }
                                         } ?: emptyList())
                                         
                                         onShowSnackbar("✅ Utilisateur retiré")

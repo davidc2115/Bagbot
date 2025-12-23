@@ -10,9 +10,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,10 +27,10 @@ fun SplashScreen(onFinished: () -> Unit) {
     
     val infiniteTransition = rememberInfiniteTransition(label = "splash")
     val scale by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.1f,
+        initialValue = 1.0f,
+        targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = EaseInOutQuad),
+            animation = tween(2000, easing = EaseInOutQuad),
             repeatMode = RepeatMode.Reverse
         ),
         label = "scale"
@@ -45,52 +45,55 @@ fun SplashScreen(onFinished: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(BagDarkPurple, BagPurple, BagPink)
-                )
-            ),
+            .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        // Image en plein écran avec effet de zoom
+        Image(
+            painter = painterResource(id = R.drawable.splash_image),
+            contentDescription = "BAG Splash",
+            modifier = Modifier
+                .fillMaxSize()
+                .scale(scale),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+        
+        // Overlay semi-transparent pour le texte et loader
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.3f)),
+            contentAlignment = Alignment.Center
         ) {
-            // Logo personnalisé
-            Image(
-                painter = painterResource(id = R.drawable.splash_image),
-                contentDescription = "BAG Logo",
-                modifier = Modifier
-                    .size(200.dp)
-                    .clip(CircleShape)
-                    .scale(scale)
-            )
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            Text(
-                text = "BAG",
-                fontSize = 56.sp,
-                fontWeight = FontWeight.Bold,
-                color = BagWhite
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "Bot Manager",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Light,
-                color = BagLightPurple
-            )
-            
-            Spacer(modifier = Modifier.height(48.dp))
-            
-            if (isLoading) {
-                CircularProgressIndicator(
-                    color = BagWhite,
-                    strokeWidth = 3.dp
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Texte par-dessus l'image
+                Text(
+                    text = "BAG",
+                    fontSize = 72.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Bot Manager",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Light,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+                
+                Spacer(modifier = Modifier.height(48.dp))
+                
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 3.dp
+                    )
+                }
             }
         }
     }
