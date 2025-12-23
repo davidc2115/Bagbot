@@ -334,18 +334,18 @@ private suspend fun postOrPutSection(
     fallbackSectionKey: String,
     fallbackSectionBody: JsonObject,
 ): Boolean {
+    // Nettoyage: le backend "bot-api" expose la configuration via PUT /api/configs/:section.
+    // Beaucoup de routes historiques "POST /api/<section>" n'existent plus (tickets/logs/staff/autokick/...).
+    // On garde la signature pour compat, mais on n'appelle plus le POST.
     return try {
-        api.postJson(primaryPostPath, json.encodeToString(JsonObject.serializer(), primaryBody))
+        api.putJson(
+            "/api/configs/$fallbackSectionKey",
+            json.encodeToString(JsonObject.serializer(), fallbackSectionBody)
+        )
         true
     } catch (e: Exception) {
-        Log.w(TAG, "POST failed ($primaryPostPath): ${e.message} -> fallback PUT /api/configs/$fallbackSectionKey")
-        try {
-            api.putJson("/api/configs/$fallbackSectionKey", json.encodeToString(JsonObject.serializer(), fallbackSectionBody))
-            true
-        } catch (putError: Exception) {
-            Log.e(TAG, "PUT also failed: ${putError.message}")
-            throw putError // Throw only if PUT fails
-        }
+        Log.e(TAG, "PUT failed (/api/configs/$fallbackSectionKey): ${e.message}")
+        throw e
     }
 }
 
