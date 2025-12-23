@@ -315,12 +315,34 @@ async function restoreFromBackupFile(filename, guildId = null) {
       } catch (_) {}
     }
     
-    // Si pas trouvé, chercher dans le répertoire général
+    // Si pas trouvé, chercher dans différents emplacements
     if (!filePath) {
-      filePath = path.join(backupsDir, filename);
+      const candidates = [
+        path.join(backupsDir, filename),
+        path.join(backupsDir, 'hourly', filename),
+        path.join(backupsDir, 'external-hourly', filename),
+        path.join('/var/data/backups', filename),
+        path.join('/var/data/backups/external-hourly', filename)
+      ];
+      
+      for (const candidate of candidates) {
+        try {
+          await fsp.access(candidate, fs.constants.R_OK);
+          filePath = candidate;
+          console.log(`[Restore] Fichier trouvé: ${candidate}`);
+          break;
+        } catch (_) {
+          // Continue avec le prochain candidat
+        }
+      }
     }
     
-    // Vérifier que le fichier existe
+    // Vérifier que le fichier a été trouvé
+    if (!filePath) {
+      throw new Error(`Fichier introuvable: ${filename} dans aucun emplacement`);
+    }
+    
+    // Vérifier l'accès final
     await fsp.access(filePath, fs.constants.R_OK);
     
     // Lire et parser le contenu
