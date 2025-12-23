@@ -1613,7 +1613,14 @@ function ensureCountingShape(g) {
   if (!Array.isArray(c.channels)) c.channels = [];
   if (typeof c.allowFormulas !== 'boolean') c.allowFormulas = true;
   if (!c.state || typeof c.state !== 'object') c.state = { current: 0, lastUserId: '' };
-  if (typeof c.state.current !== 'number') c.state.current = 0;
+  // Be tolerant: some clients may persist numbers as strings.
+  if (typeof c.state.current === 'string') {
+    const s = c.state.current.trim();
+    const n = Number(s);
+    c.state.current = Number.isFinite(n) ? n : 0;
+  } else if (typeof c.state.current !== 'number') {
+    c.state.current = 0;
+  }
   if (typeof c.state.lastUserId !== 'string') c.state.lastUserId = '';
   if (!Array.isArray(c.achievedNumbers)) c.achievedNumbers = [];
 }

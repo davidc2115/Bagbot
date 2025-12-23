@@ -12788,16 +12788,23 @@ client.on(Events.MessageCreate, async (message) => {
           const m = onlyDigitsAndOps.match(/-?\d+/);
           if (m) value = Number(m[0]);
         }
+        // If we couldn't parse a number safely, do NOT reset the counter:
+        // random messages with digits (emojis, IDs, etc.) shouldn't wipe progress.
         if (!Number.isFinite(value)) {
-          await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-          await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Oups… valeur invalide').setDescription('Attendu: **' + expected0 + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on repart en douceur.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+          await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: valeur non reconnue').setDescription('Attendu: **' + expected0 + '**\nJe n\'arrive pas à interpréter ton message comme un nombre (ou une formule).\nOn ne reset pas: tu peux renvoyer **' + expected0 + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
         } else {
-          const next = Math.trunc(value);
+          // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
+          const rounded = Math.round(value);
+          const eps = 1e-9;
+          const next = (Math.abs(value - rounded) <= eps) ? rounded : value;
           const state = cfg.state || { current: 0, lastUserId: '' };
           const expected = (state.current || 0) + 1;
           if ((state.lastUserId||'') === message.author.id) {
             await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
             await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Doucement, un à la fois…').setDescription('Deux chiffres d\'affilée 😉\nAttendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, à toi de rejouer.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+          } else if (!Number.isInteger(next)) {
+            // Non-integer results shouldn't hard-reset the game.
+            await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: résultat non entier').setDescription('Attendu: **' + expected + '**\nTon résultat fait **' + String(next) + '** (non entier). Le comptage attend un entier.\nOn ne reset pas: renvoie **' + expected + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
           } else if (next !== expected) {
             await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
             await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Mauvais numéro').setDescription('Attendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on se retrouve au début 💕').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
