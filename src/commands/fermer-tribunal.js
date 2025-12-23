@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 
 module.exports = {
+    name: 'fermer-tribunal',
     data: new SlashCommandBuilder()
         .setName('fermer-tribunal')
         .setDescription('Fermer un procès et supprimer le channel')

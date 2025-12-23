@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 module.exports = {
+    name: 'tribunal',
     data: new SlashCommandBuilder()
         .setName('tribunal')
         .setDescription('Ouvrir un procès avec accusé et avocat du plaignant')
