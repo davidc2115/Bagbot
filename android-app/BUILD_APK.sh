@@ -68,10 +68,10 @@ if [ $? -eq 0 ]; then
     
     # Renommer avec numéro de version
     echo ""
-    echo "📝 Création de BagBot-Manager-v6.0.0-android.apk..."
+    echo "📝 Création de BagBot-Manager-v6.0.1-android.apk..."
     mkdir -p ../BagBot-Manager-APK
-    cp app/build/outputs/apk/release/app-release.apk ../BagBot-Manager-APK/BagBot-Manager-v6.0.0-android.apk
-    echo "✅ Fichier final: BagBot-Manager-APK/BagBot-Manager-v6.0.0-android.apk"
+    cp app/build/outputs/apk/release/app-release.apk ../BagBot-Manager-APK/BagBot-Manager-v6.0.1-android.apk
+    echo "✅ Fichier final: BagBot-Manager-APK/BagBot-Manager-v6.0.1-android.apk"
     
 else
     echo ""
