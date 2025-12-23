@@ -1511,6 +1511,102 @@ app.get('/api/truthdare/:mode', async (req, res) => {
   }
 });
 
+// ========== MOT CACHE (mobile) ==========
+// Endpoints utilisés par l'app Android (MotCacheScreen)
+function buildMotCacheProgress(motCache, userId) {
+  const targetWord = String(motCache?.targetWord || '').toUpperCase().trim();
+  const enabled = !!motCache?.enabled && !!targetWord;
+  if (!enabled) return { active: false };
+
+  const letters = (motCache?.collections?.[userId] || []).map(String);
+  const wordDisplay = targetWord
+    .split('')
+    .map((ch) => (letters.includes(ch) ? ch : '_'))
+    .join(' ');
+
+  const wordLength = targetWord.length || 0;
+  const letterCount = letters.length;
+  const progress = wordLength > 0 ? Math.round((letterCount / wordLength) * 100) : 0;
+
+  return {
+    active: true,
+    wordDisplay,
+    letters,
+    letterCount,
+    wordLength,
+    progress
+  };
+}
+
+async function handleMotCacheMyProgress(req, res) {
+  try {
+    const userId = req.userData?.userId;
+    const config = await readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const motCache = guildConfig.motCache || {};
+    return res.json(buildMotCacheProgress(motCache, userId));
+  } catch (error) {
+    console.error('[BOT-API] Error in motcache my-progress:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function handleMotCacheGuess(req, res) {
+  try {
+    const userId = req.userData?.userId;
+    const username = req.userData?.username || 'Unknown';
+    const guess = String(req.body?.guess || '').toUpperCase().trim();
+    if (!guess) return res.status(400).json({ success: false, message: 'guess required' });
+
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+
+    const guildConfig = config.guilds[GUILD];
+    const motCache = guildConfig.motCache || {};
+    const targetWord = String(motCache?.targetWord || '').toUpperCase().trim();
+
+    if (!motCache.enabled || !targetWord) {
+      return res.json({ success: false, message: "Le jeu n'est pas actif.", correct: false });
+    }
+
+    if (guess === targetWord) {
+      const reward = Number(motCache.rewardAmount || 5000) || 0;
+
+      // Ajouter la récompense à l'économie
+      if (!guildConfig.economy) guildConfig.economy = { balances: {} };
+      if (!guildConfig.economy.balances) guildConfig.economy.balances = {};
+      if (!guildConfig.economy.balances[userId]) guildConfig.economy.balances[userId] = { amount: 0, money: 0 };
+      guildConfig.economy.balances[userId].amount = Number(guildConfig.economy.balances[userId].amount || 0) + reward;
+      guildConfig.economy.balances[userId].money = Number(guildConfig.economy.balances[userId].money || 0) + reward;
+
+      // Enregistrer le gagnant + reset du jeu
+      if (!motCache.winners) motCache.winners = [];
+      motCache.winners.push({ userId, username, word: motCache.targetWord, date: Date.now(), reward });
+      motCache.collections = {};
+      motCache.targetWord = '';
+      motCache.enabled = false;
+
+      guildConfig.motCache = motCache;
+      await writeConfig(config, 'motcache');
+
+      return res.json({ success: true, correct: true, reward });
+    }
+
+    return res.json({ success: true, correct: false, message: "Ce n'est pas le bon mot." });
+  } catch (error) {
+    console.error('[BOT-API] Error in motcache guess:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+// /api/motcache/*
+app.get('/api/motcache/my-progress', requireAuth, handleMotCacheMyProgress);
+app.post('/api/motcache/guess', requireAuth, express.json(), handleMotCacheGuess);
+// Backward compatibility: /api/mot-cache/*
+app.get('/api/mot-cache/my-progress', requireAuth, handleMotCacheMyProgress);
+app.post('/api/mot-cache/guess', requireAuth, express.json(), handleMotCacheGuess);
+
 // DELETE /api/truthdare/:mode/channels/:channelId - Supprimer un channel
 app.delete('/api/truthdare/:mode/channels/:channelId', requireAuth, async (req, res) => {
   try {
