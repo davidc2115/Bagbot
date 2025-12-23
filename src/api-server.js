@@ -62,8 +62,8 @@ async function checkUserPermissions(userId, client) {
   }
 }
 
-// Middleware d'authentification
-function requireAuth(req, res, next) {
+// Middleware d'authentification avec persistance améliorée
+async function requireAuth(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token' });
@@ -76,10 +76,34 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Invalid token' });
   }
   
-  if (Date.now() - userData.timestamp > 24 * 60 * 60 * 1000) {
-    appTokens.delete('token_' + token);
-    return res.status(401).json({ error: 'Token expired' });
+  // Vérifier les permissions en temps réel (admin retiré = déconnexion automatique)
+  const client = req.app.locals.client;
+  if (client) {
+    try {
+      const permissions = await checkUserPermissions(userData.userId, client);
+      
+      // Si l'utilisateur n'est plus admin/fondateur, invalider le token
+      if (!permissions.isAdmin && !permissions.isFounder) {
+        appTokens.delete('token_' + token);
+        return res.status(401).json({ 
+          error: 'Access revoked',
+          message: 'Votre accès a été révoqué. Veuillez vous reconnecter.'
+        });
+      }
+      
+      // Mettre à jour les permissions dans userData
+      userData.isAdmin = permissions.isAdmin;
+      userData.isFounder = permissions.isFounder;
+    } catch (error) {
+      console.error('[API] Error checking permissions:', error);
+    }
   }
+  
+  // Mettre à jour le timestamp pour garder la session active
+  userData.timestamp = Date.now();
+  
+  // Plus d'expiration de token - seule la révocation du rôle admin déconnecte
+  // (Anciennement: expiration après 24h)
   
   req.userData = userData;
   next();
