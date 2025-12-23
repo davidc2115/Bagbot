@@ -5552,14 +5552,14 @@ private fun InactivityConfigTab(
                     val obj = json.parseToJsonElement(resp).jsonObject
                     val tracking = obj["tracking"]?.jsonObject?.size ?: 0
                     withContext(Dispatchers.Main) {
-                        enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                        delayDays = (obj["delayDays"]?.jsonPrimitive?.intOrNull ?: 30).toString()
+                        enabled = obj["enabled"].safeBooleanOrFalse()
+                        delayDays = (obj["delayDays"].safeInt() ?: 30).toString()
                         inactiveRoleId = obj["inactiveRoleId"].safeString()
                         excludedRoleIds = obj["excludedRoleIds"]?.jsonArray.safeStringList()
                         trackingCount = tracking
                     }
                 } catch (e: Exception) {
-                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message ?: e.toString()}") }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }

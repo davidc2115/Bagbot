@@ -1,12 +1,3 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="@color/bag_purple"
-        android:pathData="M0,0h108v108h-108z"/>
-    <path
-        android:fillColor="@color/bag_white"
-        android:pathData="M30,40 L30,70 L40,70 L40,60 L50,60 L50,70 L60,70 L60,40 L50,40 L50,50 L40,50 L40,40 Z"/>
-</vector>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/bag_server_logo"
+    android:gravity="center" />

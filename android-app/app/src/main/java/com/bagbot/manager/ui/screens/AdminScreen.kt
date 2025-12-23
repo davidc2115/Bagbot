@@ -54,7 +54,7 @@ fun AdminScreen(
                 it.stringOrId()
             } ?: emptyList()
         } catch (e: Exception) {
-            onShowSnackbar("Erreur: ${e.message}")
+            onShowSnackbar("Erreur: ${e.message ?: e.toString()}")
         } finally {
             isLoading = false
         }
@@ -200,7 +200,7 @@ fun AccessManagementTab(
                                         onSelectedMemberChange(null)
                                         onShowSnackbar("✅ Utilisateur ajouté")
                                     } catch (e: Exception) {
-                                        onShowSnackbar("❌ Erreur: ${e.message}")
+                                        onShowSnackbar("❌ Erreur: ${e.message ?: e.toString()}")
                                     } finally {
                                         onIsLoadingChange(false)
                                     }
@@ -307,7 +307,7 @@ fun AccessManagementTab(
                                                 showRevokeConfirm = false
                                                 onShowSnackbar("✅ Accès retiré")
                                             } catch (e: Exception) {
-                                                onShowSnackbar("❌ Erreur: ${e.message}")
+                                                onShowSnackbar("❌ Erreur: ${e.message ?: e.toString()}")
                                             } finally {
                                                 onIsLoadingChange(false)
                                             }
@@ -403,7 +403,7 @@ fun AccessManagementTab(
                                         
                                         onShowSnackbar("✅ Utilisateur retiré")
                                     } catch (e: Exception) {
-                                        onShowSnackbar("❌ Erreur: ${e.message}")
+                                        onShowSnackbar("❌ Erreur: ${e.message ?: e.toString()}")
                                     } finally {
                                         onIsLoadingChange(false)
                                     }
