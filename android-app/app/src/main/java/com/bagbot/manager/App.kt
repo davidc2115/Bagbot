@@ -734,10 +734,10 @@ fun StaffChatScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("💬 Chats privés (Tous les membres)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text("💬 Chats privés (Admins uniquement)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                     Spacer(Modifier.height(4.dp))
                     
-                    // Liste de TOUS les membres (en ligne et hors ligne)
+                    // Liste des admins (en ligne et hors ligne)
                     val currentUserId = userInfo?.get("id").safeStringOrEmpty()
                     val onlineAdminIds = onlineAdmins.map { it["userId"].safeStringOrEmpty() }.toSet()
                     
@@ -865,7 +865,7 @@ fun StaffChatScreen(
                 
                 Spacer(Modifier.height(8.dp))
                 
-                // Détection des mentions (@) - TOUS les membres
+                // Détection des mentions (@) - Admins uniquement
                 val mentionSuggestions = remember(newMessage, members, onlineAdmins) {
                     val lastWord = newMessage.split(" ").lastOrNull() ?: ""
                     if (lastWord.startsWith("@") && lastWord.length > 1) {
