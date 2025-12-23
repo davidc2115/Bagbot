@@ -96,6 +96,182 @@ app.get("/music", (req, res) => {
   res.sendFile(path.join(__dirname, "music.html"));
 });
 
+// === ROUTES API ADMIN ===
+
+// Obtenir les statistiques système (CPU, RAM, Uptime)
+app.get('/api/admin/system-stats', (req, res) => {
+  try {
+    const used = process.memoryUsage();
+    const uptimeSeconds = process.uptime();
+    
+    res.json({
+      success: true,
+      memory: {
+        heapUsed: (used.heapUsed / 1024 / 1024).toFixed(2), // MB
+        heapTotal: (used.heapTotal / 1024 / 1024).toFixed(2), // MB
+        rss: (used.rss / 1024 / 1024).toFixed(2), // MB
+        external: (used.external / 1024 / 1024).toFixed(2), // MB
+        arrayBuffers: (used.arrayBuffers / 1024 / 1024).toFixed(2) // MB
+      },
+      uptime: {
+        seconds: Math.floor(uptimeSeconds),
+        formatted: formatUptime(uptimeSeconds)
+      },
+      pid: process.pid,
+      platform: process.platform,
+      nodeVersion: process.version
+    });
+  } catch (error) {
+    console.error('[Admin] Erreur stats système:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Obtenir le nombre et l'état des backups
+app.get('/api/admin/backups-stats', (req, res) => {
+  try {
+    const hourlyDir = path.join(__dirname, '../data/backups/hourly');
+    const externalDir = path.join(__dirname, '../data/backups/external-hourly');
+    
+    const stats = {
+      success: true,
+      hourly: { count: 0, size: 0, latest: null, oldest: null },
+      external: { count: 0, size: 0, latest: null, oldest: null }
+    };
+    
+    // Backups horaires
+    if (fs.existsSync(hourlyDir)) {
+      const files = fs.readdirSync(hourlyDir).filter(f => f.endsWith('.json'));
+      stats.hourly.count = files.length;
+      
+      if (files.length > 0) {
+        let totalSize = 0;
+        let latestTime = 0;
+        let oldestTime = Infinity;
+        let latestFile = null;
+        let oldestFile = null;
+        
+        files.forEach(file => {
+          const filePath = path.join(hourlyDir, file);
+          const stat = fs.statSync(filePath);
+          totalSize += stat.size;
+          
+          if (stat.mtimeMs > latestTime) {
+            latestTime = stat.mtimeMs;
+            latestFile = { name: file, date: stat.mtime.toLocaleString('fr-FR'), size: (stat.size / 1024).toFixed(2) };
+          }
+          if (stat.mtimeMs < oldestTime) {
+            oldestTime = stat.mtimeMs;
+            oldestFile = { name: file, date: stat.mtime.toLocaleString('fr-FR') };
+          }
+        });
+        
+        stats.hourly.size = (totalSize / 1024 / 1024).toFixed(2); // MB
+        stats.hourly.latest = latestFile;
+        stats.hourly.oldest = oldestFile;
+      }
+    }
+    
+    // Backups externes
+    if (fs.existsSync(externalDir)) {
+      const files = fs.readdirSync(externalDir).filter(f => f.endsWith('.json'));
+      stats.external.count = files.length;
+      
+      if (files.length > 0) {
+        let totalSize = 0;
+        files.forEach(file => {
+          totalSize += fs.statSync(path.join(externalDir, file)).size;
+        });
+        stats.external.size = (totalSize / 1024 / 1024).toFixed(2); // MB
+      }
+    }
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('[Admin] Erreur stats backups:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Redémarrer le bot (via PM2)
+app.post('/api/admin/restart-bot', (req, res) => {
+  try {
+    console.log('[Admin] 🔄 Redémarrage du bot demandé...');
+    
+    // Vérifier si PM2 est disponible
+    exec('pm2 --version', (error) => {
+      if (error) {
+        return res.json({ 
+          success: false, 
+          error: 'PM2 n\'est pas disponible. Redémarrage manuel requis.' 
+        });
+      }
+      
+      // Redémarrer avec PM2
+      exec('pm2 restart bagbot', (error, stdout, stderr) => {
+        if (error) {
+          console.error('[Admin] Erreur redémarrage:', error);
+          return res.json({ 
+            success: false, 
+            error: `Erreur: ${error.message}` 
+          });
+        }
+        
+        console.log('[Admin] ✅ Bot redémarré avec succès');
+        res.json({ 
+          success: true, 
+          message: 'Bot redémarré avec succès via PM2',
+          output: stdout 
+        });
+      });
+    });
+  } catch (error) {
+    console.error('[Admin] Erreur redémarrage:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Obtenir les logs récents du bot
+app.get('/api/admin/recent-logs', (req, res) => {
+  try {
+    const lines = parseInt(req.query.lines) || 50;
+    
+    exec(`pm2 logs bagbot --lines ${lines} --nostream --raw`, (error, stdout, stderr) => {
+      if (error) {
+        return res.json({ 
+          success: false, 
+          error: 'Impossible de récupérer les logs. PM2 n\'est peut-être pas disponible.' 
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        logs: stdout || stderr || 'Aucun log disponible',
+        timestamp: new Date().toISOString()
+      });
+    });
+  } catch (error) {
+    console.error('[Admin] Erreur récupération logs:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Helper function pour formater l'uptime
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days}j`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+  
+  return parts.join(' ');
+}
+
 
 // List backups
 app.get('/backups', (req, res) => {
