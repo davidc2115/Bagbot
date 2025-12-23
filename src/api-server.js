@@ -1371,24 +1371,51 @@ app.post('/api/goodbye', requireAuth, express.json(), async (req, res) => {
   }
 });
 
-// GET /api/inactivity - Récupérer config inactivity
+// GET /api/inactivity - Récupérer config inactivity (depuis autokick.inactivityKick)
 app.get('/api/inactivity', async (req, res) => {
   try {
     const config = await readConfig();
-    const inactivity = config.guilds?.[GUILD]?.inactivity || {};
-    res.json(inactivity);
+    const autokick = config.guilds?.[GUILD]?.autokick || {};
+    const inactivity = autokick.inactivityKick || {
+      enabled: false,
+      delayDays: 30,
+      excludedRoleIds: [],
+      inactiveRoleId: null,
+      trackActivity: true
+    };
+    const tracking = autokick.inactivityTracking || {};
+    
+    // Retourner les données avec le tracking
+    res.json({
+      enabled: inactivity.enabled,
+      delayDays: inactivity.delayDays || 30,
+      excludedRoleIds: inactivity.excludedRoleIds || [],
+      inactiveRoleId: inactivity.inactiveRoleId || null,
+      trackActivity: inactivity.trackActivity !== false,
+      tracking: tracking
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /api/inactivity - Sauvegarder config inactivity
+// POST /api/inactivity - Sauvegarder config inactivity (dans autokick.inactivityKick)
 app.post('/api/inactivity', requireAuth, express.json(), async (req, res) => {
   try {
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
-    config.guilds[GUILD].inactivity = { ...config.guilds[GUILD].inactivity, ...req.body };
+    if (!config.guilds[GUILD].autokick) config.guilds[GUILD].autokick = {};
+    if (!config.guilds[GUILD].autokick.inactivityKick) {
+      config.guilds[GUILD].autokick.inactivityKick = {};
+    }
+    
+    // Mettre à jour les valeurs
+    config.guilds[GUILD].autokick.inactivityKick = {
+      ...config.guilds[GUILD].autokick.inactivityKick,
+      ...req.body
+    };
+    
     await writeConfig(config);
     res.json({ success: true });
   } catch (error) {
@@ -1397,13 +1424,70 @@ app.post('/api/inactivity', requireAuth, express.json(), async (req, res) => {
 });
 
 // POST /api/inactivity/reset/:userId - Reset inactivité d'un membre
-app.post('/api/inactivity/reset/:userId', requireAuth, (req, res) => {
-  res.json({ success: true, message: 'Reset inactivity not implemented' });
+app.post('/api/inactivity/reset/:userId', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const config = await readConfig();
+    
+    if (!config.guilds?.[GUILD]?.autokick?.inactivityTracking) {
+      return res.json({ success: true, message: 'No tracking data found' });
+    }
+    
+    if (config.guilds[GUILD].autokick.inactivityTracking[userId]) {
+      config.guilds[GUILD].autokick.inactivityTracking[userId].lastActivity = Date.now();
+      delete config.guilds[GUILD].autokick.inactivityTracking[userId].plannedInactive;
+      delete config.guilds[GUILD].autokick.inactivityTracking[userId].graceWarningUntil;
+      await writeConfig(config);
+    }
+    
+    res.json({ success: true, message: 'Inactivity reset for user ' + userId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // POST /api/inactivity/add-all-members - Ajouter tous les membres au tracking
-app.post('/api/inactivity/add-all-members', requireAuth, (req, res) => {
-  res.json({ success: true, message: 'Add all members not implemented' });
+app.post('/api/inactivity/add-all-members', requireAuth, async (req, res) => {
+  try {
+    const client = req.app.locals.client;
+    if (!client) {
+      return res.status(503).json({ error: 'Bot client not available' });
+    }
+    
+    const guild = client.guilds.cache.get(GUILD);
+    if (!guild) {
+      return res.status(404).json({ error: 'Guild not found' });
+    }
+    
+    await guild.members.fetch();
+    
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+    if (!config.guilds[GUILD].autokick) config.guilds[GUILD].autokick = {};
+    if (!config.guilds[GUILD].autokick.inactivityTracking) {
+      config.guilds[GUILD].autokick.inactivityTracking = {};
+    }
+    
+    let addedCount = 0;
+    const now = Date.now();
+    
+    guild.members.cache.forEach(member => {
+      if (!member.user.bot) {
+        if (!config.guilds[GUILD].autokick.inactivityTracking[member.id]) {
+          config.guilds[GUILD].autokick.inactivityTracking[member.id] = {
+            lastActivity: now
+          };
+          addedCount++;
+        }
+      }
+    });
+    
+    await writeConfig(config);
+    res.json({ success: true, message: `Added ${addedCount} members to tracking`, total: Object.keys(config.guilds[GUILD].autokick.inactivityTracking).length });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET /api/truthdare/:mode - Récupérer config truthdare

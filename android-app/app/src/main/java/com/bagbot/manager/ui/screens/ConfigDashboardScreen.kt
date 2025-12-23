@@ -5367,8 +5367,27 @@ private fun AutoKickConfigTab(
     val autokick = configData?.obj("autokick")
     var enabled by remember { mutableStateOf(autokick?.bool("enabled") ?: false) }
     var roleId by remember { mutableStateOf(autokick?.str("roleId")) }
-    var delayMs by remember { mutableStateOf((autokick?.int("delayMs") ?: 172800000).toString()) }
+    
+    // Convertir delayMs en heures ou jours pour affichage
+    val initialDelayMs = (autokick?.int("delayMs") ?: 172800000).toLong() // 48h par défaut
+    val initialDelayHours = initialDelayMs.div(60 * 60 * 1000)
+    
+    var delayValue by remember { 
+        mutableStateOf(
+            if (initialDelayHours >= 24 && initialDelayHours.rem(24) == 0L) {
+                initialDelayHours.div(24).toString()
+            } else {
+                initialDelayHours.toString()
+            }
+        ) 
+    }
+    var delayUnit by remember { 
+        mutableStateOf(
+            if (initialDelayHours >= 24 && initialDelayHours.rem(24) == 0L) "jours" else "heures"
+        ) 
+    }
     var isSaving by remember { mutableStateOf(false) }
+    var unitMenuExpanded by remember { mutableStateOf(false) }
 
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -5380,12 +5399,77 @@ private fun AutoKickConfigTab(
                 Spacer(Modifier.height(10.dp))
                 RoleSelector(roles, roleId, { roleId = it }, label = "Rôle AutoKick")
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = delayMs,
-                    onValueChange = { delayMs = it },
-                    label = { Text("Délai (ms)") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                
+                // Champ délai avec unité
+                Text("Délai avant kick", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = delayValue,
+                        onValueChange = { delayValue = it },
+                        label = { Text("Valeur") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    // Sélecteur d'unité (heures/jours)
+                    Box(Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { unitMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
+                        ) {
+                            Text(delayUnit.replaceFirstChar { it.uppercase() })
+                            Icon(Icons.Default.ArrowDropDown, null)
+                        }
+                        DropdownMenu(
+                            expanded = unitMenuExpanded,
+                            onDismissRequest = { unitMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Heures") },
+                                onClick = { 
+                                    // Convertir jours en heures si changement d'unité
+                                    if (delayUnit == "jours") {
+                                        val currentDays = delayValue.toLongOrNull() ?: 1
+                                        delayValue = (currentDays * 24).toString()
+                                    }
+                                    delayUnit = "heures"
+                                    unitMenuExpanded = false 
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Jours") },
+                                onClick = { 
+                                    // Convertir heures en jours si changement d'unité
+                                    if (delayUnit == "heures") {
+                                        val currentHours = delayValue.toLongOrNull() ?: 24
+                                        delayValue = currentHours.div(24).toString()
+                                    }
+                                    delayUnit = "jours"
+                                    unitMenuExpanded = false 
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                // Aperçu du délai
+                Spacer(Modifier.height(8.dp))
+                val previewText = when (delayUnit) {
+                    "heures" -> {
+                        val hours = delayValue.toLongOrNull() ?: 1
+                        if (hours >= 24) "${hours}h (${hours.div(24)}j ${hours.rem(24)}h)" else "${hours}h"
+                    }
+                    "jours" -> {
+                        val days = delayValue.toLongOrNull() ?: 1
+                        "${days}j (${days * 24}h)"
+                    }
+                    else -> "—"
+                }
+                Text(
+                    "⏱️ Durée: $previewText",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }
@@ -5396,11 +5480,18 @@ private fun AutoKickConfigTab(
                         isSaving = true
                         withContext(Dispatchers.IO) {
                             try {
+                                // Calculer delayMs selon l'unité
+                                val delayMs = when (delayUnit) {
+                                    "heures" -> (delayValue.toLongOrNull() ?: 48) * 60 * 60 * 1000
+                                    "jours" -> (delayValue.toLongOrNull() ?: 2) * 24 * 60 * 60 * 1000
+                                    else -> 172800000 // 48h par défaut
+                                }
+                                
                                 val body = buildJsonObject {
                                     put("autokick", buildJsonObject {
                                         put("enabled", enabled)
                                         put("roleId", roleId ?: "")
-                                        put("delayMs", delayMs.toLongOrNull() ?: 172800000)
+                                        put("delayMs", delayMs)
                                     })
                                 }
                                 postOrPutSection(
@@ -5411,7 +5502,7 @@ private fun AutoKickConfigTab(
                                     fallbackSectionKey = "autokick",
                                     fallbackSectionBody = body["autokick"]!!.jsonObject
                                 )
-                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ AutoKick sauvegardé") }
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ AutoKick sauvegardé (délai: ${delayMs}ms)") }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
                             } finally {
