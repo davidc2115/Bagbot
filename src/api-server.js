@@ -1490,6 +1490,56 @@ app.post('/api/inactivity/add-all-members', requireAuth, async (req, res) => {
   }
 });
 
+// ========== COUNTING ==========
+// POST /api/counting - Gérer les actions de comptage
+app.post('/api/counting', requireAuth, express.json(), async (req, res) => {
+  try {
+    const { action, data } = req.body;
+    const config = await readConfig();
+    
+    if (!config.guilds?.[GUILD]?.counting) {
+      config.guilds[GUILD].counting = {
+        enabled: false,
+        channelId: '',
+        currentNumber: 0,
+        lastUserId: '',
+        highScore: 0
+      };
+    }
+    
+    switch (action) {
+      case 'reset':
+        config.guilds[GUILD].counting.currentNumber = 0;
+        config.guilds[GUILD].counting.lastUserId = '';
+        await writeConfig(config);
+        res.json({ success: true, message: 'Comptage réinitialisé' });
+        break;
+      
+      case 'setChannel':
+        config.guilds[GUILD].counting.channelId = data?.channelId || '';
+        await writeConfig(config);
+        res.json({ success: true, message: 'Channel configuré' });
+        break;
+      
+      case 'toggle':
+        config.guilds[GUILD].counting.enabled = !config.guilds[GUILD].counting.enabled;
+        await writeConfig(config);
+        res.json({ 
+          success: true, 
+          enabled: config.guilds[GUILD].counting.enabled,
+          message: config.guilds[GUILD].counting.enabled ? 'Comptage activé' : 'Comptage désactivé'
+        });
+        break;
+      
+      default:
+        res.status(400).json({ error: 'Action non reconnue. Actions disponibles: reset, setChannel, toggle' });
+    }
+  } catch (error) {
+    console.error('[API] Error in /api/counting:', error);
+    res.status(500).json({ error: 'Erreur interne du serveur' });
+  }
+});
+
 // GET /api/truthdare/:mode - Récupérer config truthdare
 app.get('/api/truthdare/:mode', async (req, res) => {
   try {

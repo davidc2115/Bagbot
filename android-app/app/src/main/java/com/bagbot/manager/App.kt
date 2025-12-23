@@ -3539,8 +3539,18 @@ fun renderKeyInfo(
             }
             "inactivity" -> {
                 val obj = sectionData.jsonObject
-                obj["kickAfterDays"]?.jsonPrimitive?.intOrNull?.let { days ->
-                    keyInfos.add("⏰ Kick après" to "$days jours")
+                val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                val delayDays = obj["delayDays"]?.jsonPrimitive?.intOrNull
+                val trackedUsersCount = obj["trackedUsers"]?.jsonObject?.size ?: 0
+                val inactivityTracking = obj["inactivityTracking"]?.jsonObject?.size ?: 0
+                
+                keyInfos.add("🔔 Statut" to if (enabled) "✅ Activé" else "❌ Désactivé")
+                if (delayDays != null && delayDays > 0) {
+                    keyInfos.add("⏰ Kick après" to "$delayDays jours d'inactivité")
+                }
+                val totalTracked = maxOf(trackedUsersCount, inactivityTracking)
+                if (totalTracked > 0) {
+                    keyInfos.add("👥 Membres surveillés" to "$totalTracked membres")
                 }
             }
             "economy" -> {
@@ -4328,8 +4338,11 @@ fun ConfigEditorScreen(
                     goodbyeMessage = data["message"]?.jsonPrimitive?.contentOrNull ?: ""
                 }
                 "inactivity" -> {
-                    inactivityThresholdDays = data["thresholdDays"]?.jsonPrimitive?.contentOrNull ?: ""
-                    inactivityExemptRoles = data["exemptRoles"]?.jsonArray.safeStringList()
+                    // Structure: autokick.inactivityKick.delayDays
+                    val enabled = data["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    val delayDays = data["delayDays"]?.jsonPrimitive?.intOrNull ?: 30
+                    inactivityThresholdDays = delayDays.toString()
+                    inactivityExemptRoles = data["excludedRoleIds"]?.jsonArray.safeStringList()
                 }
             }
         }
@@ -4366,10 +4379,12 @@ fun ConfigEditorScreen(
                                 if (goodbyeMessage.isNotBlank()) put("message", goodbyeMessage)
                             }
                             "inactivity" -> {
+                                put("enabled", true) // Activer lors de la sauvegarde
                                 if (inactivityThresholdDays.isNotBlank()) {
-                                    put("thresholdDays", inactivityThresholdDays.toIntOrNull() ?: 30)
+                                    put("delayDays", inactivityThresholdDays.toIntOrNull() ?: 30)
                                 }
-                                put("exemptRoles", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
+                                put("excludedRoleIds", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
+                                put("trackActivity", true)
                             }
                         }
                     }
