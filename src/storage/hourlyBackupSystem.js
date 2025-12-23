@@ -1,8 +1,13 @@
 /**
- * Système de sauvegarde horaire avec rétention de 3 jours
- * - Sauvegarde automatique toutes les heures
- * - Supprime automatiquement les backups de plus de 3 jours
- * - Format simple et fiable
+ * SYSTÈME UNIQUE DE SAUVEGARDE
+ * 
+ * Ce système gère TOUS les backups du bot :
+ * 1. Backup automatique toutes les heures
+ * 2. Backup manuel via /backup
+ * 3. Rétention de 72 heures (3 jours)
+ * 4. Nettoyage automatique des backups obsolètes
+ * 
+ * Tous les autres systèmes de backup automatique sont désactivés.
  */
 
 const fs = require('fs');
