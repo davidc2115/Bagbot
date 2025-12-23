@@ -1,0 +1,86 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║        🚨 IMPORTANT : BUILDER LE NOUVEL APK 🚨              ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+🔴 PROBLÈME ACTUEL :
+
+L'APK téléchargeable est l'ANCIEN (v5.9.17) qui contient :
+❌ Onglet "Mot-Caché" (toujours là)
+❌ Vignette "JSON Brut" (toujours là)
+❌ Pas de mention @ qui marche
+❌ Pas de conversations privées qui marchent
+
+Les modifications sont dans le CODE mais pas compilées en APK !
+
+═══════════════════════════════════════════════════════════════
+
+✅ SOLUTION : BUILDER LE NOUVEL APK SUR VOTRE SERVEUR
+
+Copiez-collez ces commandes :
+
+═══════════════════════════════════════════════════════════════
+
+ssh -p 33000 bagbot@88.174.155.230
+
+cd /home/bagbot/Bag-bot
+
+git pull origin cursor/discord-bot-issues-and-backups-827c
+
+cd android-app
+
+./BUILD_APK.sh
+
+cd ..
+
+gh release upload v5.9.18 \
+  BagBot-Manager-APK/BagBot-Manager-v5.9.18-android.apk \
+  --clobber
+
+═══════════════════════════════════════════════════════════════
+
+⏱️ Durée : 5-10 minutes
+
+Après ça, le lien sera mis à jour avec le BON APK v5.9.18 qui n'aura plus :
+✅ Onglet "Mot-Caché" (RETIRÉ)
+✅ Vignette "JSON Brut" (RETIRÉE)
+✅ Mentions @ (FONCTIONNELLES)
+✅ Conversations privées (FONCTIONNELLES)
+
+═══════════════════════════════════════════════════════════════
+
+📱 NOUVEAU LIEN APRÈS BUILD :
+
+https://github.com/mel805/Bagbot/releases/download/v5.9.18/BagBot-Manager-v5.9.18-android.apk
+
+═══════════════════════════════════════════════════════════════
+
+🌐 POUR LA SECTION ADMIN (Dashboard Web) :
+
+La section Admin n'est PAS dans l'app Android !
+C'est dans le DASHBOARD WEB.
+
+Redémarrer le dashboard :
+pm2 restart dashboard-v2
+
+Puis ouvrir dans un navigateur :
+http://88.174.155.230:33002
+
+Cliquer sur l'onglet ⚙️ Admin
+
+Vous verrez :
+- Stats RAM
+- Uptime
+- Nombre de backups
+- Bouton redémarrage bot
+
+═══════════════════════════════════════════════════════════════
+
+💡 RÉSUMÉ :
+
+1. App Android = DOIT être buildée sur votre serveur
+2. Dashboard Admin = DOIT ouvrir le site web, pas l'app Android
+3. Les modifications sont dans le code, pas encore compilées
+
+═══════════════════════════════════════════════════════════════
