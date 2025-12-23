@@ -138,7 +138,7 @@ fun MotCacheScreen(
                 }
             )
         },
-        containerColor = Color(0xFF121212)
+        containerColor = Color.Transparent
     ) { padding ->
         if (isLoading) {
             Box(

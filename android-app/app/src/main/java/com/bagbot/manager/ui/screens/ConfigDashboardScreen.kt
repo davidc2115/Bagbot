@@ -200,10 +200,35 @@ private fun CategoryCard(
         else -> Icons.Default.Settings
     }
     
+    val accent = when (label) {
+        "🏠 Dashboard" -> Color(0xFF5865F2)
+        "💰 Économie" -> Color(0xFF57F287)
+        "📊 Niveaux" -> Color(0xFF9B59B6)
+        "🚀 Booster" -> Color(0xFFFF9800)
+        "🔢 Comptage" -> Color(0xFF00D4FF)
+        "🎲 A/V" -> Color(0xFFFEE75C)
+        "🎬 Actions" -> Color(0xFFE91E63)
+        "🎫 Tickets" -> Color(0xFFE67E22)
+        "📝 Logs" -> Color(0xFF95A5A6)
+        "💬 Confess" -> Color(0xFFED4245)
+        "👋 Welcome" -> Color(0xFF3498DB)
+        "😢 Goodbye" -> Color(0xFF8B4513)
+        "👥 Staff" -> Color(0xFFFFD700)
+        "👢 AutoKick" -> Color(0xFFDC143C)
+        "⏰ Inactivité" -> Color(0xFFFF69B4)
+        "🧵 AutoThread" -> Color(0xFF20B2AA)
+        "📢 Disboard" -> Color(0xFF4169E1)
+        "🌍 Géo" -> Color(0xFF32CD32)
+        "🔍 Mot-Caché" -> Color(0xFF9C27B0)
+        "💾 Backups" -> Color(0xFF34495E)
+        "🎮 Contrôle" -> Color(0xFFED4245)
+        else -> Color(0xFF5865F2)
+    }
+
     val gradient = androidx.compose.ui.graphics.Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF2E2E2E),
-            Color(0xFF1A1A1A)
+            accent.copy(alpha = 0.35f),
+            Color(0xFF121212)
         )
     )
     
@@ -213,7 +238,7 @@ private fun CategoryCard(
             .aspectRatio(1f)
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1E1E1E)
+            containerColor = Color(0xFF1E1E1E).copy(alpha = 0.75f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
@@ -223,27 +248,44 @@ private fun CategoryCard(
                 .background(gradient)
                 .padding(16.dp)
         ) {
+            // Logo texte (watermark) au centre
+            Text(
+                text = "BAG",
+                color = Color.White.copy(alpha = 0.10f),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.align(Alignment.Center)
+            )
+
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Icon with background circle
+                // Icône + logo texte dans un cercle
                 Box(
                     modifier = Modifier
                         .size(64.dp)
                         .background(
-                            color = Color(0xFF5865F2).copy(alpha = 0.2f),
+                            color = accent.copy(alpha = 0.22f),
                             shape = androidx.compose.foundation.shape.CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = Color(0xFF5865F2),
-                        modifier = Modifier.size(32.dp)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = accent,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = "BAG",
+                            color = accent,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
                 
                 Spacer(Modifier.height(12.dp))
@@ -329,8 +371,6 @@ private fun RemovableIdRow(
 private suspend fun postOrPutSection(
     api: ApiClient,
     json: Json,
-    primaryPostPath: String,
-    primaryBody: JsonObject,
     fallbackSectionKey: String,
     fallbackSectionBody: JsonObject,
 ): Boolean {
@@ -4345,8 +4385,6 @@ private fun TicketsConfigTab(
                                             postOrPutSection(
                                                 api = api,
                                                 json = json,
-                                                primaryPostPath = "/api/tickets",
-                                                primaryBody = buildJsonObject { put("settings", settings) },
                                                 fallbackSectionKey = "tickets",
                                                 fallbackSectionBody = settings
                                             )
@@ -4446,8 +4484,6 @@ private fun TicketsConfigTab(
                                             postOrPutSection(
                                                 api = api,
                                                 json = json,
-                                                primaryPostPath = "/api/tickets",
-                                                primaryBody = buildJsonObject { put("categories", catsArr) },
                                                 fallbackSectionKey = "tickets",
                                                 fallbackSectionBody = buildJsonObject { put("categories", catsArr) }
                                             )
@@ -4850,8 +4886,6 @@ private fun LogsConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/logs",
-                                    primaryBody = buildJsonObject { put("logs", logsBody) },
                                     fallbackSectionKey = "logs",
                                     fallbackSectionBody = logsBody
                                 )
@@ -4999,8 +5033,6 @@ private fun ConfessConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/confess",
-                                    primaryBody = buildJsonObject { put("settings", body) },
                                     fallbackSectionKey = "confess",
                                     fallbackSectionBody = body
                                 )
@@ -5327,8 +5359,6 @@ private fun StaffConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/staff",
-                                    primaryBody = body,
                                     fallbackSectionKey = "staffRoleIds",
                                     fallbackSectionBody = JsonObject(body)
                                 )
@@ -5497,8 +5527,6 @@ private fun AutoKickConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/autokick",
-                                    primaryBody = body,
                                     fallbackSectionKey = "autokick",
                                     fallbackSectionBody = body["autokick"]!!.jsonObject
                                 )
@@ -5797,8 +5825,6 @@ private fun AutoThreadConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/autothread",
-                                    primaryBody = buildJsonObject { put("autothread", body) },
                                     fallbackSectionKey = "autothread",
                                     fallbackSectionBody = body
                                 )
@@ -5867,8 +5893,6 @@ private fun DisboardConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/disboard",
-                                    primaryBody = buildJsonObject { put("disboard", body) },
                                     fallbackSectionKey = "disboard",
                                     fallbackSectionBody = body
                                 )

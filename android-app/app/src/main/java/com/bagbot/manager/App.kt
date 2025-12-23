@@ -40,7 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
@@ -71,6 +73,27 @@ import com.bagbot.manager.ui.components.ChannelSelector
 import com.bagbot.manager.ui.components.RoleSelector
 
 private const val TAG = "BAG_APP"
+
+@Composable
+private fun AppBackground(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        // Fond image global
+        Image(
+            painter = painterResource(id = R.drawable.bag_server_logo),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alpha = 0.22f
+        )
+        // Overlay sombre pour lisibilité
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.72f))
+        )
+        content()
+    }
+}
 
 
 // ============================================
@@ -1424,33 +1447,35 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         if (showSplash) {
             SplashScreen(onFinished = { showSplash = false })
         } else {
-            Scaffold(
-                snackbarHost = { SnackbarHost(snackbar) },
-                topBar = {
-                    TopAppBar(
-                        title = { 
-                            Text(
-                                if (selectedConfigSection != null) "Configuration" 
-                                else "💎 BAG Bot Manager", 
-                                fontWeight = FontWeight.Bold
-                            ) 
-                        },
-                        navigationIcon = {
-                            if (selectedConfigSection != null) {
-                                IconButton(onClick = { selectedConfigSection = null }) {
-                                    Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+            AppBackground {
+                Scaffold(
+                    containerColor = Color.Transparent,
+                    snackbarHost = { SnackbarHost(snackbar) },
+                    topBar = {
+                        TopAppBar(
+                            title = { 
+                                Text(
+                                    if (selectedConfigSection != null) "Configuration" 
+                                    else "💎 BAG Bot Manager", 
+                                    fontWeight = FontWeight.Bold
+                                ) 
+                            },
+                            navigationIcon = {
+                                if (selectedConfigSection != null) {
+                                    IconButton(onClick = { selectedConfigSection = null }) {
+                                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                                    }
                                 }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color(0xFFFF1744),
-                            titleContentColor = Color.White
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color(0xFFFF1744),
+                                titleContentColor = Color.White
+                            )
                         )
-                    )
-                },
-                bottomBar = {
-                    if (token?.isNotBlank() == true && selectedConfigSection == null) {
-                        NavigationBar {
+                    },
+                    bottomBar = {
+                        if (token?.isNotBlank() == true && selectedConfigSection == null) {
+                            NavigationBar(containerColor = Color(0xCC111111)) {
                             NavigationBarItem(
                                 selected = tab == 0,
                                 onClick = { tab = 0 },
@@ -1484,16 +1509,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.MusicNote, "Musique") },
                                 label = { Text("Musique") }
                             )
+                            }
                         }
                     }
-                }
-            ) { padding ->
-                Box(
-                    Modifier
-                        .padding(padding)
-                        .fillMaxSize()
-                        .background(Color(0xFF121212))
-                ) {
+                ) { padding ->
+                    Box(
+                        Modifier
+                            .padding(padding)
+                            .fillMaxSize()
+                    ) {
                     when {
                         selectedConfigSection != null -> {
                             // Afficher l'éditeur de configuration
@@ -1629,6 +1653,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                     }
+                }
                 }
             }
         }
@@ -3437,47 +3462,76 @@ fun ConfigGroupsScreen(
                 items(configGroups) { group ->
                     val sectionsInConfig = group.sections.count { configData.containsKey(it) }
                     
+                    val grad = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            group.color.copy(alpha = 0.35f),
+                            Color(0xFF121212)
+                        )
+                    )
                     Card(
                         Modifier
                             .fillMaxWidth()
                             .clickable { selectedGroup = group },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E).copy(alpha = 0.75f))
                     ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(grad)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    Modifier
-                                        .size(48.dp)
-                                        .background(group.color.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        group.icon,
-                                        null,
-                                        tint = group.color,
-                                        modifier = Modifier.size(28.dp)
-                                    )
+                            // Logo texte au centre (watermark)
+                            Text(
+                                text = "BAG",
+                                color = Color.White.copy(alpha = 0.08f),
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+
+                            Row(
+                                Modifier.fillMaxWidth().padding(20.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier
+                                            .size(54.dp)
+                                            .background(group.color.copy(alpha = 0.22f), RoundedCornerShape(10.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                group.icon,
+                                                null,
+                                                tint = group.color,
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                            Text(
+                                                text = "BAG",
+                                                color = group.color,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            group.name,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            "$sectionsInConfig/${group.sections.size} sections configurées",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
-                                Spacer(Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        group.name,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Text(
-                                        "$sectionsInConfig/${group.sections.size} sections configurées",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.Gray
-                                    )
-                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = group.color)
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = group.color)
                         }
                     }
                 }
