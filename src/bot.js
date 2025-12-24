@@ -6852,6 +6852,54 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (err) {
       console.error('[MOT-CACHE] Erreur chargement handler:', err);
     }
+
+    // ========== HANDLERS TRIBUNAL ==========
+    try {
+      const tribunalHandler = require('./handlers/tribunalHandler');
+      
+      // Bouton "Devenir Juge"
+      if (interaction.isButton && interaction.isButton() && interaction.customId?.startsWith('tribunal_devenir_juge:')) {
+        console.log(`[TRIBUNAL] ✅ Bouton Devenir Juge détecté: ${interaction.customId}`);
+        try {
+          await tribunalHandler.handleDevenirJuge(interaction);
+          console.log(`[TRIBUNAL] ✅ Handler Devenir Juge terminé avec succès`);
+          return;
+        } catch (e) {
+          console.error('[TRIBUNAL] ❌ Erreur dans handler Devenir Juge:', e.message);
+          console.error('[TRIBUNAL] Stack:', e.stack);
+          try {
+            if (!interaction.replied && !interaction.deferred) {
+              await interaction.reply({ content: `❌ Erreur: ${e.message}`, ephemeral: true });
+            }
+          } catch (replyErr) {
+            console.error('[TRIBUNAL] ❌ Impossible de répondre avec erreur:', replyErr.message);
+          }
+        }
+      }
+      
+      // Select menu "Avocat de la défense"
+      if (interaction.isStringSelectMenu && interaction.isStringSelectMenu() && interaction.customId?.startsWith('tribunal_select_avocat_defense:')) {
+        console.log(`[TRIBUNAL] ✅ Select menu Avocat Défense détecté: ${interaction.customId}`);
+        try {
+          await tribunalHandler.handleTribunalAvocatDefenseSelection(interaction);
+          console.log(`[TRIBUNAL] ✅ Handler Avocat Défense terminé avec succès`);
+          return;
+        } catch (e) {
+          console.error('[TRIBUNAL] ❌ Erreur dans handler Avocat Défense:', e.message);
+          console.error('[TRIBUNAL] Stack:', e.stack);
+          try {
+            if (!interaction.replied && !interaction.deferred) {
+              await interaction.reply({ content: `❌ Erreur: ${e.message}`, ephemeral: true });
+            }
+          } catch (replyErr) {
+            console.error('[TRIBUNAL] ❌ Impossible de répondre avec erreur:', replyErr.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[TRIBUNAL] Erreur chargement handler:', err);
+    }
+
     // Handler pour /config serveur (menu classique)
     if (interaction.isChatInputCommand() && interaction.commandName === 'config') {
       console.log("[CONFIG DEBUG] Commande /config reçue");
