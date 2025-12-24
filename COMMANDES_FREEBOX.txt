@@ -1,0 +1,110 @@
+════════════════════════════════════════════════════════════════════════════════
+🔧 COMMANDES À EXÉCUTER SUR LA FREEBOX
+════════════════════════════════════════════════════════════════════════════════
+
+ÉTAPE 1 : CONNEXION À LA FREEBOX
+─────────────────────────────────────────────────────────────────────────────
+
+ssh root@88.174.155.230
+# Mot de passe : root bagbot
+
+
+ÉTAPE 2 : COPIER-COLLER CES COMMANDES
+─────────────────────────────────────────────────────────────────────────────
+
+# Arrêter Ollama
+systemctl stop ollama
+
+# Créer la configuration pour le port 33437
+mkdir -p /etc/systemd/system/ollama.service.d
+cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0:33437"
+EOF
+
+# Recharger systemd
+systemctl daemon-reload
+
+# Démarrer Ollama sur le port 33437
+systemctl start ollama
+
+# Activer au démarrage
+systemctl enable ollama
+
+# Attendre 3 secondes
+sleep 3
+
+# Vérifier le status
+systemctl status ollama
+
+# Vérifier que le port 33437 écoute
+netstat -tlnp | grep 33437
+
+# Tester l'API
+curl http://localhost:33437/api/tags
+
+
+ÉTAPE 3 : VÉRIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+Si tu vois dans netstat :
+tcp  0  0  0.0.0.0:33437  0.0.0.0:*  LISTEN  [PID]/ollama
+
+C'est BON ! Le serveur écoute sur le port 33437.
+
+
+ÉTAPE 4 : TEST DEPUIS TON TÉLÉPHONE/PC
+─────────────────────────────────────────────────────────────────────────────
+
+Depuis ton téléphone ou PC (pas la Freebox), teste :
+
+curl http://88.174.155.230:33437/api/tags
+
+Si ça répond avec la liste des modèles, c'est parfait !
+
+
+ÉTAPE 5 : SI LE PORT NE FONCTIONNE PAS
+─────────────────────────────────────────────────────────────────────────────
+
+# Vérifier les logs
+journalctl -u ollama -n 50
+
+# Vérifier la configuration
+systemctl cat ollama
+
+# Redémarrer complètement
+systemctl restart ollama
+sleep 3
+systemctl status ollama
+
+
+ÉTAPE 6 : RÈGLES FIREWALL (SI NÉCESSAIRE)
+─────────────────────────────────────────────────────────────────────────────
+
+Si le port 33437 n'est pas accessible de l'extérieur, ajoute une règle :
+
+# Vérifier iptables
+iptables -L -n | grep 33437
+
+# Si rien, ajouter la règle
+iptables -A INPUT -p tcp --dport 33437 -j ACCEPT
+
+# Sauvegarder (Debian)
+iptables-save > /etc/iptables/rules.v4
+
+
+RÉSUMÉ DES PORTS
+─────────────────────────────────────────────────────────────────────────────
+
+Port 22     : SSH (pour te connecter)
+Port 33437  : Ollama API (pour le chatbot Android)
+
+Les deux doivent être accessibles depuis internet.
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+Une fois que tu as exécuté ces commandes et que le port 33437 répond,
+l'application Android v1.3.1 fonctionnera !
+
+════════════════════════════════════════════════════════════════════════════════

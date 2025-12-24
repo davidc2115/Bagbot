@@ -1,0 +1,109 @@
+════════════════════════════════════════════════════════════════════════════════
+🎉 NARUTO AI CHAT v1.3.1 - PORT 33437 CONFIGURÉ! 🎉
+════════════════════════════════════════════════════════════════════════════════
+
+✅ L'APPLICATION EST PRÊTE!
+L'app est configurée pour se connecter à : http://88.174.155.230:33437
+
+⚠️ MAIS TU DOIS CONFIGURER LE SERVEUR SUR TA FREEBOX!
+
+════════════════════════════════════════════════════════════════════════════════
+📱 TÉLÉCHARGER L'APK v1.3.1
+════════════════════════════════════════════════════════════════════════════════
+
+🔗 PAGE RELEASE:
+https://github.com/mel805/naruto-ai-chat/releases/tag/v1.3.1
+
+⬇️ LIEN DIRECT APK:
+https://github.com/mel805/naruto-ai-chat/releases/download/v1.3.1/Naruto-AI-Chat-v1.3.1.apk
+
+════════════════════════════════════════════════════════════════════════════════
+🔧 COMMANDES À EXÉCUTER SUR TA FREEBOX (OBLIGATOIRE!)
+════════════════════════════════════════════════════════════════════════════════
+
+1️⃣ CONNEXION À LA FREEBOX:
+
+ssh root@88.174.155.230
+# Mot de passe : root bagbot
+
+
+2️⃣ COPIE-COLLE CES COMMANDES:
+
+systemctl stop ollama
+
+mkdir -p /etc/systemd/system/ollama.service.d
+
+cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0:33437"
+EOF
+
+systemctl daemon-reload
+systemctl start ollama
+systemctl enable ollama
+sleep 3
+
+echo "✅ Vérification:"
+netstat -tlnp | grep 33437
+curl http://localhost:33437/api/tags
+
+
+3️⃣ TU DOIS VOIR:
+
+Dans netstat:
+tcp  0  0  0.0.0.0:33437  0.0.0.0:*  LISTEN  [PID]/ollama
+
+Dans curl:
+{"models":[{"name":"tinyllama:latest",...}]}
+
+
+4️⃣ TEST DEPUIS L'EXTÉRIEUR:
+
+Depuis ton téléphone ou PC (pas la Freebox), teste:
+
+curl http://88.174.155.230:33437/api/tags
+
+Si ça répond = C'EST BON! L'app fonctionnera.
+
+
+════════════════════════════════════════════════════════════════════════════════
+📱 APRÈS CONFIGURATION DU SERVEUR
+════════════════════════════════════════════════════════════════════════════════
+
+1. Installe l'APK v1.3.1
+2. Lance l'app
+3. Sélectionne un personnage
+4. Commence à chatter!
+
+L'app se connectera automatiquement sur http://88.174.155.230:33437
+
+════════════════════════════════════════════════════════════════════════════════
+✨ CARACTÉRISTIQUES v1.3.1
+════════════════════════════════════════════════════════════════════════════════
+
+🍜 13 personnages avec emojis
+🔓 Modes SFW et NSFW
+⌨️ Clavier fonctionnel
+🎨 Interface Material Design 3
+🔗 Port 33437 (configuré)
+🤖 TinyLlama 1.1B
+💯 100% Gratuit & Illimité
+
+════════════════════════════════════════════════════════════════════════════════
+⚠️ IMPORTANT
+════════════════════════════════════════════════════════════════════════════════
+
+L'application NE FONCTIONNERA PAS tant que tu n'as pas:
+1. Exécuté les commandes sur ta Freebox
+2. Configuré Ollama pour le port 33437
+3. Vérifié que le port répond
+
+Une fois configuré, ça marchera immédiatement!
+
+════════════════════════════════════════════════════════════════════════════════
+
+Dattebayo! 🍜
+
+Exécute les commandes sur ta Freebox et teste l'app!
+
+════════════════════════════════════════════════════════════════════════════════
