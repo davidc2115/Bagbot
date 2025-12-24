@@ -8,7 +8,10 @@ async function handleMotCacheButton(interaction) {
   console.log(`[MOT-CACHE-HANDLER] Bouton reçu: ${interaction.customId}`);
   
   const config = await readConfig();
-  const guildConfig = config.guilds[interaction.guildId] || {};
+  const guildId = interaction.guildId;
+  if (!config.guilds) config.guilds = {};
+  if (!config.guilds[guildId]) config.guilds[guildId] = {};
+  const guildConfig = config.guilds[guildId];
   const motCache = guildConfig.motCache || {
     enabled: false,
     targetWord: '',

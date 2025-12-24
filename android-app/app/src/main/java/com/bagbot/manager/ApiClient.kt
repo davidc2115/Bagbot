@@ -10,6 +10,14 @@ class ApiClient(private val store: SettingsStore) {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     
     private fun authHeader(): String? = store.getToken()?.let { "Bearer $it" }
+
+    private fun maybeClearTokenOnAuthFailure(httpCode: Int, errorBody: String) {
+        if (httpCode == 401 || httpCode == 403) {
+            // Le serveur révoque l'accès si l'utilisateur n'est plus admin.
+            // Dans ce cas on déconnecte localement.
+            store.clearToken()
+        }
+    }
     
     fun getJson(path: String): String {
         val url = "${store.getBaseUrl()}$path"
@@ -21,10 +29,7 @@ class ApiClient(private val store: SettingsStore) {
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
             val errorBody = response.body?.string() ?: ""
-            // Si token invalide, effacer le token
-            if (response.code == 401 && errorBody.contains("Invalid or expired token")) {
-                store.clearToken()
-            }
+            maybeClearTokenOnAuthFailure(response.code, errorBody)
             throw IOException("HTTP ${response.code}: $errorBody")
         }
         return response.body?.string() ?: "{}"
@@ -40,7 +45,11 @@ class ApiClient(private val store: SettingsStore) {
             .build()
         
         val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${response.body?.string()}")
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: ""
+            maybeClearTokenOnAuthFailure(response.code, errorBody)
+            throw IOException("HTTP ${response.code}: $errorBody")
+        }
         return response.body?.string() ?: "{}"
     }
     
@@ -54,7 +63,11 @@ class ApiClient(private val store: SettingsStore) {
             .build()
         
         val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${response.body?.string()}")
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: ""
+            maybeClearTokenOnAuthFailure(response.code, errorBody)
+            throw IOException("HTTP ${response.code}: $errorBody")
+        }
         return response.body?.string() ?: "{}"
     }
     fun deleteJson(path: String): String {
@@ -66,7 +79,11 @@ class ApiClient(private val store: SettingsStore) {
             .build()
         
         val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${response.body?.string()}")
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string() ?: ""
+            maybeClearTokenOnAuthFailure(response.code, errorBody)
+            throw IOException("HTTP ${response.code}: $errorBody")
+        }
         return response.body?.string() ?: "{}"
     }
     
@@ -90,7 +107,9 @@ class ApiClient(private val store: SettingsStore) {
         
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) {
-            throw IOException("HTTP ${response.code}: ${response.body?.string()}")
+            val errorBody = response.body?.string() ?: ""
+            maybeClearTokenOnAuthFailure(response.code, errorBody)
+            throw IOException("HTTP ${response.code}: $errorBody")
         }
         return response.body?.string() ?: "{}"
     }

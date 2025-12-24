@@ -21,6 +21,10 @@ async function listLocalBackups(guildId = null) {
     // 2. Backups globaux
     candidates.push(path.join(DATA_DIR, 'backups'));
     candidates.push('/var/data/backups');
+
+    // 2bis. Backups horaires "internes" (backup-*.json)
+    candidates.push(path.join(DATA_DIR, 'backups', 'hourly'));
+    candidates.push('/var/data/backups/hourly');
     
     // 3. Backups externes horaires (nouveaux)
     candidates.push('/var/data/backups/external-hourly');
@@ -147,6 +151,13 @@ async function listLocalBackups(guildId = null) {
       
       for (const backup of entries) {
         try {
+          // Backups "per-guild": si le chemin contient guild-<id>, on garde
+          // (ces fichiers contiennent directement la config du guild, pas {guilds:{...}})
+          if (backup.fullPath && backup.fullPath.includes(`guild-${guildId}`)) {
+            filtered.push(backup);
+            continue;
+          }
+
           const content = await fsp.readFile(backup.fullPath, 'utf8');
           const data = JSON.parse(content);
           

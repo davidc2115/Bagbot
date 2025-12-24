@@ -31,7 +31,7 @@ module.exports = {
       const HourlyBackupSystem = require('../storage/hourlyBackupSystem');
       const backupSystem = global.hourlyBackupSystem || new HourlyBackupSystem();
       
-      const result = await backupSystem.createBackup();
+      const result = await backupSystem.createBackup({ force: true, reason: 'manual' });
       
       if (!result.success) {
         return interaction.editReply({ 

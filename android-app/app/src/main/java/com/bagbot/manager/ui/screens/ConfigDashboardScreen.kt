@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as itemsIndexedGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -40,6 +41,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import com.bagbot.manager.safeString
 import com.bagbot.manager.safeInt
+import com.bagbot.manager.safeLong
 import com.bagbot.manager.safeBoolean
 import com.bagbot.manager.safeStringOrEmpty
 import com.bagbot.manager.safeIntOrZero
@@ -86,8 +88,29 @@ fun ConfigDashboardScreen(
     isLoading: Boolean,
     onReloadConfig: () -> Unit,
 ) {
-    var selectedTab by remember { mutableStateOf<DashTab?>(null) }
-    val tabs = remember { DashTab.entries }
+    val store = remember { com.bagbot.manager.SettingsStore.getInstance() }
+    val defaultTabs = remember { DashTab.entries.toList() }
+    val gridState = rememberLazyGridState()
+    val localScope = rememberCoroutineScope()
+
+    fun computeOrderedTabs(): List<DashTab> {
+        val order = store.getDashboardOrder()
+        if (order.isEmpty()) return defaultTabs
+        val byName = defaultTabs.associateBy { it.name }
+        val chosen = order.mapNotNull { byName[it] }.toMutableList()
+        // append missing tabs (new ones after updates)
+        for (t in defaultTabs) if (!chosen.contains(t)) chosen.add(t)
+        return chosen
+    }
+
+    var tabs by remember { mutableStateOf(computeOrderedTabs()) }
+    var selectedTab by remember {
+        val last = store.getLastDashboardTab()
+        val init = last?.let { n -> defaultTabs.firstOrNull { it.name == n } }
+        mutableStateOf<DashTab?>(init)
+    }
+    var reorderMode by remember { mutableStateOf(false) }
+    var lastSelectedIndex by remember { mutableIntStateOf(0) }
 
     Column(Modifier.fillMaxSize()) {
         // Header actions
@@ -99,7 +122,12 @@ fun ConfigDashboardScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Back button when a category is selected
                 if (selectedTab != null) {
-                    IconButton(onClick = { selectedTab = null }) {
+                    IconButton(onClick = {
+                        selectedTab = null
+                        localScope.launch {
+                            try { gridState.scrollToItem(lastSelectedIndex.coerceAtLeast(0)) } catch (_: Exception) {}
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Retour", tint = Color.White)
                     }
                     Spacer(Modifier.width(8.dp))
@@ -117,8 +145,19 @@ fun ConfigDashboardScreen(
                     )
                 }
             }
-            IconButton(onClick = onReloadConfig, enabled = !isLoading) {
-                Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectedTab == null) {
+                    IconButton(onClick = { reorderMode = !reorderMode }) {
+                        Icon(
+                            if (reorderMode) Icons.Default.Check else Icons.Default.SwapVert,
+                            contentDescription = "Réordonner",
+                            tint = Color.White
+                        )
+                    }
+                }
+                IconButton(onClick = onReloadConfig, enabled = !isLoading) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
+                }
             }
         }
 
@@ -137,12 +176,41 @@ fun ConfigDashboardScreen(
                 contentPadding = PaddingValues(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                state = gridState
             ) {
-                itemsIndexedGrid(tabs) { _, tab ->
+                itemsIndexedGrid(tabs) { index, tab ->
                     CategoryCard(
                         label = tab.label,
-                        onClick = { selectedTab = tab }
+                        onClick = {
+                            if (reorderMode) return@CategoryCard
+                            selectedTab = tab
+                            store.setLastDashboardTab(tab.name)
+                            lastSelectedIndex = index
+                        },
+                        showReorderControls = reorderMode,
+                        onMoveUp = if (index > 0) {
+                            {
+                                val newList = tabs.toMutableList()
+                                val tmp = newList[index - 1]
+                                newList[index - 1] = newList[index]
+                                newList[index] = tmp
+                                tabs = newList
+                                store.setDashboardOrder(newList.map { it.name })
+                                lastSelectedIndex = index - 1
+                            }
+                        } else null,
+                        onMoveDown = if (index < tabs.lastIndex) {
+                            {
+                                val newList = tabs.toMutableList()
+                                val tmp = newList[index + 1]
+                                newList[index + 1] = newList[index]
+                                newList[index] = tmp
+                                tabs = newList
+                                store.setDashboardOrder(newList.map { it.name })
+                                lastSelectedIndex = index + 1
+                            }
+                        } else null
                     )
                 }
             }
@@ -151,7 +219,7 @@ fun ConfigDashboardScreen(
             when (selectedTab) {
                 DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
                 DashTab.Economy -> EconomyConfigTab(configData, members, api, json, scope, snackbar)
-                DashTab.Levels -> LevelsConfigTab(configData, roles, api, json, scope, snackbar)
+                DashTab.Levels -> LevelsConfigTab(configData, roles, members, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.TruthDare -> TruthDareConfigTab(channels, api, json, scope, snackbar)
@@ -179,7 +247,10 @@ fun ConfigDashboardScreen(
 @Composable
 private fun CategoryCard(
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showReorderControls: Boolean = false,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
 ) {
     val icon = when (label) {
         "🏠 Dashboard" -> Icons.Default.Dashboard
@@ -200,10 +271,35 @@ private fun CategoryCard(
         else -> Icons.Default.Settings
     }
     
+    val accent = when (label) {
+        "🏠 Dashboard" -> Color(0xFF5865F2)
+        "💰 Économie" -> Color(0xFF57F287)
+        "📊 Niveaux" -> Color(0xFF9B59B6)
+        "🚀 Booster" -> Color(0xFFFF9800)
+        "🔢 Comptage" -> Color(0xFF00D4FF)
+        "🎲 A/V" -> Color(0xFFFEE75C)
+        "🎬 Actions" -> Color(0xFFE91E63)
+        "🎫 Tickets" -> Color(0xFFE67E22)
+        "📝 Logs" -> Color(0xFF95A5A6)
+        "💬 Confess" -> Color(0xFFED4245)
+        "👋 Welcome" -> Color(0xFF3498DB)
+        "😢 Goodbye" -> Color(0xFF8B4513)
+        "👥 Staff" -> Color(0xFFFFD700)
+        "👢 AutoKick" -> Color(0xFFDC143C)
+        "⏰ Inactivité" -> Color(0xFFFF69B4)
+        "🧵 AutoThread" -> Color(0xFF20B2AA)
+        "📢 Disboard" -> Color(0xFF4169E1)
+        "🌍 Géo" -> Color(0xFF32CD32)
+        "🔍 Mot-Caché" -> Color(0xFF9C27B0)
+        "💾 Backups" -> Color(0xFF34495E)
+        "🎮 Contrôle" -> Color(0xFFED4245)
+        else -> Color(0xFF5865F2)
+    }
+
     val gradient = androidx.compose.ui.graphics.Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF2E2E2E),
-            Color(0xFF1A1A1A)
+            accent.copy(alpha = 0.35f),
+            Color(0xFF121212)
         )
     )
     
@@ -213,7 +309,7 @@ private fun CategoryCard(
             .aspectRatio(1f)
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1E1E1E)
+            containerColor = Color(0xFF1E1E1E).copy(alpha = 0.75f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
@@ -223,27 +319,66 @@ private fun CategoryCard(
                 .background(gradient)
                 .padding(16.dp)
         ) {
+            if (showReorderControls) {
+                Row(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    IconButton(
+                        onClick = { onMoveUp?.invoke() },
+                        enabled = onMoveUp != null,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Monter", tint = Color.White)
+                    }
+                    IconButton(
+                        onClick = { onMoveDown?.invoke() },
+                        enabled = onMoveDown != null,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Descendre", tint = Color.White)
+                    }
+                }
+            }
+
+            // Logo texte (watermark) au centre
+            Text(
+                text = "BAG",
+                color = Color.White.copy(alpha = 0.10f),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.align(Alignment.Center)
+            )
+
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Icon with background circle
+                // Icône + logo texte dans un cercle
                 Box(
                     modifier = Modifier
                         .size(64.dp)
                         .background(
-                            color = Color(0xFF5865F2).copy(alpha = 0.2f),
+                            color = accent.copy(alpha = 0.22f),
                             shape = androidx.compose.foundation.shape.CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = Color(0xFF5865F2),
-                        modifier = Modifier.size(32.dp)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = accent,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = "BAG",
+                            color = accent,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
                 
                 Spacer(Modifier.height(12.dp))
@@ -329,23 +464,21 @@ private fun RemovableIdRow(
 private suspend fun postOrPutSection(
     api: ApiClient,
     json: Json,
-    primaryPostPath: String,
-    primaryBody: JsonObject,
     fallbackSectionKey: String,
     fallbackSectionBody: JsonObject,
 ): Boolean {
+    // Nettoyage: le backend "bot-api" expose la configuration via PUT /api/configs/:section.
+    // Beaucoup de routes historiques "POST /api/<section>" n'existent plus (tickets/logs/staff/autokick/...).
+    // On garde la signature pour compat, mais on n'appelle plus le POST.
     return try {
-        api.postJson(primaryPostPath, json.encodeToString(JsonObject.serializer(), primaryBody))
+        api.putJson(
+            "/api/configs/$fallbackSectionKey",
+            json.encodeToString(JsonObject.serializer(), fallbackSectionBody)
+        )
         true
     } catch (e: Exception) {
-        Log.w(TAG, "POST failed ($primaryPostPath): ${e.message} -> fallback PUT /api/configs/$fallbackSectionKey")
-        try {
-            api.putJson("/api/configs/$fallbackSectionKey", json.encodeToString(JsonObject.serializer(), fallbackSectionBody))
-            true
-        } catch (putError: Exception) {
-            Log.e(TAG, "PUT also failed: ${putError.message}")
-            throw putError // Throw only if PUT fails
-        }
+        Log.e(TAG, "PUT failed (/api/configs/$fallbackSectionKey): ${e.message}")
+        throw e
     }
 }
 
@@ -764,32 +897,45 @@ private fun EconomyConfigTab(
             }
             1 -> {
                 // Actions - Configuration complète
-                val actionsList = eco?.obj("actions")?.obj("list")
-                val actionsKeys = remember(actionsList) {
-                    actionsList?.jsonObject?.keys?.toList()?.sorted() ?: emptyList()
+                val actionsListObj = eco?.obj("actions")?.obj("list")
+                val actionsConfigObj = eco?.obj("actions")?.obj("config")
+                val actionsEnabled = eco?.obj("actions")?.arr("enabled").safeStringList()
+
+                val actionsKeys = remember(actionsListObj, actionsConfigObj, actionsEnabled) {
+                    val keys = mutableSetOf<String>()
+                    actionsEnabled.forEach { if (it.isNotBlank()) keys.add(it) }
+                    actionsListObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    actionsConfigObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    keys.toList().sorted()
                 }
-                
-                var selectedActionKey by remember { mutableStateOf(actionsKeys.firstOrNull() ?: "") }
-                val selectedAction = remember(selectedActionKey, actionsList) {
-                    actionsList?.obj(selectedActionKey)
+
+                var selectedActionKey by remember { mutableStateOf("") }
+                LaunchedEffect(actionsKeys) {
+                    if (selectedActionKey.isBlank() || !actionsKeys.contains(selectedActionKey)) {
+                        selectedActionKey = actionsKeys.firstOrNull().orEmpty()
+                    }
                 }
+
+                val selectedList = remember(selectedActionKey, actionsListObj) { actionsListObj?.obj(selectedActionKey) }
+                val selectedCfg = remember(selectedActionKey, actionsConfigObj) { actionsConfigObj?.obj(selectedActionKey) }
                 
                 // États pour l'action sélectionnée
-                var label by remember(selectedActionKey) { mutableStateOf(selectedAction?.str("label") ?: "") }
-                var image by remember(selectedActionKey) { mutableStateOf(selectedAction?.str("image") ?: "") }
-                var moneyMin by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("moneyMin")?.toString() ?: "0") }
-                var moneyMax by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("moneyMax")?.toString() ?: "0") }
-                var karma by remember(selectedActionKey) { mutableStateOf(selectedAction?.str("karma") ?: "none") }
-                var karmaDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("karmaDelta")?.toString() ?: "0") }
-                var xpDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("xpDelta")?.toString() ?: "0") }
-                var successRate by remember(selectedActionKey) { mutableStateOf(selectedAction?.double("successRate")?.toString() ?: "1.0") }
-                var failMoneyMin by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failMoneyMin")?.toString() ?: "0") }
-                var failMoneyMax by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failMoneyMax")?.toString() ?: "0") }
-                var failKarmaDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failKarmaDelta")?.toString() ?: "0") }
-                var failXpDelta by remember(selectedActionKey) { mutableStateOf(selectedAction?.int("failXpDelta")?.toString() ?: "0") }
-                var partnerMoney by remember(selectedActionKey) { mutableStateOf(((selectedAction?.double("partnerMoneyShare") ?: 0.0) * 100).toString()) }
-                var partnerKarma by remember(selectedActionKey) { mutableStateOf(((selectedAction?.double("partnerKarmaShare") ?: 0.0) * 100).toString()) }
-                var partnerXp by remember(selectedActionKey) { mutableStateOf(((selectedAction?.double("partnerXpShare") ?: 0.0) * 100).toString()) }
+                var label by remember(selectedActionKey) { mutableStateOf(selectedList?.str("label") ?: selectedActionKey) }
+                var image by remember(selectedActionKey) { mutableStateOf(selectedList?.str("image") ?: "") }
+
+                var moneyMin by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("moneyMin")?.toString() ?: "0") }
+                var moneyMax by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("moneyMax")?.toString() ?: "0") }
+                var karma by remember(selectedActionKey) { mutableStateOf(selectedCfg?.str("karma") ?: "none") }
+                var karmaDelta by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("karmaDelta")?.toString() ?: "0") }
+                var xpDelta by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("xpDelta")?.toString() ?: "0") }
+                var successRate by remember(selectedActionKey) { mutableStateOf(selectedCfg?.double("successRate")?.toString() ?: "1.0") }
+                var failMoneyMin by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("failMoneyMin")?.toString() ?: "0") }
+                var failMoneyMax by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("failMoneyMax")?.toString() ?: "0") }
+                var failKarmaDelta by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("failKarmaDelta")?.toString() ?: "0") }
+                var failXpDelta by remember(selectedActionKey) { mutableStateOf(selectedCfg?.int("failXpDelta")?.toString() ?: "0") }
+                var partnerMoney by remember(selectedActionKey) { mutableStateOf(((selectedCfg?.double("partnerMoneyShare") ?: 0.0) * 100).toString()) }
+                var partnerKarma by remember(selectedActionKey) { mutableStateOf(((selectedCfg?.double("partnerKarmaShare") ?: 0.0) * 100).toString()) }
+                var partnerXp by remember(selectedActionKey) { mutableStateOf(((selectedCfg?.double("partnerXpShare") ?: 0.0) * 100).toString()) }
                 var cooldown by remember(selectedActionKey) { mutableStateOf(cooldowns[selectedActionKey]?.toString() ?: "0") }
                 
                 var savingAction by remember { mutableStateOf(false) }
@@ -823,7 +969,7 @@ private fun EconomyConfigTab(
                                     ) {
                                         actionsKeys.forEach { key ->
                                             androidx.compose.material3.DropdownMenuItem(
-                                                text = { Text(actionsList?.obj(key)?.str("label") ?: key) },
+                                                text = { Text(actionsListObj?.obj(key)?.str("label") ?: key) },
                                                 onClick = {
                                                     selectedActionKey = key
                                                     expanded = false
@@ -977,8 +1123,6 @@ private fun EconomyConfigTab(
                                     withContext(Dispatchers.IO) {
                                         try {
                                             val actionData = buildJsonObject {
-                                                put("label", label)
-                                                put("image", image)
                                                 put("moneyMin", moneyMin.toIntOrNull() ?: 0)
                                                 put("moneyMax", moneyMax.toIntOrNull() ?: 0)
                                                 put("karma", karma)
@@ -993,10 +1137,17 @@ private fun EconomyConfigTab(
                                                 put("partnerKarmaShare", (partnerKarma.toDoubleOrNull() ?: 0.0) / 100.0)
                                                 put("partnerXpShare", (partnerXp.toDoubleOrNull() ?: 0.0) / 100.0)
                                             }
+                                            val listData = buildJsonObject {
+                                                put("label", label)
+                                                put("image", image)
+                                            }
                                             
                                             val body = buildJsonObject {
                                                 put("actions", buildJsonObject {
                                                     put("list", buildJsonObject {
+                                                        put(selectedActionKey, listData)
+                                                    })
+                                                    put("config", buildJsonObject {
                                                         put(selectedActionKey, actionData)
                                                     })
                                                 })
@@ -1154,6 +1305,14 @@ private fun EconomyConfigTab(
                             val name = item["name"]?.jsonPrimitive?.contentOrNull ?: ""
                             val itemId = item["id"]?.jsonPrimitive?.contentOrNull ?: ""
                             val price = item["price"]?.jsonPrimitive?.intOrNull ?: 0
+                            val emojiUrl = remember(emoji) {
+                                val m = Regex("^<a?:([A-Za-z0-9_]+):(\\d+)>$").find(emoji.trim())
+                                if (m != null) {
+                                    val id = m.groupValues[2]
+                                    val animated = emoji.trim().startsWith("<a:")
+                                    "https://cdn.discordapp.com/emojis/$id.${if (animated) "gif" else "png"}?size=64"
+                                } else null
+                            }
                             
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1169,7 +1328,21 @@ private fun EconomyConfigTab(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text(emoji, style = MaterialTheme.typography.headlineMedium)
+                                        if (emojiUrl != null) {
+                                            AsyncImage(
+                                                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                                    .data(emojiUrl)
+                                                    .crossfade(true)
+                                                    .build(),
+                                                contentDescription = "Emoji $name",
+                                                modifier = Modifier.size(34.dp),
+                                                contentScale = ContentScale.Fit,
+                                                placeholder = androidx.compose.ui.graphics.painter.ColorPainter(Color.DarkGray),
+                                                error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Red.copy(alpha = 0.3f))
+                                            )
+                                        } else {
+                                            Text(emoji, style = MaterialTheme.typography.headlineMedium)
+                                        }
                                         Column {
                                             Text(name, fontWeight = FontWeight.Bold, color = Color.White)
                                             Text("ID: $itemId", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
@@ -1253,6 +1426,30 @@ private fun EconomyConfigTab(
                 
                 // Dialog Add/Edit
                 if (showAddDialog) {
+                    // Server emojis picker state
+                    var showEmojiPicker by remember { mutableStateOf(false) }
+                    var emojiQuery by remember { mutableStateOf("") }
+                    var isLoadingEmojis by remember { mutableStateOf(false) }
+                    var serverEmojis by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+
+                    fun loadServerEmojis() {
+                        scope.launch {
+                            isLoadingEmojis = true
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val resp = api.getJson("/api/discord/emojis")
+                                    val obj = json.parseToJsonElement(resp).jsonObject
+                                    val list = obj["emojis"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                                    withContext(Dispatchers.Main) { serverEmojis = list }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Emojis: ${e.message}") }
+                                } finally {
+                                    withContext(Dispatchers.Main) { isLoadingEmojis = false }
+                                }
+                            }
+                        }
+                    }
+
                     AlertDialog(
                         onDismissRequest = { showAddDialog = false },
                         title = { Text(if (editingIndex != null) "Modifier l'objet" else "Ajouter un objet") },
@@ -1268,7 +1465,24 @@ private fun EconomyConfigTab(
                                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                OutlinedTextField(newItemEmoji, { newItemEmoji = it }, label = { Text("Emoji") }, modifier = Modifier.fillMaxWidth())
+                                OutlinedTextField(
+                                    newItemEmoji,
+                                    { newItemEmoji = it },
+                                    label = { Text("Emoji (tu peux aussi coller un emoji du clavier)") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        showEmojiPicker = true
+                                        if (serverEmojis.isEmpty()) loadServerEmojis()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.EmojiEmotions, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Choisir un emoji du serveur")
+                                }
                             }
                         },
                         confirmButton = {
@@ -1295,6 +1509,91 @@ private fun EconomyConfigTab(
                             }
                         }
                     )
+
+                    if (showEmojiPicker) {
+                        AlertDialog(
+                            onDismissRequest = { showEmojiPicker = false },
+                            title = { Text("Emojis du serveur") },
+                            text = {
+                                Column {
+                                    OutlinedTextField(
+                                        value = emojiQuery,
+                                        onValueChange = { emojiQuery = it },
+                                        label = { Text("Rechercher (ou coller un emoji)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+
+                                    if (isLoadingEmojis) {
+                                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator()
+                                        }
+                                    } else {
+                                        val filtered = remember(serverEmojis, emojiQuery) {
+                                            val q = emojiQuery.trim().lowercase()
+                                            if (q.isBlank()) serverEmojis
+                                            else serverEmojis.filter {
+                                                val name = it["name"]?.jsonPrimitive?.contentOrNull?.lowercase() ?: ""
+                                                val raw = it["raw"]?.jsonPrimitive?.contentOrNull?.lowercase() ?: ""
+                                                name.contains(q) || raw.contains(q)
+                                            }
+                                        }
+
+                                        LazyColumn(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(max = 420.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            itemsIndexed(filtered) { _, e ->
+                                                val name = e["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                val raw = e["raw"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                val url = e["url"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                Card(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                                                ) {
+                                                    Row(
+                                                        Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(12.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                    ) {
+                                                        if (url.isNotBlank()) {
+                                                            AsyncImage(
+                                                                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                                                    .data(url)
+                                                                    .crossfade(true)
+                                                                    .build(),
+                                                                contentDescription = name,
+                                                                modifier = Modifier.size(28.dp),
+                                                                contentScale = ContentScale.Fit
+                                                            )
+                                                        } else {
+                                                            Text("🙂")
+                                                        }
+                                                        Column(Modifier.weight(1f)) {
+                                                            Text(":$name:", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                                            Text(raw, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                        }
+                                                        Button(onClick = {
+                                                            newItemEmoji = raw
+                                                            showEmojiPicker = false
+                                                        }) { Text("Choisir") }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showEmojiPicker = false }) { Text("Fermer") }
+                            }
+                        )
+                    }
                 }
             }
             4 -> {
@@ -1308,16 +1607,26 @@ private fun EconomyConfigTab(
                 var selectedKarmaTab by remember { mutableIntStateOf(0) }
                 var savingKarma by remember { mutableStateOf(false) }
                 
-                // Pré-calculer toutes les listes AVANT LazyColumn
+                // Editable lists
                 val shopMods = remember(karmaModifiers) {
-                    karmaModifiers?.arr("shop")?.mapNotNull { it.jsonObject } ?: emptyList()
+                    (karmaModifiers?.arr("shop")?.mapNotNull { it.jsonObject } ?: emptyList()).toMutableStateList()
                 }
                 val actionMods = remember(karmaModifiers) {
-                    karmaModifiers?.arr("actions")?.mapNotNull { it.jsonObject } ?: emptyList()
+                    (karmaModifiers?.arr("actions")?.mapNotNull { it.jsonObject } ?: emptyList()).toMutableStateList()
                 }
                 val grants = remember(karmaModifiers) {
-                    karmaModifiers?.arr("grants")?.mapNotNull { it.jsonObject } ?: emptyList()
+                    (karmaModifiers?.arr("grants")?.mapNotNull { it.jsonObject } ?: emptyList()).toMutableStateList()
                 }
+
+                // Dialog state (shared)
+                var showEditDialog by remember { mutableStateOf(false) }
+                var editingType by remember { mutableStateOf("shop") } // shop|actions|grants
+                var editingIndex by remember { mutableStateOf<Int?>(null) }
+                var editName by remember { mutableStateOf("") }
+                var editDescription by remember { mutableStateOf("") }
+                var editCondition by remember { mutableStateOf("") }
+                var editPercent by remember { mutableStateOf("0") }
+                var editMoney by remember { mutableStateOf("0") }
                 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -1359,66 +1668,163 @@ private fun EconomyConfigTab(
                         }
                     }
                     
-                    // Shop modifiers
-                    if (selectedKarmaTab == 0) {
-                        item {
-                            Text("🛒 Modificateurs Boutique", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                            Text("${shopMods.size} modificateurs configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    // Onglets Karma: utiliser un when pour éviter le recyclage de slots LazyColumn
+                    when (selectedKarmaTab) {
+                        0 -> {
+                            item {
+                                Text("🛒 Modificateurs Boutique", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                Text("${shopMods.size} modificateur(s)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        editingType = "shop"
+                                        editingIndex = null
+                                        editName = ""
+                                        editDescription = ""
+                                        editCondition = ""
+                                        editPercent = "0"
+                                        editMoney = "0"
+                                        showEditDialog = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("➕ Ajouter un modificateur boutique") }
+                            }
+                            itemsIndexed(shopMods, key = { i, _ -> "shop-$i" }) { i, m ->
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(m.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Condition: ${m.str("condition")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("${m.int("percent") ?: 0}%", color = if ((m.int("percent") ?: 0) >= 0) Color(0xFF57F287) else Color(0xFFED4245), fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editingType = "shop"
+                                                    editingIndex = i
+                                                    editName = m.str("name") ?: ""
+                                                    editDescription = m.str("description") ?: ""
+                                                    editCondition = m.str("condition") ?: ""
+                                                    editPercent = (m.int("percent") ?: 0).toString()
+                                                    showEditDialog = true
+                                                },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("✏️ Modifier") }
+                                            OutlinedButton(
+                                                onClick = { shopMods.removeAt(i) },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("🗑️ Supprimer") }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        itemsIndexed(shopMods) { i, m ->
-                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(m.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Condition: ${m.str("condition")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                                        Text("${m.int("percent") ?: 0}%", color = if ((m.int("percent") ?: 0) >= 0) Color(0xFF57F287) else Color(0xFFED4245), fontWeight = FontWeight.Bold)
+                        1 -> {
+                            item {
+                                Text("🎭 Modificateurs Actions", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                Text("${actionMods.size} modificateur(s)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        editingType = "actions"
+                                        editingIndex = null
+                                        editName = ""
+                                        editDescription = ""
+                                        editCondition = ""
+                                        editPercent = "0"
+                                        editMoney = "0"
+                                        showEditDialog = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("➕ Ajouter un modificateur action") }
+                            }
+                            itemsIndexed(actionMods, key = { i, _ -> "actions-$i" }) { i, m ->
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(m.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Condition: ${m.str("condition")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("${m.int("percent") ?: 0}%", color = if ((m.int("percent") ?: 0) >= 0) Color(0xFF57F287) else Color(0xFFED4245), fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editingType = "actions"
+                                                    editingIndex = i
+                                                    editName = m.str("name") ?: ""
+                                                    editDescription = m.str("description") ?: ""
+                                                    editCondition = m.str("condition") ?: ""
+                                                    editPercent = (m.int("percent") ?: 0).toString()
+                                                    showEditDialog = true
+                                                },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("✏️ Modifier") }
+                                            OutlinedButton(
+                                                onClick = { actionMods.removeAt(i) },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("🗑️ Supprimer") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> {
+                            item {
+                                Text("🎁 Grants (Bonus seuils)", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                Text("${grants.size} grant(s)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        editingType = "grants"
+                                        editingIndex = null
+                                        editName = ""
+                                        editDescription = ""
+                                        editCondition = ""
+                                        editMoney = "0"
+                                        editPercent = "0"
+                                        showEditDialog = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("➕ Ajouter un grant") }
+                            }
+                            itemsIndexed(grants, key = { i, _ -> "grants-$i" }) { i, g ->
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(g.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        Text(g.str("description") ?: "", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                        Spacer(Modifier.height(4.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("Condition: ${g.str("condition")}", color = Color(0xFF5865F2), style = MaterialTheme.typography.bodySmall)
+                                            Text("+${g.int("money") ?: 0} $currencyName", color = Color(0xFF57F287), fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    editingType = "grants"
+                                                    editingIndex = i
+                                                    editName = g.str("name") ?: ""
+                                                    editDescription = g.str("description") ?: ""
+                                                    editCondition = g.str("condition") ?: ""
+                                                    editMoney = (g.int("money") ?: 0).toString()
+                                                    showEditDialog = true
+                                                },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("✏️ Modifier") }
+                                            OutlinedButton(
+                                                onClick = { grants.removeAt(i) },
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("🗑️ Supprimer") }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                     
-                    // Actions modifiers
-                    if (selectedKarmaTab == 1) {
-                        item {
-                            Text("🎭 Modificateurs Actions", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                            Text("${actionMods.size} modificateurs configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        }
-                        itemsIndexed(actionMods) { i, m ->
-                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(m.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Condition: ${m.str("condition")}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                                        Text("${m.int("percent") ?: 0}%", color = if ((m.int("percent") ?: 0) >= 0) Color(0xFF57F287) else Color(0xFFED4245), fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Grants
-                    if (selectedKarmaTab == 2) {
-                        item {
-                            Text("🎁 Grants (Bonus seuils)", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                            Text("${grants.size} grants configurés", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        }
-                        itemsIndexed(grants) { i, g ->
-                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(g.str("name") ?: "", fontWeight = FontWeight.SemiBold, color = Color.White)
-                                    Text(g.str("description") ?: "", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                                    Spacer(Modifier.height(4.dp))
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Condition: ${g.str("condition")}", color = Color(0xFF5865F2), style = MaterialTheme.typography.bodySmall)
-                                        Text("+${g.int("money") ?: 0} $currencyName", color = Color(0xFF57F287), fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Save button (pour le reset uniquement)
+                    // Save button (reset + modifiers)
                     item {
                         Button(
                             onClick = {
@@ -1427,13 +1833,39 @@ private fun EconomyConfigTab(
                                     withContext(Dispatchers.IO) {
                                         try {
                                             val body = buildJsonObject {
+                                                put("karmaModifiers", buildJsonObject {
+                                                    put("shop", JsonArray(shopMods.map { m ->
+                                                        buildJsonObject {
+                                                            put("name", m["name"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                            m["description"]?.jsonPrimitive?.contentOrNull?.let { put("description", it) }
+                                                            put("condition", m["condition"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                            put("percent", m["percent"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                        }
+                                                    }))
+                                                    put("actions", JsonArray(actionMods.map { m ->
+                                                        buildJsonObject {
+                                                            put("name", m["name"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                            m["description"]?.jsonPrimitive?.contentOrNull?.let { put("description", it) }
+                                                            put("condition", m["condition"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                            put("percent", m["percent"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                        }
+                                                    }))
+                                                    put("grants", JsonArray(grants.map { g ->
+                                                        buildJsonObject {
+                                                            put("name", g["name"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                            g["description"]?.jsonPrimitive?.contentOrNull?.let { put("description", it) }
+                                                            put("condition", g["condition"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                            put("money", g["money"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                        }
+                                                    }))
+                                                })
                                                 put("karmaReset", buildJsonObject {
                                                     put("enabled", resetEnabled)
                                                     put("day", resetDay.toIntOrNull() ?: 1)
                                                 })
                                             }
                                             api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
-                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Reset Karma sauvegardé") }
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Karma sauvegardé") }
                                         } catch (e: Exception) {
                                             withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
                                         } finally {
@@ -1449,21 +1881,76 @@ private fun EconomyConfigTab(
                             else {
                                 Icon(Icons.Default.Save, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Sauvegarder Reset")
+                                Text("Sauvegarder Karma")
                             }
                         }
                     }
-                    
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E).copy(alpha = 0.5f))) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text("ℹ️ Modificateurs Karma", fontWeight = FontWeight.Bold, color = Color(0xFF5865F2))
+                }
+
+                if (showEditDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showEditDialog = false },
+                        title = {
+                            Text(
+                                when (editingType) {
+                                    "grants" -> if (editingIndex != null) "Modifier un grant" else "Ajouter un grant"
+                                    "actions" -> if (editingIndex != null) "Modifier un modificateur action" else "Ajouter un modificateur action"
+                                    else -> if (editingIndex != null) "Modifier un modificateur boutique" else "Ajouter un modificateur boutique"
+                                }
+                            )
+                        },
+                        text = {
+                            Column {
+                                OutlinedTextField(editName, { editName = it }, label = { Text("Nom") }, modifier = Modifier.fillMaxWidth())
                                 Spacer(Modifier.height(8.dp))
-                                Text("Les modificateurs (Boutique, Actions, Grants) sont consultables ici.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                Text("Pour les éditer, contactez l'administrateur via le dashboard web ou le bot Discord.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                OutlinedTextField(editCondition, { editCondition = it }, label = { Text("Condition (ex: charm>=50)") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                if (editingType == "grants") {
+                                    OutlinedTextField(
+                                        editMoney,
+                                        { editMoney = it },
+                                        label = { Text("Money bonus") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    OutlinedTextField(editDescription, { editDescription = it }, label = { Text("Description (optionnel)") }, modifier = Modifier.fillMaxWidth())
+                                } else {
+                                    OutlinedTextField(
+                                        editPercent,
+                                        { editPercent = it },
+                                        label = { Text("Percent (ex: 10 ou -10)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    OutlinedTextField(editDescription, { editDescription = it }, label = { Text("Description (optionnel)") }, modifier = Modifier.fillMaxWidth())
+                                }
                             }
-                        }
-                    }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    val newObj = buildJsonObject {
+                                        put("name", editName.trim())
+                                        put("condition", editCondition.trim())
+                                        if (editDescription.trim().isNotBlank()) put("description", editDescription.trim())
+                                        if (editingType == "grants") put("money", editMoney.toIntOrNull() ?: 0)
+                                        else put("percent", editPercent.toIntOrNull() ?: 0)
+                                    }
+                                    val idx = editingIndex
+                                    when (editingType) {
+                                        "grants" -> if (idx != null) grants[idx] = newObj else grants.add(newObj)
+                                        "actions" -> if (idx != null) actionMods[idx] = newObj else actionMods.add(newObj)
+                                        else -> if (idx != null) shopMods[idx] = newObj else shopMods.add(newObj)
+                                    }
+                                    showEditDialog = false
+                                },
+                                enabled = editName.trim().isNotBlank() && editCondition.trim().isNotBlank()
+                            ) { Text(if (editingIndex != null) "Modifier" else "Ajouter") }
+                        },
+                        dismissButton = { TextButton(onClick = { showEditDialog = false }) { Text("Annuler") } }
+                    )
                 }
             }
             5 -> {
@@ -1594,6 +2081,7 @@ private fun EconomyConfigTab(
 private fun LevelsConfigTab(
     configData: JsonObject?,
     roles: Map<String, String>,
+    members: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -1638,7 +2126,7 @@ private fun LevelsConfigTab(
         when (selectedSubTab) {
             0 -> {
                 // Users list
-                val levelsData = levels?.obj("data")
+                val levelsData = levels?.obj("users") ?: levels?.obj("data")
                 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -1669,9 +2157,14 @@ private fun LevelsConfigTab(
                             ) {
                                 Column(Modifier.padding(12.dp)) {
                                     Text(
-                                        "Membre ID: ${userId.takeLast(8)}",
+                                        members[userId] ?: "Membre ID: ${userId.takeLast(8)}",
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
+                                    )
+                                    Text(
+                                        "ID: ${userId.takeLast(8)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Row(
@@ -2634,17 +3127,61 @@ private fun ActionMessagesTab(
     snackbar: SnackbarHostState
 ) {
     val messagesData = actions?.obj("messages")?.obj(selectedActionKey)
-    val successMessages = remember(messagesData, selectedActionKey) {
-        messagesData?.arr("success").safeStringList().toMutableStateList()
+    var zones by remember(selectedActionKey) { mutableStateOf<List<String>>(emptyList()) }
+    var zonesLoading by remember(selectedActionKey) { mutableStateOf(false) }
+    var selectedZone by remember(selectedActionKey) { mutableStateOf("__global__") }
+
+    fun reloadZones() {
+        if (selectedActionKey.isBlank()) return
+        scope.launch {
+            zonesLoading = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val resp = api.getJson("/api/actions/zones?actionKey=${selectedActionKey}")
+                    val obj = json.parseToJsonElement(resp).jsonObject
+                    val list = obj["zones"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                    withContext(Dispatchers.Main) { zones = list.distinct() }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Zones: ${e.message}") }
+                } finally {
+                    withContext(Dispatchers.Main) { zonesLoading = false }
+                }
+            }
+        }
     }
-    val failMessages = remember(messagesData, selectedActionKey) {
-        messagesData?.arr("fail").safeStringList().toMutableStateList()
+
+    LaunchedEffect(selectedActionKey) { reloadZones() }
+
+    val zoneOptions = remember(zones) { listOf("__global__") + zones }
+
+    val zoneMessagesData = remember(messagesData, selectedZone, selectedActionKey) {
+        if (selectedZone == "__global__") {
+            messagesData
+        } else {
+            messagesData?.obj("zones")?.obj(selectedZone)
+        }
+    }
+    val successMessages = remember(zoneMessagesData, selectedZone, selectedActionKey) {
+        zoneMessagesData?.arr("success").safeStringList().toMutableStateList()
+    }
+    val failMessages = remember(zoneMessagesData, selectedZone, selectedActionKey) {
+        zoneMessagesData?.arr("fail").safeStringList().toMutableStateList()
     }
     
     var showAddSuccess by remember { mutableStateOf(false) }
     var showAddFail by remember { mutableStateOf(false) }
     var newMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
+
+    // Zone management UI state
+    var showAddZoneDialog by remember { mutableStateOf(false) }
+    var newZoneName by remember { mutableStateOf("") }
+    var showRenameZoneDialog by remember { mutableStateOf(false) }
+    var renameFrom by remember { mutableStateOf("") }
+    var renameTo by remember { mutableStateOf("") }
+    var showDeleteZoneDialog by remember { mutableStateOf(false) }
+    var deleteZoneName by remember { mutableStateOf("") }
+    var zoneBusy by remember { mutableStateOf(false) }
     
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -2685,6 +3222,88 @@ private fun ActionMessagesTab(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Zone selector (si action configurée avec des zones)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Zone des messages", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(
+                            onClick = { expanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val label = if (selectedZone == "__global__") "🌐 Global (sans zone)" else "📍 $selectedZone"
+                            Text(label, modifier = Modifier.weight(1f))
+                            Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            zoneOptions.forEach { z ->
+                                val label = if (z == "__global__") "🌐 Global (sans zone)" else "📍 $z"
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        selectedZone = z
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (selectedZone == "__global__") "Ces messages s'appliquent à toutes les zones."
+                        else "Ces messages s'appliquent quand la commande choisit la zone \"$selectedZone\".",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { showAddZoneDialog = true },
+                            enabled = !zoneBusy,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("➕ Zone") }
+                        OutlinedButton(
+                            onClick = {
+                                if (selectedZone != "__global__") {
+                                    renameFrom = selectedZone
+                                    renameTo = selectedZone
+                                    showRenameZoneDialog = true
+                                }
+                            },
+                            enabled = !zoneBusy && selectedZone != "__global__",
+                            modifier = Modifier.weight(1f)
+                        ) { Text("✏️ Renommer") }
+                        OutlinedButton(
+                            onClick = {
+                                if (selectedZone != "__global__") {
+                                    deleteZoneName = selectedZone
+                                    showDeleteZoneDialog = true
+                                }
+                            },
+                            enabled = !zoneBusy && selectedZone != "__global__",
+                            modifier = Modifier.weight(1f)
+                        ) { Text("🗑️ Supprimer") }
+                    }
+                    if (zonesLoading) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("Chargement des zones…", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -2890,8 +3509,17 @@ private fun ActionMessagesTab(
                             try {
                                 val body = buildJsonObject {
                                     put(selectedActionKey, buildJsonObject {
-                                        put("success", JsonArray(successMessages.map { JsonPrimitive(it) }))
-                                        put("fail", JsonArray(failMessages.map { JsonPrimitive(it) }))
+                                        if (selectedZone == "__global__") {
+                                            put("success", JsonArray(successMessages.map { JsonPrimitive(it) }))
+                                            put("fail", JsonArray(failMessages.map { JsonPrimitive(it) }))
+                                        } else {
+                                            put("zones", buildJsonObject {
+                                                put(selectedZone, buildJsonObject {
+                                                    put("success", JsonArray(successMessages.map { JsonPrimitive(it) }))
+                                                    put("fail", JsonArray(failMessages.map { JsonPrimitive(it) }))
+                                                })
+                                            })
+                                        }
                                     })
                                 }
                                 api.postJson("/api/actions/messages", json.encodeToString(JsonObject.serializer(), body))
@@ -2916,6 +3544,166 @@ private fun ActionMessagesTab(
             }
         }
     }
+
+    // Zone dialogs
+    if (showAddZoneDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddZoneDialog = false },
+            title = { Text("Ajouter une zone") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newZoneName,
+                        onValueChange = { newZoneName = it },
+                        label = { Text("Nom de zone (ex: poitrine)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val z = newZoneName.trim()
+                        if (z.isBlank()) return@Button
+                        scope.launch {
+                            zoneBusy = true
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val body = buildJsonObject {
+                                        put("actionKey", selectedActionKey)
+                                        put("op", "add")
+                                        put("zone", z)
+                                    }
+                                    api.postJson("/api/actions/zones", json.encodeToString(JsonObject.serializer(), body))
+                                    withContext(Dispatchers.Main) {
+                                        zones = (zones + z).distinct()
+                                        selectedZone = z
+                                        snackbar.showSnackbar("✅ Zone ajoutée")
+                                        showAddZoneDialog = false
+                                        newZoneName = ""
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ ${e.message}") }
+                                } finally {
+                                    withContext(Dispatchers.Main) { zoneBusy = false }
+                                }
+                            }
+                        }
+                    },
+                    enabled = newZoneName.trim().isNotBlank() && !zoneBusy
+                ) { Text("Ajouter") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddZoneDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
+    if (showRenameZoneDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameZoneDialog = false },
+            title = { Text("Renommer une zone") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = renameFrom,
+                        onValueChange = {},
+                        enabled = false,
+                        label = { Text("Ancien nom") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = renameTo,
+                        onValueChange = { renameTo = it },
+                        label = { Text("Nouveau nom") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val from = renameFrom.trim()
+                        val to = renameTo.trim()
+                        if (from.isBlank() || to.isBlank()) return@Button
+                        scope.launch {
+                            zoneBusy = true
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val body = buildJsonObject {
+                                        put("actionKey", selectedActionKey)
+                                        put("op", "rename")
+                                        put("from", from)
+                                        put("to", to)
+                                    }
+                                    api.postJson("/api/actions/zones", json.encodeToString(JsonObject.serializer(), body))
+                                    withContext(Dispatchers.Main) {
+                                        zones = zones.map { if (it == from) to else it }.distinct()
+                                        if (selectedZone == from) selectedZone = to
+                                        snackbar.showSnackbar("✅ Zone renommée")
+                                        showRenameZoneDialog = false
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ ${e.message}") }
+                                } finally {
+                                    withContext(Dispatchers.Main) { zoneBusy = false }
+                                }
+                            }
+                        }
+                    },
+                    enabled = renameTo.trim().isNotBlank() && !zoneBusy
+                ) { Text("Renommer") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameZoneDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
+
+    if (showDeleteZoneDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteZoneDialog = false },
+            title = { Text("Supprimer la zone") },
+            text = { Text("Supprimer la zone \"$deleteZoneName\" ? Les messages associés seront supprimés.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val z = deleteZoneName.trim()
+                        if (z.isBlank()) return@Button
+                        scope.launch {
+                            zoneBusy = true
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val body = buildJsonObject {
+                                        put("actionKey", selectedActionKey)
+                                        put("op", "delete")
+                                        put("zone", z)
+                                    }
+                                    api.postJson("/api/actions/zones", json.encodeToString(JsonObject.serializer(), body))
+                                    withContext(Dispatchers.Main) {
+                                        zones = zones.filter { it != z }
+                                        if (selectedZone == z) selectedZone = "__global__"
+                                        snackbar.showSnackbar("✅ Zone supprimée")
+                                        showDeleteZoneDialog = false
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ ${e.message}") }
+                                } finally {
+                                    withContext(Dispatchers.Main) { zoneBusy = false }
+                                }
+                            }
+                        }
+                    },
+                    enabled = !zoneBusy
+                ) { Text("Supprimer") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteZoneDialog = false }) { Text("Annuler") } }
+        )
+    }
 }
 
 @Composable
@@ -2934,7 +3722,7 @@ private fun BackupsTab(
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val resp = api.getJson("/backups")
+                    val resp = api.getJson("/api/backups")
                     val obj = json.parseToJsonElement(resp).jsonObject
                     val list = obj["backups"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
                     withContext(Dispatchers.Main) { backups = list }
@@ -2994,10 +3782,20 @@ private fun BackupsTab(
 
         itemsIndexed(backups) { idx, b ->
             val filename = b["filename"]?.jsonPrimitive?.contentOrNull ?: ""
-            val date = b["date"]?.jsonPrimitive?.contentOrNull ?: ""
-            val size = b["size"]?.jsonPrimitive?.contentOrNull ?: ""
+            val displayName = b["displayName"]?.jsonPrimitive?.contentOrNull
+            val timestamp = b["timestamp"]?.jsonPrimitive?.contentOrNull ?: ""
+            val type = b["type"]?.jsonPrimitive?.contentOrNull ?: ""
+            val sizeBytes = b["size"]?.jsonPrimitive?.longOrNull ?: 0L
+            val canRestore = b["canRestore"]?.jsonPrimitive?.booleanOrNull ?: false
 
-            SectionCard(title = "${idx + 1}. $filename", subtitle = "$date • $size") {
+            val subtitle = displayName
+                ?: run {
+                    val kb = (sizeBytes / 1024.0).toInt()
+                    val typeLabel = if (type.isBlank()) "" else " • $type"
+                    "${timestamp}$typeLabel • ${kb} KB"
+                }
+
+            SectionCard(title = "${idx + 1}. $filename", subtitle = subtitle) {
                 Button(
                     onClick = {
                         if (filename.isBlank()) return@Button
@@ -3016,9 +3814,13 @@ private fun BackupsTab(
                             }
                         }
                     },
-                    enabled = !isRestoring
+                    enabled = (!isRestoring && canRestore)
                 ) {
-                    Text(if (isRestoring) "Restauration..." else "Restaurer")
+                    Text(
+                        if (isRestoring) "Restauration..."
+                        else if (!canRestore) "Non supporté"
+                        else "Restaurer"
+                    )
                 }
             }
         }
@@ -4345,8 +5147,6 @@ private fun TicketsConfigTab(
                                             postOrPutSection(
                                                 api = api,
                                                 json = json,
-                                                primaryPostPath = "/api/tickets",
-                                                primaryBody = buildJsonObject { put("settings", settings) },
                                                 fallbackSectionKey = "tickets",
                                                 fallbackSectionBody = settings
                                             )
@@ -4446,8 +5246,6 @@ private fun TicketsConfigTab(
                                             postOrPutSection(
                                                 api = api,
                                                 json = json,
-                                                primaryPostPath = "/api/tickets",
-                                                primaryBody = buildJsonObject { put("categories", catsArr) },
                                                 fallbackSectionKey = "tickets",
                                                 fallbackSectionBody = buildJsonObject { put("categories", catsArr) }
                                             )
@@ -4850,8 +5648,6 @@ private fun LogsConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/logs",
-                                    primaryBody = buildJsonObject { put("logs", logsBody) },
                                     fallbackSectionKey = "logs",
                                     fallbackSectionBody = logsBody
                                 )
@@ -4999,8 +5795,6 @@ private fun ConfessConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/confess",
-                                    primaryBody = buildJsonObject { put("settings", body) },
                                     fallbackSectionKey = "confess",
                                     fallbackSectionBody = body
                                 )
@@ -5327,8 +6121,6 @@ private fun StaffConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/staff",
-                                    primaryBody = body,
                                     fallbackSectionKey = "staffRoleIds",
                                     fallbackSectionBody = JsonObject(body)
                                 )
@@ -5497,8 +6289,6 @@ private fun AutoKickConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/autokick",
-                                    primaryBody = body,
                                     fallbackSectionKey = "autokick",
                                     fallbackSectionBody = body["autokick"]!!.jsonObject
                                 )
@@ -5534,12 +6324,32 @@ private fun InactivityConfigTab(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
+    data class InactivityRow(
+        val userId: String,
+        val lastActivityMs: Long,
+        val inactiveForMs: Long
+    )
+
+    fun formatDuration(ms: Long): String {
+        if (ms <= 0) return "0m"
+        val totalMinutes = ms / 60_000L
+        val days = totalMinutes / (60L * 24L)
+        val hours = (totalMinutes % (60L * 24L)) / 60L
+        val minutes = totalMinutes % 60L
+        return buildString {
+            if (days > 0) append("${days}j ")
+            if (hours > 0 || days > 0) append("${hours}h ")
+            append("${minutes}m")
+        }.trim()
+    }
+
     var isLoading by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(false) }
     var delayDays by remember { mutableStateOf("30") }
     var inactiveRoleId by remember { mutableStateOf<String?>(null) }
     var excludedRoleIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var trackingCount by remember { mutableIntStateOf(0) }
+    var trackingRows by remember { mutableStateOf<List<InactivityRow>>(emptyList()) }
     var selectedMember by remember { mutableStateOf<String?>(null) }
     var newExcludedRole by remember { mutableStateOf<String?>(null) }
 
@@ -5550,16 +6360,29 @@ private fun InactivityConfigTab(
                 try {
                     val resp = api.getJson("/api/inactivity")
                     val obj = json.parseToJsonElement(resp).jsonObject
-                    val tracking = obj["tracking"]?.jsonObject?.size ?: 0
+                    val trackingObj = obj["tracking"]?.jsonObject
+                    val tracking = trackingObj?.size ?: 0
+                    val now = System.currentTimeMillis()
+                    val rows = trackingObj
+                        ?.entries
+                        ?.mapNotNull { (uid, v) ->
+                            val last = v.jsonObject["lastActivity"]?.safeLong() ?: 0L
+                            if (last <= 0L) return@mapNotNull null
+                            val inactiveFor = (now - last).coerceAtLeast(0L)
+                            InactivityRow(userId = uid, lastActivityMs = last, inactiveForMs = inactiveFor)
+                        }
+                        ?.sortedByDescending { it.inactiveForMs }
+                        ?: emptyList()
                     withContext(Dispatchers.Main) {
-                        enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                        delayDays = (obj["delayDays"]?.jsonPrimitive?.intOrNull ?: 30).toString()
+                        enabled = obj["enabled"].safeBooleanOrFalse()
+                        delayDays = (obj["delayDays"].safeInt() ?: 30).toString()
                         inactiveRoleId = obj["inactiveRoleId"].safeString()
                         excludedRoleIds = obj["excludedRoleIds"]?.jsonArray.safeStringList()
                         trackingCount = tracking
+                        trackingRows = rows
                     }
                 } catch (e: Exception) {
-                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message ?: e.toString()}") }
                 } finally {
                     withContext(Dispatchers.Main) { isLoading = false }
                 }
@@ -5694,6 +6517,59 @@ private fun InactivityConfigTab(
                 ) { Text("➕ Ajouter tous les membres au tracking") }
             }
         }
+
+        item {
+            SectionCard(
+                title = "👥 Membres trackés",
+                subtitle = "Durée d'inactivité + reset rapide"
+            ) {
+                if (trackingRows.isEmpty()) {
+                    Text("Aucun membre tracké (ou aucune activité enregistrée).", color = Color.Gray)
+                    return@SectionCard
+                }
+                trackingRows.take(80).forEach { row ->
+                    val name = members[row.userId] ?: row.userId
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Inactif: ${formatDuration(row.inactiveForMs)}",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            api.postJson("/api/inactivity/reset/${row.userId}", "{}")
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("✅ Reset inactivité: ${members[row.userId] ?: row.userId}")
+                                            }
+                                            load()
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isLoading
+                        ) {
+                            Text("Reset")
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+                if (trackingRows.size > 80) {
+                    Text("… ${trackingRows.size - 80} autres membres", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
     }
 }
 
@@ -5797,8 +6673,6 @@ private fun AutoThreadConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/autothread",
-                                    primaryBody = buildJsonObject { put("autothread", body) },
                                     fallbackSectionKey = "autothread",
                                     fallbackSectionBody = body
                                 )
@@ -5867,8 +6741,6 @@ private fun DisboardConfigTab(
                                 postOrPutSection(
                                     api = api,
                                     json = json,
-                                    primaryPostPath = "/api/disboard",
-                                    primaryBody = buildJsonObject { put("disboard", body) },
                                     fallbackSectionKey = "disboard",
                                     fallbackSectionBody = body
                                 )

@@ -5,7 +5,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const fsp = fs.promises;
 const multer = require('multer');
+const listLocalBackups = require('./helpers/listLocalBackups');
+const crypto = require('crypto');
 
 // Importer les fonctions du bot
 const { 
@@ -39,30 +42,121 @@ const FOUNDER_ID = process.env.FOUNDER_ID || '943487722738311219';
 // Token storage (simplifié - en production utiliser une vraie DB)
 const appTokens = new Map();
 
+// Permissions cache to avoid hitting Discord API on every request
+const permissionsCache = new Map(); // userId -> { data, checkedAt }
+const PERMISSIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function base64UrlEncode(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function base64UrlDecodeToString(input) {
+  const pad = input.length % 4 ? '='.repeat(4 - (input.length % 4)) : '';
+  const b64 = (input + pad).replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(b64, 'base64').toString('utf8');
+}
+
+async function loadOrCreateAppTokenSecret() {
+  const env = process.env.APP_TOKEN_SECRET;
+  if (env && String(env).trim().length >= 16) return String(env).trim();
+
+  const dataDir = path.join(__dirname, '../data');
+  const secretPath = path.join(dataDir, 'app-token-secret.txt');
+  await fsp.mkdir(dataDir, { recursive: true }).catch(() => {});
+
+  try {
+    const existing = await fsp.readFile(secretPath, 'utf8');
+    const s = String(existing || '').trim();
+    if (s.length >= 16) return s;
+  } catch (_) {}
+
+  const secret = base64UrlEncode(crypto.randomBytes(48));
+  try {
+    await fsp.writeFile(secretPath, secret + '\n', { encoding: 'utf8', mode: 0o600 });
+  } catch (_) {}
+  return secret;
+}
+
+let APP_TOKEN_SECRET_PROMISE = null;
+function getAppTokenSecret() {
+  if (!APP_TOKEN_SECRET_PROMISE) APP_TOKEN_SECRET_PROMISE = loadOrCreateAppTokenSecret();
+  return APP_TOKEN_SECRET_PROMISE;
+}
+
+async function issueAppToken(payload) {
+  const secret = await getAppTokenSecret();
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expSec = nowSec + (90 * 24 * 60 * 60); // 90 jours
+  const body = { ...payload, iat: nowSec, exp: expSec };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedBody = base64UrlEncode(JSON.stringify(body));
+  const data = `${encodedHeader}.${encodedBody}`;
+  const sig = crypto.createHmac('sha256', secret).update(data).digest('base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `${data}.${sig}`;
+}
+
+async function verifyAppToken(token) {
+  const secret = await getAppTokenSecret();
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) return null;
+  const [h, p, s] = parts;
+  const data = `${h}.${p}`;
+  const expected = crypto.createHmac('sha256', secret).update(data).digest('base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(String(s)))) return null;
+  let payload = null;
+  try { payload = JSON.parse(base64UrlDecodeToString(p)); } catch (_) { return null; }
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!payload || typeof payload !== 'object') return null;
+  if (typeof payload.exp !== 'number' || payload.exp <= nowSec) return null;
+  return payload;
+}
+
 // ========== AUTHENTIFICATION ==========
 
 // Fonction pour vérifier si un utilisateur est admin/fondateur
 async function checkUserPermissions(userId, client) {
   try {
     if (userId === FOUNDER_ID) {
-      return { isFounder: true, isAdmin: true };
+      return { isFounder: true, isAdmin: true, username: 'Founder', discriminator: '0', avatar: null };
     }
     
     const guild = client.guilds.cache.get(GUILD);
-    if (!guild) return { isFounder: false, isAdmin: false };
+    if (!guild) return { isFounder: false, isAdmin: false, username: null, discriminator: null, avatar: null };
     
     const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member) return { isFounder: false, isAdmin: false };
+    if (!member) return { isFounder: false, isAdmin: false, username: null, discriminator: null, avatar: null };
     
     const isAdmin = member.permissions.has('Administrator');
-    return { isFounder: false, isAdmin };
+    return {
+      isFounder: false,
+      isAdmin,
+      username: member.user?.username || null,
+      discriminator: member.user?.discriminator || null,
+      avatar: member.user?.avatar || null,
+    };
   } catch (error) {
     console.error('[API] Error checking permissions:', error);
-    return { isFounder: false, isAdmin: false };
+    return { isFounder: false, isAdmin: false, username: null, discriminator: null, avatar: null };
   }
 }
 
-// Middleware d'authentification avec persistance améliorée
+async function getCachedPermissions(userId, client) {
+  const key = String(userId);
+  const cached = permissionsCache.get(key);
+  if (cached && (Date.now() - cached.checkedAt) < PERMISSIONS_CACHE_TTL_MS) return cached.data;
+  const data = await checkUserPermissions(key, client);
+  permissionsCache.set(key, { data, checkedAt: Date.now() });
+  return data;
+}
+
+// Middleware d'authentification (token persistant + vérification admin en temps réel)
 async function requireAuth(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -70,42 +164,38 @@ async function requireAuth(req, res, next) {
   }
   
   const token = authHeader.substring(7);
-  const userData = appTokens.get('token_' + token);
-  
-  if (!userData) {
+  const payload = await verifyAppToken(token);
+  if (!payload || !payload.userId) {
     return res.status(401).json({ error: 'Invalid token' });
   }
-  
-  // Vérifier les permissions en temps réel (admin retiré = déconnexion automatique)
+
+  const userId = String(payload.userId);
   const client = req.app.locals.client;
-  if (client) {
-    try {
-      const permissions = await checkUserPermissions(userData.userId, client);
-      
-      // Si l'utilisateur n'est plus admin/fondateur, invalider le token
-      if (!permissions.isAdmin && !permissions.isFounder) {
-        appTokens.delete('token_' + token);
-        return res.status(401).json({ 
-          error: 'Access revoked',
-          message: 'Votre accès a été révoqué. Veuillez vous reconnecter.'
-        });
-      }
-      
-      // Mettre à jour les permissions dans userData
-      userData.isAdmin = permissions.isAdmin;
-      userData.isFounder = permissions.isFounder;
-    } catch (error) {
-      console.error('[API] Error checking permissions:', error);
-    }
+
+  if (!client) {
+    return res.status(503).json({ error: 'Discord client unavailable' });
   }
-  
-  // Mettre à jour le timestamp pour garder la session active
-  userData.timestamp = Date.now();
-  
-  // Plus d'expiration de token - seule la révocation du rôle admin déconnecte
-  // (Anciennement: expiration après 24h)
-  
-  req.userData = userData;
+
+  const permissions = await getCachedPermissions(userId, client);
+
+  // Si l'utilisateur n'est plus admin/fondateur => accès révoqué (app doit vider le token)
+  if (!permissions.isAdmin && !permissions.isFounder) {
+    return res.status(401).json({
+      error: 'NOT_ADMIN',
+      message: 'Votre accès a été révoqué (vous n’êtes plus admin).',
+    });
+  }
+
+  req.userData = {
+    userId,
+    username: permissions.username || payload.username || 'User',
+    discriminator: permissions.discriminator || payload.discriminator || '0',
+    avatar: permissions.avatar || payload.avatar || null,
+    isFounder: Boolean(permissions.isFounder),
+    isAdmin: Boolean(permissions.isAdmin),
+    timestamp: Date.now(),
+  };
+
   next();
 }
 
@@ -242,15 +332,11 @@ app.get('/auth/mobile/callback', async (req, res) => {
     }
     
     // Créer token app
-    const appToken = generateToken();
-    appTokens.set('token_' + appToken, {
+    const appToken = await issueAppToken({
       userId: userData.id,
       username: userData.username,
       discriminator: userData.discriminator,
       avatar: userData.avatar,
-      isFounder: permissions.isFounder,
-      isAdmin: permissions.isAdmin,
-      timestamp: Date.now()
     });
     
     console.log(`[BOT-API] User authenticated: ${userData.username} (${userData.id})`);
@@ -279,19 +365,8 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 // DEBUG: Liste des tokens actifs (temporaire)
 app.get('/api/debug/tokens', (req, res) => {
-  const tokens = [];
-  for (const [key, data] of appTokens.entries()) {
-    if (key.startsWith('token_')) {
-      tokens.push({
-        username: data.username,
-        userId: data.userId,
-        age: Math.floor((Date.now() - data.timestamp) / 1000) + 's',
-        isFounder: data.isFounder,
-        isAdmin: data.isAdmin
-      });
-    }
-  }
-  res.json({ count: tokens.length, tokens });
+  // Les tokens sont désormais stateless (signés), donc rien à lister côté serveur.
+  res.json({ count: 0, tokens: [] });
 });
 
 // Login endpoint (temporaire - nécessite Discord OAuth pour production)
@@ -310,16 +385,19 @@ app.post('/auth/login', async (req, res) => {
   }
   
   // Créer token
-  const token = Buffer.from(`${userId}-${Date.now()}`).toString('base64');
+  const token = await issueAppToken({
+    userId,
+    username: username || permissions.username || 'User',
+    discriminator: permissions.discriminator || '0',
+    avatar: permissions.avatar || null,
+  });
   const userData = {
     userId,
-    username: username || 'User',
+    username: username || permissions.username || 'User',
     timestamp: Date.now(),
     isFounder: permissions.isFounder,
     isAdmin: permissions.isAdmin
   };
-  
-  appTokens.set('token_' + token, userData);
   
   res.json({ 
     success: true, 
@@ -388,24 +466,19 @@ app.get('/api/configs', async (req, res) => {
     const config = await readConfig();
     const guildConfig = config.guilds[GUILD] || {};
     
-    // Filtrer pour ne garder que les membres actuels du serveur (avec timeout)
+    // Filtrer pour ne garder que les membres actuels du serveur
+    // IMPORTANT: ne pas faire de guild.members.fetch() ici (trop lourd, peut provoquer des crashs/timeout).
     try {
       const guild = req.app.locals.client.guilds.cache.get(GUILD);
       if (guild) {
-        // Fetch avec timeout de 3 secondes
-        await Promise.race([
-          guild.members.fetch(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-        ]);
-        
-        const currentMemberIds = guild.members.cache.map(m => m.id);
-        console.log(`[API] Filtrage avec ${currentMemberIds.length} membres actuels`);
+        const currentMemberIds = new Set(guild.members.cache.map(m => m.id));
+        console.log(`[API] Filtrage avec ${currentMemberIds.size} membres (cache Discord)`);
         
         // Filtrer économie
         if (guildConfig.economy && guildConfig.economy.balances) {
           const filtered = {};
           for (const [uid, data] of Object.entries(guildConfig.economy.balances)) {
-            if (currentMemberIds.includes(uid)) filtered[uid] = data;
+            if (currentMemberIds.has(uid)) filtered[uid] = data;
           }
           guildConfig.economy.balances = filtered;
         }
@@ -414,9 +487,18 @@ app.get('/api/configs', async (req, res) => {
         if (guildConfig.levels && guildConfig.levels.users) {
           const filtered = {};
           for (const [uid, data] of Object.entries(guildConfig.levels.users)) {
-            if (currentMemberIds.includes(uid)) filtered[uid] = data;
+            if (currentMemberIds.has(uid)) filtered[uid] = data;
           }
           guildConfig.levels.users = filtered;
+        }
+
+        // Compat: certains schémas utilisent levels.data
+        if (guildConfig.levels && guildConfig.levels.data) {
+          const filtered = {};
+          for (const [uid, data] of Object.entries(guildConfig.levels.data)) {
+            if (currentMemberIds.has(uid)) filtered[uid] = data;
+          }
+          guildConfig.levels.data = filtered;
         }
       }
     } catch (filterError) {
@@ -637,7 +719,98 @@ app.get('/api/discord/roles', async (req, res) => {
 
 // ========== STAFF CHAT ==========
 
-const staffMessages = [];
+let staffMessages = [];
+
+// Persist staff chat so conversations survive restarts.
+// Stored on disk to avoid impacting config.json stability.
+const STAFF_CHAT_STORE_PATH = path.join(__dirname, '../data/staff-chat-messages.json');
+
+function normalizeRoom(room) {
+  const r = String(room || 'global').trim();
+  return r.length ? r : 'global';
+}
+
+function isGlobalRoom(room) {
+  const r = normalizeRoom(room);
+  return r === 'global' || r === 'room-global' || r === 'all';
+}
+
+function normalizeMessage(m) {
+  if (!m || typeof m !== 'object') return null;
+  const id = String(m.id || '').trim();
+  const userId = String(m.userId || '').trim();
+  const username = String(m.username || '').trim() || 'Inconnu';
+  const message = String(m.message || '');
+  const room = normalizeRoom(m.room);
+  const timestamp = String(m.timestamp || new Date().toISOString());
+  const type = String(m.type || 'text');
+  const commandData = (m.commandData === undefined ? null : m.commandData);
+  const attachmentUrl = m.attachmentUrl ? String(m.attachmentUrl) : undefined;
+  const attachmentType = m.attachmentType ? String(m.attachmentType) : undefined;
+  if (!id || !userId) return null;
+  return {
+    id,
+    userId,
+    username,
+    message,
+    room,
+    timestamp,
+    type,
+    commandData,
+    ...(attachmentUrl ? { attachmentUrl } : {}),
+    ...(attachmentType ? { attachmentType } : {}),
+  };
+}
+
+function enforceStaffChatCaps(targetRoom) {
+  // Keep up to 200 messages per room.
+  const room = normalizeRoom(targetRoom);
+  let count = 0;
+  for (const msg of staffMessages) if (normalizeRoom(msg.room) === room) count++;
+  if (count <= 200) return;
+  let toRemove = count - 200;
+  // Remove oldest in that room (array order is append-only).
+  staffMessages = staffMessages.filter((m) => {
+    if (toRemove <= 0) return true;
+    if (normalizeRoom(m.room) === room) {
+      toRemove--;
+      return false;
+    }
+    return true;
+  });
+  // Also keep a reasonable global cap to avoid uncontrolled growth.
+  if (staffMessages.length > 2000) staffMessages = staffMessages.slice(-2000);
+}
+
+function persistStaffChatToDisk() {
+  try {
+    const dir = path.dirname(STAFF_CHAT_STORE_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmp = STAFF_CHAT_STORE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ messages: staffMessages }, null, 2), 'utf8');
+    try { fs.renameSync(tmp, STAFF_CHAT_STORE_PATH); } catch (_) { fs.writeFileSync(STAFF_CHAT_STORE_PATH, JSON.stringify({ messages: staffMessages }, null, 2), 'utf8'); }
+  } catch (e) {
+    try { console.warn('[BOT-API] staff chat persist failed:', e?.message || e); } catch (_) {}
+  }
+}
+
+function loadStaffChatFromDisk() {
+  try {
+    if (!fs.existsSync(STAFF_CHAT_STORE_PATH)) return;
+    const raw = fs.readFileSync(STAFF_CHAT_STORE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed?.messages) ? parsed.messages : [];
+    const normalized = list.map(normalizeMessage).filter(Boolean);
+    // Keep deterministic order; newest at end.
+    staffMessages = normalized.slice(-2000);
+    console.log(`[BOT-API] staff chat loaded: ${staffMessages.length} messages from disk`);
+  } catch (e) {
+    try { console.warn('[BOT-API] staff chat load failed:', e?.message || e); } catch (_) {}
+  }
+}
+
+// Load on startup
+loadStaffChatFromDisk();
 
 // ========== CHAT STAFF AMÉLIORÉ ==========
 
@@ -678,16 +851,32 @@ app.get('/api/staff/chat/messages', requireAuth, (req, res) => {
     console.log(`📥 [BOT-API] GET /api/staff/chat/messages?room=${room || 'global'}`);
     
     let filtered = staffMessages;
-    if (room && room !== 'global') {
-      filtered = staffMessages.filter(m => m.room === room);
-    } else {
-      // Par défaut, afficher les messages globaux
-      filtered = staffMessages.filter(m => !m.room || m.room === 'global');
-    }
+    const r = normalizeRoom(room);
+    if (!isGlobalRoom(r)) filtered = staffMessages.filter(m => normalizeRoom(m.room) === r);
+    else filtered = staffMessages.filter(m => isGlobalRoom(m.room));
     
     res.json({ messages: filtered });
   } catch (error) {
     console.error('[BOT-API] Error fetching staff messages:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST clear conversation (global or private room)
+app.post('/api/staff/chat/clear', requireAuth, express.json(), (req, res) => {
+  try {
+    const room = normalizeRoom(req.body?.room || req.query?.room || 'global');
+    const before = staffMessages.length;
+    if (isGlobalRoom(room)) {
+      staffMessages = staffMessages.filter(m => !isGlobalRoom(m.room));
+    } else {
+      staffMessages = staffMessages.filter(m => normalizeRoom(m.room) !== room);
+    }
+    persistStaffChatToDisk();
+    const removed = before - staffMessages.length;
+    res.json({ success: true, room, removed });
+  } catch (error) {
+    console.error('[BOT-API] Error clearing staff messages:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -702,7 +891,7 @@ app.post('/api/staff/chat/send', requireAuth, express.json(), (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    const newMessage = {
+    const newMessage = normalizeMessage({
       id: Date.now().toString(),
       userId,
       username,
@@ -711,15 +900,12 @@ app.post('/api/staff/chat/send', requireAuth, express.json(), (req, res) => {
       timestamp: new Date().toISOString(),
       type: commandType || 'text', // 'text', 'command', 'attachment'
       commandData: commandData || null
-    };
-    
+    });
+    if (!newMessage) return res.status(400).json({ error: 'Invalid message payload' });
+
     staffMessages.push(newMessage);
-    
-    // Garder seulement les 200 derniers messages
-    if (staffMessages.length > 200) {
-      staffMessages.shift();
-    }
-    
+    enforceStaffChatCaps(newMessage.room);
+    persistStaffChatToDisk();
     res.json({ success: true, message: newMessage });
   } catch (error) {
     console.error('[BOT-API] Error sending staff message:', error);
@@ -737,7 +923,7 @@ app.post('/api/staff/chat/upload', requireAuth, staffChatUpload.single('file'), 
     const { userId, username, room } = req.body;
     console.log(`📥 [BOT-API] POST /api/staff/chat/upload from ${username} - ${req.file.originalname}`);
     
-    const newMessage = {
+    const newMessage = normalizeMessage({
       id: Date.now().toString(),
       userId,
       username,
@@ -746,16 +932,14 @@ app.post('/api/staff/chat/upload', requireAuth, staffChatUpload.single('file'), 
       timestamp: new Date().toISOString(),
       type: 'attachment',
       attachmentUrl: `/api/staff/chat/file/${req.file.filename}`,
-      attachmentType: req.file.mimetype.startsWith('image') ? 'image' : 
+      attachmentType: req.file.mimetype.startsWith('image') ? 'image' :
                       req.file.mimetype.startsWith('video') ? 'video' : 'file'
-    };
-    
+    });
+    if (!newMessage) return res.status(400).json({ error: 'Invalid message payload' });
+
     staffMessages.push(newMessage);
-    
-    if (staffMessages.length > 200) {
-      staffMessages.shift();
-    }
-    
+    enforceStaffChatCaps(newMessage.room);
+    persistStaffChatToDisk();
     res.json({ success: true, message: newMessage });
   } catch (error) {
     console.error('[BOT-API] Error uploading staff file:', error);
@@ -1417,6 +1601,15 @@ app.post('/api/inactivity', requireAuth, express.json(), async (req, res) => {
     };
     
     await writeConfig(config);
+
+    // Déclencher le reload du bot (même comportement que /api/configs/:section)
+    const signalPath = path.join(__dirname, '../data/config-updated.signal');
+    try {
+      fs.writeFileSync(signalPath, Date.now().toString(), 'utf8');
+      console.log(`🔄 [BOT-API] Config reload signal sent (inactivity)`);
+    } catch (signalError) {
+      console.warn('[BOT-API] Could not write reload signal (inactivity):', signalError.message);
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1552,6 +1745,102 @@ app.get('/api/truthdare/:mode', async (req, res) => {
   }
 });
 
+// ========== MOT CACHE (mobile) ==========
+// Endpoints utilisés par l'app Android (MotCacheScreen)
+function buildMotCacheProgress(motCache, userId) {
+  const targetWord = String(motCache?.targetWord || '').toUpperCase().trim();
+  const enabled = !!motCache?.enabled && !!targetWord;
+  if (!enabled) return { active: false };
+
+  const letters = (motCache?.collections?.[userId] || []).map(String);
+  const wordDisplay = targetWord
+    .split('')
+    .map((ch) => (letters.includes(ch) ? ch : '_'))
+    .join(' ');
+
+  const wordLength = targetWord.length || 0;
+  const letterCount = letters.length;
+  const progress = wordLength > 0 ? Math.round((letterCount / wordLength) * 100) : 0;
+
+  return {
+    active: true,
+    wordDisplay,
+    letters,
+    letterCount,
+    wordLength,
+    progress
+  };
+}
+
+async function handleMotCacheMyProgress(req, res) {
+  try {
+    const userId = req.userData?.userId;
+    const config = await readConfig();
+    const guildConfig = config.guilds?.[GUILD] || {};
+    const motCache = guildConfig.motCache || {};
+    return res.json(buildMotCacheProgress(motCache, userId));
+  } catch (error) {
+    console.error('[BOT-API] Error in motcache my-progress:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function handleMotCacheGuess(req, res) {
+  try {
+    const userId = req.userData?.userId;
+    const username = req.userData?.username || 'Unknown';
+    const guess = String(req.body?.guess || '').toUpperCase().trim();
+    if (!guess) return res.status(400).json({ success: false, message: 'guess required' });
+
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+
+    const guildConfig = config.guilds[GUILD];
+    const motCache = guildConfig.motCache || {};
+    const targetWord = String(motCache?.targetWord || '').toUpperCase().trim();
+
+    if (!motCache.enabled || !targetWord) {
+      return res.json({ success: false, message: "Le jeu n'est pas actif.", correct: false });
+    }
+
+    if (guess === targetWord) {
+      const reward = Number(motCache.rewardAmount || 5000) || 0;
+
+      // Ajouter la récompense à l'économie
+      if (!guildConfig.economy) guildConfig.economy = { balances: {} };
+      if (!guildConfig.economy.balances) guildConfig.economy.balances = {};
+      if (!guildConfig.economy.balances[userId]) guildConfig.economy.balances[userId] = { amount: 0, money: 0 };
+      guildConfig.economy.balances[userId].amount = Number(guildConfig.economy.balances[userId].amount || 0) + reward;
+      guildConfig.economy.balances[userId].money = Number(guildConfig.economy.balances[userId].money || 0) + reward;
+
+      // Enregistrer le gagnant + reset du jeu
+      if (!motCache.winners) motCache.winners = [];
+      motCache.winners.push({ userId, username, word: motCache.targetWord, date: Date.now(), reward });
+      motCache.collections = {};
+      motCache.targetWord = '';
+      motCache.enabled = false;
+
+      guildConfig.motCache = motCache;
+      await writeConfig(config, 'motcache');
+
+      return res.json({ success: true, correct: true, reward });
+    }
+
+    return res.json({ success: true, correct: false, message: "Ce n'est pas le bon mot." });
+  } catch (error) {
+    console.error('[BOT-API] Error in motcache guess:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+// /api/motcache/*
+app.get('/api/motcache/my-progress', requireAuth, handleMotCacheMyProgress);
+app.post('/api/motcache/guess', requireAuth, express.json(), handleMotCacheGuess);
+// Backward compatibility: /api/mot-cache/*
+app.get('/api/mot-cache/my-progress', requireAuth, handleMotCacheMyProgress);
+app.post('/api/mot-cache/guess', requireAuth, express.json(), handleMotCacheGuess);
+
 // DELETE /api/truthdare/:mode/channels/:channelId - Supprimer un channel
 app.delete('/api/truthdare/:mode/channels/:channelId', requireAuth, async (req, res) => {
   try {
@@ -1666,13 +1955,15 @@ app.post('/api/actions/gifs', requireAuth, express.json(), async (req, res) => {
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
     if (!config.guilds[GUILD].economy) config.guilds[GUILD].economy = {};
     if (!config.guilds[GUILD].economy.actions) config.guilds[GUILD].economy.actions = {};
+    if (!config.guilds[GUILD].economy.actions.gifs || typeof config.guilds[GUILD].economy.actions.gifs !== 'object') {
+      config.guilds[GUILD].economy.actions.gifs = {};
+    }
     
     // Merger les GIFs
     for (const [action, gifs] of Object.entries(req.body)) {
-      if (!config.guilds[GUILD].economy.actions[action]) {
-        config.guilds[GUILD].economy.actions[action] = {};
-      }
-      config.guilds[GUILD].economy.actions[action].gifs = gifs;
+      if (!action) continue;
+      const safe = (gifs && typeof gifs === 'object') ? gifs : { success: [], fail: [] };
+      config.guilds[GUILD].economy.actions.gifs[action] = safe;
     }
     
     await writeConfig(config);
@@ -1690,17 +1981,163 @@ app.post('/api/actions/messages', requireAuth, express.json(), async (req, res) 
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
     if (!config.guilds[GUILD].economy) config.guilds[GUILD].economy = {};
     if (!config.guilds[GUILD].economy.actions) config.guilds[GUILD].economy.actions = {};
+    if (!config.guilds[GUILD].economy.actions.messages || typeof config.guilds[GUILD].economy.actions.messages !== 'object') {
+      config.guilds[GUILD].economy.actions.messages = {};
+    }
     
-    // Merger les messages
+    // Merger les messages (support zones)
     for (const [action, messages] of Object.entries(req.body)) {
-      if (!config.guilds[GUILD].economy.actions[action]) {
-        config.guilds[GUILD].economy.actions[action] = {};
+      if (!action) continue;
+      if (!messages || typeof messages !== 'object') continue;
+
+      const existing = (config.guilds[GUILD].economy.actions.messages[action] && typeof config.guilds[GUILD].economy.actions.messages[action] === 'object')
+        ? config.guilds[GUILD].economy.actions.messages[action]
+        : { success: [], fail: [] };
+
+      // Update top-level success/fail if provided
+      if (Array.isArray(messages.success)) existing.success = messages.success;
+      if (Array.isArray(messages.fail)) existing.fail = messages.fail;
+
+      // Update zones if provided
+      if (messages.zones && typeof messages.zones === 'object') {
+        if (!existing.zones || typeof existing.zones !== 'object') existing.zones = {};
+        for (const [zoneKey, zoneMsg] of Object.entries(messages.zones)) {
+          if (!zoneKey) continue;
+          if (!zoneMsg || typeof zoneMsg !== 'object') continue;
+          const z = (existing.zones[zoneKey] && typeof existing.zones[zoneKey] === 'object')
+            ? existing.zones[zoneKey]
+            : { success: [], fail: [] };
+          if (Array.isArray(zoneMsg.success)) z.success = zoneMsg.success;
+          if (Array.isArray(zoneMsg.fail)) z.fail = zoneMsg.fail;
+          existing.zones[zoneKey] = z;
+        }
       }
-      config.guilds[GUILD].economy.actions[action].messages = messages;
+
+      config.guilds[GUILD].economy.actions.messages[action] = existing;
     }
     
     await writeConfig(config);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/actions/zones?actionKey=... - Récupérer les zones d'une action
+app.get('/api/actions/zones', requireAuth, async (req, res) => {
+  try {
+    const actionKey = String(req.query.actionKey || '').trim();
+    if (!actionKey) return res.status(400).json({ error: 'actionKey required' });
+
+    const config = await readConfig();
+    const eco = config.guilds?.[GUILD]?.economy || {};
+    const zones = eco.actions?.config?.[actionKey]?.zones;
+    const list = Array.isArray(zones) ? zones.filter(Boolean).map(String) : [];
+
+    res.json({ actionKey, zones: list });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/actions/zones - Ajouter / Renommer / Supprimer une zone
+app.post('/api/actions/zones', requireAuth, express.json(), async (req, res) => {
+  try {
+    const actionKey = String(req.body?.actionKey || '').trim();
+    const op = String(req.body?.op || '').trim(); // add|rename|delete
+
+    if (!actionKey) return res.status(400).json({ error: 'actionKey required' });
+    if (!op) return res.status(400).json({ error: 'op required' });
+
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+    if (!config.guilds[GUILD].economy) config.guilds[GUILD].economy = {};
+    const eco = config.guilds[GUILD].economy;
+    if (!eco.actions) eco.actions = {};
+    if (!eco.actions.config || typeof eco.actions.config !== 'object') eco.actions.config = {};
+    if (!eco.actions.config[actionKey] || typeof eco.actions.config[actionKey] !== 'object') eco.actions.config[actionKey] = {};
+    if (!Array.isArray(eco.actions.config[actionKey].zones)) eco.actions.config[actionKey].zones = [];
+
+    if (!eco.actions.messages || typeof eco.actions.messages !== 'object') eco.actions.messages = {};
+    if (!eco.actions.messages[actionKey] || typeof eco.actions.messages[actionKey] !== 'object') {
+      eco.actions.messages[actionKey] = { success: [], fail: [] };
+    }
+    if (!eco.actions.messages[actionKey].zones || typeof eco.actions.messages[actionKey].zones !== 'object') {
+      eco.actions.messages[actionKey].zones = {};
+    }
+
+    const zones = eco.actions.config[actionKey].zones;
+    const msgZones = eco.actions.messages[actionKey].zones;
+
+    if (op === 'add') {
+      const zone = String(req.body?.zone || '').trim();
+      if (!zone) return res.status(400).json({ error: 'zone required' });
+      if (!zones.includes(zone)) zones.push(zone);
+    } else if (op === 'rename') {
+      const from = String(req.body?.from || '').trim();
+      const to = String(req.body?.to || '').trim();
+      if (!from || !to) return res.status(400).json({ error: 'from/to required' });
+      eco.actions.config[actionKey].zones = zones.map((z) => (z === from ? to : z));
+
+      // migrate messages zones
+      if (msgZones && msgZones[from]) {
+        if (!msgZones[to]) {
+          msgZones[to] = msgZones[from];
+        } else {
+          const a = msgZones[to] || {};
+          const b = msgZones[from] || {};
+          a.success = Array.isArray(a.success) ? a.success : [];
+          a.fail = Array.isArray(a.fail) ? a.fail : [];
+          const bSucc = Array.isArray(b.success) ? b.success : [];
+          const bFail = Array.isArray(b.fail) ? b.fail : [];
+          a.success = Array.from(new Set([...a.success, ...bSucc]));
+          a.fail = Array.from(new Set([...a.fail, ...bFail]));
+          msgZones[to] = a;
+        }
+        try { delete msgZones[from]; } catch (_) {}
+      }
+    } else if (op === 'delete') {
+      const zone = String(req.body?.zone || '').trim();
+      if (!zone) return res.status(400).json({ error: 'zone required' });
+      eco.actions.config[actionKey].zones = zones.filter((z) => z !== zone);
+      try { delete msgZones[zone]; } catch (_) {}
+    } else {
+      return res.status(400).json({ error: 'invalid op' });
+    }
+
+    await writeConfig(config);
+    const out = Array.isArray(eco.actions.config[actionKey].zones) ? eco.actions.config[actionKey].zones : [];
+    res.json({ success: true, actionKey, zones: out });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/discord/emojis - Liste des emojis du serveur (pour l'app Android)
+app.get('/api/discord/emojis', requireAuth, async (req, res) => {
+  try {
+    const client = req.app.locals.client;
+    if (!client || !client.isReady?.()) {
+      return res.status(503).json({ error: 'Discord client unavailable' });
+    }
+    const guild = client.guilds.cache.get(GUILD);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const emojis = await guild.emojis.fetch().catch(() => null);
+    const arr = [];
+    if (emojis) {
+      for (const e of emojis.values()) {
+        const id = String(e.id || '');
+        const name = String(e.name || '');
+        const animated = Boolean(e.animated);
+        const url = (typeof e.imageURL === 'function') ? (e.imageURL({ extension: 'png', size: 64 }) || '') : '';
+        const raw = animated ? `<a:${name}:${id}>` : `<:${name}:${id}>`;
+        arr.push({ id, name, animated, url, raw });
+      }
+    }
+    arr.sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ emojis: arr });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1753,6 +2190,33 @@ app.get('/backups', (req, res) => {
   }
 });
 
+// GET /api/backups - Liste unifiée des backups (Android)
+app.get('/api/backups', requireAuth, async (req, res) => {
+  try {
+    const list = await listLocalBackups(String(GUILD));
+    const safe = list.map((b) => {
+      const filename = b.filename || '';
+      const type = b.type || 'other';
+      const timestamp = b.timestamp || '';
+      const size = typeof b.size === 'number' ? b.size : 0;
+      const displayName = b.displayName || filename;
+
+      // Restauration via l'API actuelle uniquement pour les backups per-guild (config-*.json)
+      const canRestore = Boolean(
+        b.fullPath &&
+        String(b.fullPath).includes(`guild-${String(GUILD)}`) &&
+        String(filename).toLowerCase().startsWith('config-')
+      );
+
+      return { filename, type, timestamp, size, displayName, canRestore };
+    });
+
+    res.json({ backups: safe });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /backup - Créer un backup
 app.post('/backup', requireAuth, async (req, res) => {
   try {
@@ -1761,10 +2225,47 @@ app.post('/backup', requireAuth, async (req, res) => {
     if (!fs.existsSync(backupsDir)) {
       fs.mkdirSync(backupsDir, { recursive: true });
     }
+
+    // Anti-spam: si un backup a été créé très récemment, ne pas en recréer un.
+    // (Certaines UIs peuvent déclencher plusieurs requêtes à la suite.)
+    const RECENT_WINDOW_MS = 60 * 1000; // 1 minute
+    try {
+      const entries = fs.readdirSync(backupsDir)
+        .filter((f) => f && f.endsWith('.json') && f.startsWith('config-'))
+        .map((f) => {
+          const p = path.join(backupsDir, f);
+          try { return { f, mtimeMs: fs.statSync(p).mtimeMs }; } catch (_) { return null; }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+      const latest = entries[0];
+      if (latest && (Date.now() - latest.mtimeMs) < RECENT_WINDOW_MS) {
+        return res.json({ success: true, skipped: true, filename: latest.f });
+      }
+    } catch (_) {}
     
     const filename = `config-${new Date().toISOString().replace(/:/g, '-')}.json`;
     const filepath = path.join(backupsDir, filename);
     fs.writeFileSync(filepath, JSON.stringify(config.guilds[GUILD], null, 2));
+
+    // Rétention simple: garder uniquement les 50 derniers backups "config-*"
+    try {
+      const keep = 50;
+      const entries = fs.readdirSync(backupsDir)
+        .filter((f) => f && f.endsWith('.json') && f.startsWith('config-'))
+        .map((f) => {
+          const p = path.join(backupsDir, f);
+          try { return { f, mtimeMs: fs.statSync(p).mtimeMs }; } catch (_) { return null; }
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+      const toDelete = entries.slice(keep);
+      for (const e of toDelete) {
+        try { fs.unlinkSync(path.join(backupsDir, e.f)); } catch (_) {}
+      }
+    } catch (_) {}
     
     res.json({ success: true, filename });
   } catch (error) {

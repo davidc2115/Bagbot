@@ -5,9 +5,27 @@
  * @param {object} configData - La configuration à valider
  * @param {string} guildId - ID du serveur (optionnel)
  * @param {string} updateType - Type de mise à jour: 'counting', 'logs', 'economy', etc. (optionnel)
+ * @param {object|null} prevConfigData - Snapshot précédent (optionnel, pour détecter une chute brutale)
  */
-function validateConfigBeforeWrite(configData, guildId, updateType = 'unknown') {
+function validateConfigBeforeWrite(configData, guildId, updateType = 'unknown', prevConfigData = null) {
   try {
+    function countUsers(cfg) {
+      if (!cfg || typeof cfg !== 'object' || !cfg.guilds || typeof cfg.guilds !== 'object') return 0;
+      const ids = new Set();
+      for (const gid of Object.keys(cfg.guilds)) {
+        const g = cfg.guilds[gid] || {};
+        const eco = g.economy?.balances;
+        if (eco && typeof eco === 'object') {
+          for (const uid of Object.keys(eco)) ids.add(uid);
+        }
+        const lv = g.levels?.users;
+        if (lv && typeof lv === 'object') {
+          for (const uid of Object.keys(lv)) ids.add(uid);
+        }
+      }
+      return ids.size;
+    }
+
     // 1. Vérifier que c'est un objet valide
     if (!configData || typeof configData !== 'object') {
       console.error('[Protection] ❌ Config invalide: pas un objet');
@@ -24,6 +42,21 @@ function validateConfigBeforeWrite(configData, guildId, updateType = 'unknown') 
     if (updateType === 'counting' || updateType === 'logs' || updateType === 'autothread' || updateType === 'disboard') {
       console.log(`[Protection] ✅ Validation allégée (${updateType}) - OK`);
       return { valid: true, updateType, lightweight: true };
+    }
+
+    // 2b. Détection chute brutale (anti-perte massive)
+    const prevUsers = countUsers(prevConfigData);
+    const newUsers = countUsers(configData);
+    if (prevUsers >= 50) {
+      const minAllowed = Math.max(10, Math.floor(prevUsers * 0.25));
+      if (newUsers < minAllowed) {
+        const allow = process.env.ALLOW_DANGEROUS_RESTORE === '1' && updateType === 'restore';
+        if (!allow) {
+          console.error(`[Protection] ❌ CHUTE BRUTALE BLOQUÉE: ${prevUsers} -> ${newUsers} (min autorisé: ${minAllowed}) updateType=${updateType}`);
+          return { valid: false, reason: 'catastrophic_drop', previous: prevUsers, current: newUsers, minAllowed, updateType };
+        }
+        console.warn(`[Protection] ⚠️ CHUTE BRUTALE AUTORISÉE (ALLOW_DANGEROUS_RESTORE=1): ${prevUsers} -> ${newUsers}`);
+      }
     }
 
     // 3. Si guildId fourni, vérifier ce serveur spécifiquement
@@ -65,8 +98,8 @@ function validateConfigBeforeWrite(configData, guildId, updateType = 'unknown') 
         return { valid: false, reason: 'total_too_low', total: totalBalances };
       }
 
-      console.log(`[Protection] ✅ Validation ${updateType === 'economy' ? 'stricte' : 'standard'} OK: ${totalBalances} utilisateurs total`);
-      return { valid: true, totalUsers: totalBalances, updateType };
+      console.log(`[Protection] ✅ Validation ${updateType === 'economy' ? 'stricte' : 'standard'} OK: ${totalBalances} utilisateurs total (unique≈${newUsers})`);
+      return { valid: true, totalUsers: newUsers, updateType };
     }
 
     // 5. Pour les autres types, validation basique OK

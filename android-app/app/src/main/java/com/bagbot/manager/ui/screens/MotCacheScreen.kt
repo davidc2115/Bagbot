@@ -53,7 +53,7 @@ fun MotCacheScreen(
             errorMessage = null
             try {
                 val result = withContext(Dispatchers.IO) {
-                    api.getJson("/api/mot-cache/my-progress")
+                    api.getJson("/api/motcache/my-progress")
                 }
                 val jsonResult = json.parseToJsonElement(result).jsonObject
                 
@@ -89,7 +89,7 @@ fun MotCacheScreen(
                 }
                 
                 val result = withContext(Dispatchers.IO) {
-                    api.postJson("/api/mot-cache/guess", payload.toString())
+                    api.postJson("/api/motcache/guess", payload.toString())
                 }
                 val jsonResult = json.parseToJsonElement(result).jsonObject
                 
@@ -138,7 +138,7 @@ fun MotCacheScreen(
                 }
             )
         },
-        containerColor = Color(0xFF121212)
+        containerColor = Color.Transparent
     ) { padding ->
         if (isLoading) {
             Box(

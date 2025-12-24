@@ -10,7 +10,10 @@ async function handleMessage(message) {
 
   try {
     const config = await readConfig();
-    const guildConfig = config.guilds[message.guildId] || {};
+    const guildId = message.guildId;
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[guildId]) config.guilds[guildId] = {};
+    const guildConfig = config.guilds[guildId];
     const motCache = guildConfig.motCache || {};
 
     // Vérifier si le jeu est activé (pas de log si désactivé pour éviter le spam)

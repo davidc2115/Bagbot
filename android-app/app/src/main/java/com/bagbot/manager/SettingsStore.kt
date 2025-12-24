@@ -74,6 +74,24 @@ class SettingsStore private constructor(context: Context) {
     fun getToken(): String? = prefs.getString("token", null)
     fun setToken(token: String) = prefs.edit().putString("token", token).apply()
     fun clearToken() = prefs.edit().remove("token").apply()
+
+    // --- UI preferences (per-device, per-user of the phone) ---
+    fun getDashboardOrder(): List<String> {
+        val raw = prefs.getString("dashboard_order", null)?.trim().orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    }
+
+    fun setDashboardOrder(order: List<String>) {
+        val raw = order.joinToString(",") { it.trim() }.trim()
+        prefs.edit().putString("dashboard_order", raw).apply()
+    }
+
+    fun getLastDashboardTab(): String? = prefs.getString("dashboard_last_tab", null)
+    fun setLastDashboardTab(tab: String?) {
+        if (tab.isNullOrBlank()) prefs.edit().remove("dashboard_last_tab").apply()
+        else prefs.edit().putString("dashboard_last_tab", tab).apply()
+    }
     
     fun wasUrlMigrated(): Boolean = prefs.getBoolean("url_migrated", false)
     fun clearMigrationFlag() = prefs.edit().putBoolean("url_migrated", false).apply()

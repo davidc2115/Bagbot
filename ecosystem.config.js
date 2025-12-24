@@ -8,8 +8,10 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       watch: false,
-      max_memory_restart: "400M",
-      node_args: "--max-old-space-size=384",
+      // Plus de marge mémoire (évite crash GC/OOM sur grosses configs)
+      // ⚠️ À ajuster selon la RAM du serveur
+      max_memory_restart: "900M",
+      node_args: "--max-old-space-size=768",
       max_restarts: 10,
       min_uptime: "30s",
       restart_delay: 3000,
@@ -26,8 +28,8 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       watch: false,
-      max_memory_restart: "200M",
-      node_args: "--max-old-space-size=192",
+      max_memory_restart: "350M",
+      node_args: "--max-old-space-size=320",
       error_file: "/home/bagbot/.pm2/logs/bot-api-error.log",
       out_file: "/home/bagbot/.pm2/logs/bot-api-out.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss",

@@ -27,6 +27,124 @@ function setDataDir(dir) {
   CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 }
 
+// ============================================================================
+// Inter-process write lock for config.json
+//
+// Why: bagbot + bot-api (separate PM2 processes) can both call writeConfig().
+// Without a shared lock, concurrent writes may interleave and corrupt config.json,
+// especially on filesystems where atomic rename can fail and we fall back to
+// direct writeFile().
+// ============================================================================
+function getWriteLockPath() {
+  return path.join(DATA_DIR, 'config.write.lock');
+}
+
+async function acquireWriteLock({ timeoutMs = 12_000, staleMs = 2 * 60_000 } = {}) {
+  const lockPath = getWriteLockPath();
+  const start = Date.now();
+  // Ensure directory exists for lock file
+  try { await fsp.mkdir(DATA_DIR, { recursive: true }); } catch (_) {}
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const fh = await fsp.open(lockPath, 'wx');
+      try {
+        const payload = JSON.stringify({ pid: process.pid, at: Date.now() });
+        await fh.writeFile(payload, 'utf8').catch(() => {});
+      } catch (_) {}
+      return { fh, lockPath };
+    } catch (e) {
+      // If lock exists, check for staleness (process crashed, etc.)
+      try {
+        const st = await fsp.stat(lockPath);
+        if (Date.now() - st.mtimeMs > staleMs) {
+          await fsp.unlink(lockPath).catch(() => {});
+          continue;
+        }
+      } catch (_) {}
+      // Backoff with small jitter
+      const delay = 120 + Math.floor(Math.random() * 180);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error(`Timeout acquiring config write lock (${timeoutMs}ms)`);
+}
+
+async function releaseWriteLock(lock) {
+  if (!lock) return;
+  try { await lock.fh?.close?.(); } catch (_) {}
+  try { await fsp.unlink(lock.lockPath).catch(() => {}); } catch (_) {}
+}
+
+function unwrapBackupData(backupData) {
+  // Format 1: { data, metadata }
+  if (backupData && typeof backupData === 'object' && backupData.data && backupData.metadata) return backupData.data;
+  // Format 2: config direct { guilds: ... }
+  if (backupData && typeof backupData === 'object' && backupData.guilds) return backupData;
+  return null;
+}
+
+async function loadConfigFromFile(filePath) {
+  const raw = await fsp.readFile(filePath, 'utf8');
+  const parsed = JSON.parse(raw);
+  const unwrapped = unwrapBackupData(parsed);
+  if (!unwrapped) throw new Error('Format de sauvegarde non reconnu');
+  if (!unwrapped.guilds || typeof unwrapped.guilds !== 'object') throw new Error('Backup invalide: pas de guilds');
+  return unwrapped;
+}
+
+async function findLatestBackupFile(guildId = null) {
+  const candidates = [];
+  const backupsDir = path.join(DATA_DIR, 'backups');
+  const varBackupsDir = '/var/data/backups';
+
+  // Per-guild (si demandé)
+  if (guildId) {
+    candidates.push(path.join(backupsDir, `guild-${guildId}`));
+    candidates.push(path.join(varBackupsDir, `guild-${guildId}`));
+  }
+
+  // Dossiers connus
+  candidates.push(path.join(backupsDir, 'hourly'));
+  candidates.push(path.join(backupsDir, 'external-hourly'));
+  candidates.push(backupsDir);
+  candidates.push(path.join(varBackupsDir, 'hourly'));
+  candidates.push(path.join(varBackupsDir, 'external-hourly'));
+  candidates.push(varBackupsDir);
+
+  const files = [];
+  for (const dir of candidates) {
+    try {
+      await fsp.access(dir, fs.constants.R_OK);
+      const names = await fsp.readdir(dir).catch(() => []);
+      for (const n of names) {
+        if (!n.toLowerCase().endsWith('.json')) continue;
+        const full = path.join(dir, n);
+        try {
+          const st = await fsp.stat(full);
+          if (!st.isFile()) continue;
+          files.push({ full, mtimeMs: st.mtimeMs });
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  for (const f of files.slice(0, 300)) {
+    try {
+      const cfg = await loadConfigFromFile(f.full);
+      if (guildId && !(cfg.guilds && cfg.guilds[guildId])) continue;
+      // Ne pas accepter une sauvegarde "vide"
+      if (Object.keys(cfg.guilds || {}).length === 0) continue;
+      return f.full;
+    } catch (_) {
+      // ignorer fichier illisible/corrompu
+    }
+  }
+  return null;
+}
+
 async function ensureStorageExists() {
   if (USE_PG && pgHealthy) {
     try {
@@ -82,10 +200,27 @@ async function ensureStorageExists() {
   try {
     await fsp.access(CONFIG_PATH, fs.constants.F_OK);
   } catch (_) {
-    // NE JAMAIS créer de config vide - ERREUR si fichier manquant
-    console.error("[storage] ERREUR CRITIQUE: config.json introuvable à", CONFIG_PATH);
-    console.error("[storage] Restaurez depuis une sauvegarde avec: node restore-backup.js");
-    throw new Error("config.json introuvable - Restauration requise");
+    // Si config.json manque, tenter une restauration automatique depuis le dernier backup
+    try {
+      const latest = await findLatestBackupFile();
+      if (latest) {
+        const restored = await loadConfigFromFile(latest);
+        try { await fsp.mkdir(DATA_DIR, { recursive: true }); } catch (_) {}
+        const tmp = CONFIG_PATH + '.tmp';
+        await fsp.writeFile(tmp, JSON.stringify(restored, null, 2), 'utf8');
+        try { await fsp.rename(tmp, CONFIG_PATH); } catch (_) { await fsp.writeFile(CONFIG_PATH, JSON.stringify(restored, null, 2), 'utf8'); }
+        console.warn('[storage] config.json manquant -> restauré automatiquement depuis:', latest);
+      } else {
+        // NE JAMAIS créer de config vide - ERREUR si fichier manquant
+        console.error("[storage] ERREUR CRITIQUE: config.json introuvable à", CONFIG_PATH);
+        console.error("[storage] Aucun backup trouvé pour restauration automatique.");
+        console.error("[storage] Restaurez depuis une sauvegarde avec: /restore ou node restore-backup.js");
+        throw new Error("config.json introuvable - Restauration requise");
+      }
+    } catch (e) {
+      console.error("[storage] Restauration automatique impossible:", e?.message || e);
+      throw e;
+    }
   }
   try { console.log('[storage] Mode: fichier JSON ->', CONFIG_PATH); } catch (_) {}
 }
@@ -99,8 +234,8 @@ async function readConfig() {
       try {
         const { rows } = await client.query('SELECT data FROM app_config WHERE id = 1');
         const data = rows?.[0]?.data || { guilds: {} };
-        if (!data || typeof data !== 'object') return { guilds: {} };
-        if (!data.guilds || typeof data.guilds !== 'object') data.guilds = {};
+        if (!data || typeof data !== 'object') throw new Error('Postgres config invalide (pas un objet)');
+        if (!data.guilds || typeof data.guilds !== 'object') throw new Error('Postgres config invalide (pas de guilds)');
         return data;
       } finally {
         client.release();
@@ -113,42 +248,112 @@ async function readConfig() {
   try {
     const raw = await fsp.readFile(CONFIG_PATH, 'utf8');
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return { guilds: {} };
-    if (!parsed.guilds || typeof parsed.guilds !== 'object') parsed.guilds = {};
+    if (!parsed || typeof parsed !== 'object') throw new Error('config.json invalide (pas un objet)');
+    if (!parsed.guilds || typeof parsed.guilds !== 'object') throw new Error('config.json invalide (pas de guilds)');
     return parsed;
-  } catch (_) {
-    // Si le fichier est manquant ou corrompu, on tente de régénérer
+  } catch (e) {
+    // Si le fichier est corrompu/illisible, NE PAS écrire de config vide.
+    // On tente une restauration automatique depuis le dernier backup.
     try {
-      await fsp.mkdir(DATA_DIR, { recursive: true });
-      await fsp.writeFile(CONFIG_PATH, JSON.stringify({ guilds: {} }, null, 2), 'utf8');
-    } catch (_) {}
-    return { guilds: {} };
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      try {
+        const corruptPath = CONFIG_PATH + `.corrupt-${ts}`;
+        await fsp.rename(CONFIG_PATH, corruptPath);
+        console.error('[storage] config.json corrompu -> déplacé vers:', corruptPath);
+      } catch (_) {}
+
+      const latest = await findLatestBackupFile();
+      if (!latest) {
+        console.error('[storage] Aucun backup trouvé pour restaurer automatiquement.');
+        throw new Error('config.json corrompu et aucun backup disponible');
+      }
+      const restored = await loadConfigFromFile(latest);
+      const lock = await acquireWriteLock().catch(() => null);
+      try {
+        const tmp = CONFIG_PATH + '.tmp';
+        await fsp.writeFile(tmp, JSON.stringify(restored, null, 2), 'utf8');
+        try { await fsp.rename(tmp, CONFIG_PATH); }
+        catch (_) { await fsp.writeFile(CONFIG_PATH, JSON.stringify(restored, null, 2), 'utf8'); }
+      } finally {
+        await releaseWriteLock(lock);
+      }
+      console.warn('[storage] config.json restauré automatiquement depuis:', latest);
+      return restored;
+    } catch (restoreErr) {
+      console.error('[storage] ❌ Lecture config impossible:', e?.message || e);
+      throw restoreErr;
+    }
   }
 }
 
 async function writeConfig(cfg, updateType = "unknown") {
   await ensureStorageExists();
+  const lock = await acquireWriteLock().catch((e) => {
+    try { console.error('[storage] ❌ Impossible d\'acquérir le lock d\'écriture:', e?.message || e); } catch (_) {}
+    throw e;
+  });
   
   // 🛡️ PROTECTION ANTI-CORRUPTION
-  const validation = validateConfigBeforeWrite(cfg, null, updateType);
+  let prevSnapshot = null;
+  if (USE_PG && pgHealthy) {
+    try {
+      const pool = await getPg();
+      const client = await pool.connect();
+      try {
+        const { rows } = await client.query('SELECT data FROM app_config WHERE id = 1');
+        prevSnapshot = rows?.[0]?.data || null;
+      } finally {
+        client.release();
+      }
+    } catch (_) {
+      prevSnapshot = null;
+    }
+  } else {
+    try {
+      prevSnapshot = await loadConfigFromFile(CONFIG_PATH);
+    } catch (_) {
+      prevSnapshot = null;
+    }
+  }
+
+  // If the current config file is unreadable/corrupted, prevSnapshot may be null.
+  // In that case, fall back to the latest valid backup to still detect catastrophic drops.
+  if (!prevSnapshot) {
+    try {
+      const latestPrev = await findLatestBackupFile();
+      if (latestPrev) {
+        prevSnapshot = await loadConfigFromFile(latestPrev);
+        try { console.warn('[Protection] prevSnapshot chargé depuis backup (config.json illisible):', latestPrev); } catch (_) {}
+      }
+    } catch (_) {
+      // keep null; validation will still run but without historical comparison
+    }
+  }
+
+  const validation = validateConfigBeforeWrite(cfg, null, updateType, prevSnapshot);
   if (!validation.valid) {
     console.error('[Protection] ❌ REFUS D ÉCRITURE: Config invalide -', validation.reason);
     console.error('[Protection] 🔄 Le config actuel reste intact');
+    await releaseWriteLock(lock);
     throw new Error(`Protection anti-corruption: ${validation.reason}`);
   }
   
   console.log(`[Protection] ✅ Config valide (${validation.totalUsers} utilisateurs)`);
   
   // Sauvegarder le fichier principal config.json (toutes les guilds)
-  try { await fsp.mkdir(DATA_DIR, { recursive: true }); } catch (_) {}
-  const tmpPath = CONFIG_PATH + '.tmp';
-  await fsp.writeFile(tmpPath, JSON.stringify(cfg, null, 2), 'utf8');
   try {
-    await fsp.rename(tmpPath, CONFIG_PATH);
-  } catch (e) {
-    // Sur certains FS (ex: overlay), rename atomique peut échouer: fallback sur write direct
-    try { await fsp.writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8'); }
-    catch (_) {}
+    try { await fsp.mkdir(DATA_DIR, { recursive: true }); } catch (_) {}
+    const tmpPath = CONFIG_PATH + '.tmp';
+    await fsp.writeFile(tmpPath, JSON.stringify(cfg, null, 2), 'utf8');
+    try {
+      await fsp.rename(tmpPath, CONFIG_PATH);
+    } catch (e) {
+      // Sur certains FS (ex: overlay), rename atomique peut échouer: fallback sur write direct
+      try { await fsp.writeFile(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8'); }
+      catch (_) {}
+    }
+  } finally {
+    await releaseWriteLock(lock);
   }
   
   // BACKUPS AUTOMATIQUES DÉSACTIVÉS
@@ -208,39 +413,34 @@ async function restoreLatest() {
   let data = null;
   let source = 'unknown';
 
-  // 1. Essayer les sauvegardes globales en priorité
+  // 1. Essayer le dernier backup valide (tous emplacements connus)
   if (!data) {
     try {
-      const backupsDir = path.join(DATA_DIR, 'backups');
-      const globalBackups = (await fsp.readdir(backupsDir))
-        .filter(n => n.startsWith('config-global-') && n.endsWith('.json'))
-        .sort();
-      
-      if (globalBackups.length) {
-        const latest = path.join(backupsDir, globalBackups[globalBackups.length - 1]);
-        const raw = await fsp.readFile(latest, 'utf8');
-        data = JSON.parse(raw);
-        source = 'file_backup_global';
-        console.log('[Restore] Restauration depuis sauvegarde globale:', globalBackups[globalBackups.length - 1]);
+      const latest = await findLatestBackupFile();
+      if (latest) {
+        data = await loadConfigFromFile(latest);
+        source = `latest_backup:${latest}`;
+        console.log('[Restore] Restauration depuis dernier backup:', latest);
       }
     } catch (_) {}
   }
 
-  // 2. Dernier recours : fichier de config principal
+  // 2. Dernier recours : fichier de config principal (si lisible)
   if (!data) {
-    try { 
-      const raw = await fsp.readFile(CONFIG_PATH, 'utf8'); 
-      data = JSON.parse(raw);
+    try {
+      data = await loadConfigFromFile(CONFIG_PATH);
       source = 'file_current';
-    } catch (_) { 
-      data = { guilds: {} };
-      source = 'default';
-    }
+    } catch (_) {}
+  }
+
+  // 3. Ne jamais restaurer un état "vide" par défaut
+  if (!data) {
+    throw new Error('Aucun backup valide trouvé pour restoreLatest()');
   }
 
   // Appliquer la restauration
   if (data) {
-    await writeConfig(data);
+    await writeConfig(data, "restore");
     // Synchroniser avec le fichier local
     try {
       await fsp.mkdir(DATA_DIR, { recursive: true });
@@ -317,7 +517,7 @@ async function restoreFromBackupFile(filename, guildId = null) {
     if (guildId && restoredData.guilds && restoredData.guilds[guildId]) {
       const currentConfig = await readConfig();
       currentConfig.guilds[guildId] = restoredData.guilds[guildId];
-      await writeConfig(currentConfig);
+      await writeConfig(currentConfig, "restore");
       
       console.log(`[Restore] Restauration partielle réussie pour le serveur ${guildId} depuis: ${filename}`);
       
@@ -330,7 +530,7 @@ async function restoreFromBackupFile(filename, guildId = null) {
       };
     } else {
       // Restauration globale (tous les serveurs)
-      await writeConfig(restoredData);
+      await writeConfig(restoredData, "restore");
       
       console.log(`[Restore] Restauration globale réussie depuis: ${filename}`);
       
@@ -1491,7 +1691,14 @@ function ensureCountingShape(g) {
   if (!Array.isArray(c.channels)) c.channels = [];
   if (typeof c.allowFormulas !== 'boolean') c.allowFormulas = true;
   if (!c.state || typeof c.state !== 'object') c.state = { current: 0, lastUserId: '' };
-  if (typeof c.state.current !== 'number') c.state.current = 0;
+  // Be tolerant: some clients may persist numbers as strings.
+  if (typeof c.state.current === 'string') {
+    const s = c.state.current.trim();
+    const n = Number(s);
+    c.state.current = Number.isFinite(n) ? n : 0;
+  } else if (typeof c.state.current !== 'number') {
+    c.state.current = 0;
+  }
   if (typeof c.state.lastUserId !== 'string') c.state.lastUserId = '';
   if (!Array.isArray(c.achievedNumbers)) c.achievedNumbers = [];
 }
@@ -1501,6 +1708,14 @@ function ensureDisboardShape(g) {
   if (typeof d.lastBumpAt !== 'number') d.lastBumpAt = 0;
   if (typeof d.lastBumpChannelId !== 'string') d.lastBumpChannelId = '';
   if (typeof d.reminded !== 'boolean') d.reminded = false;
+}
+
+function ensureTribunalShape(g) {
+  if (!g.tribunal || typeof g.tribunal !== 'object') g.tribunal = {};
+  const t = g.tribunal;
+  if (typeof t.categoryId !== 'string') t.categoryId = '';
+  if (typeof t.judgeRoleId !== 'string') t.judgeRoleId = ''; // optional
+  if (!t.cases || typeof t.cases !== 'object') t.cases = {};
 }
 
 function ensureLogsShape(g) {
@@ -1622,6 +1837,40 @@ async function getDisboardConfig(guildId) {
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   ensureDisboardShape(cfg.guilds[guildId]);
   return cfg.guilds[guildId].disboard;
+}
+
+async function getTribunalConfig(guildId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureTribunalShape(cfg.guilds[guildId]);
+  return cfg.guilds[guildId].tribunal;
+}
+
+async function updateTribunalConfig(guildId, partial) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureTribunalShape(cfg.guilds[guildId]);
+  cfg.guilds[guildId].tribunal = { ...cfg.guilds[guildId].tribunal, ...partial };
+  await writeConfig(cfg, "tribunal");
+  return cfg.guilds[guildId].tribunal;
+}
+
+async function upsertTribunalCase(guildId, caseId, patch) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureTribunalShape(cfg.guilds[guildId]);
+  const t = cfg.guilds[guildId].tribunal;
+  const cur = (t.cases && t.cases[String(caseId)]) ? t.cases[String(caseId)] : {};
+  t.cases[String(caseId)] = { ...cur, ...patch, id: String(caseId), updatedAt: Date.now() };
+  await writeConfig(cfg, "tribunal");
+  return t.cases[String(caseId)];
+}
+
+async function getTribunalCase(guildId, caseId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) return null;
+  ensureTribunalShape(cfg.guilds[guildId]);
+  return cfg.guilds[guildId].tribunal.cases[String(caseId)] || null;
 }
 async function updateDisboardConfig(guildId, partial) {
   const cfg = await readConfig();
@@ -1883,6 +2132,11 @@ module.exports = {
   setCountingState,
   getDisboardConfig,
   updateDisboardConfig,
+  // Tribunal
+  getTribunalConfig,
+  updateTribunalConfig,
+  getTribunalCase,
+  upsertTribunalCase,
   // Confess
   getConfessConfig,
   updateConfessConfig,

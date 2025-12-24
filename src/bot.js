@@ -2,6 +2,14 @@ const showRestoreMenu = require('./helpers/showRestoreMenu');
 try { require('dotenv').config({ override: true, path: '/var/data/.env' }); } catch (_) { try { require('dotenv').config({ override: true }); } catch (_) {} }
 const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, RoleSelectMenuBuilder, UserSelectMenuBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, Events, AttachmentBuilder, Collection } = require('discord.js');
 
+// Empêche deux instances simultanées (cause typique de messages en double)
+try {
+  const { acquireLock } = require('./helpers/singleInstanceGuard');
+  acquireLock();
+} catch (e) {
+  try { console.error('[Lock] init failed:', e?.message || e); } catch (_) {}
+}
+
 const { setGuildStaffRoleIds, getGuildStaffRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
 const { downloadDiscordGifForBot } = require('./utils/discord_gif_downloader');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
@@ -11,6 +19,21 @@ const path2 = require('path');
 
 // Simple in-memory image cache
 const imageCache = new Map(); // url -> { img, width, height, ts }
+// Dédoublonnage runtime (utile si un event est traité 2 fois)
+const _dedupeMap = new Map(); // key -> timestamp
+function shouldDedupe(key, ttlMs = 60_000) {
+  const now = Date.now();
+  const prev = _dedupeMap.get(key);
+  if (prev && (now - prev) < ttlMs) return true;
+  _dedupeMap.set(key, now);
+  // nettoyage opportuniste
+  if (_dedupeMap.size > 5000) {
+    for (const [k, ts] of _dedupeMap) {
+      if ((now - ts) > ttlMs) _dedupeMap.delete(k);
+    }
+  }
+  return false;
+}
 async function getCachedImage(url) {
   if (!url) return null;
   const cached = imageCache.get(url);
@@ -4449,6 +4472,11 @@ function memberDisplayName(guild, memberOrMention, userIdFallback) {
   return userIdFallback ? `Membre ${userIdFallback}` : 'Membre';
 }
 function maybeAnnounceLevelUp(guild, memberOrMention, levels, newLevel) {
+  try {
+    const uid = memberOrMention?.id || memberOrMention?.user?.id || 'unknown';
+    const key = `levelup:${guild?.id || 'g'}:${uid}:${String(newLevel)}`;
+    if (shouldDedupe(key, 30_000)) return;
+  } catch (_) {}
   console.log('[Announce] Tentative d\'annonce de niveau:', { guildId: guild.id, newLevel, enabled: levels.announce?.levelUp?.enabled, channelId: levels.announce?.levelUp?.channelId });
   const ann = levels.announce?.levelUp || {};
   if (!ann.enabled || !ann.channelId) {
@@ -4516,6 +4544,11 @@ function maybeAnnounceLevelUp(guild, memberOrMention, levels, newLevel) {
   }
 }
 function maybeAnnounceRoleAward(guild, memberOrMention, levels, roleId) {
+  try {
+    const uid = memberOrMention?.id || memberOrMention?.user?.id || 'unknown';
+    const key = `roleaward:${guild?.id || 'g'}:${uid}:${String(roleId || '')}`;
+    if (shouldDedupe(key, 30_000)) return;
+  } catch (_) {}
   console.log('[Announce] Tentative d\'annonce de rôle récompense:', { guildId: guild.id, roleId, enabled: levels.announce?.roleAward?.enabled, channelId: levels.announce?.roleAward?.channelId });
   const ann = levels.announce?.roleAward || {};
   if (!ann.enabled || !ann.channelId || !roleId) {
@@ -12699,6 +12732,7 @@ client.on(Events.MessageCreate, async (message) => {
     try {
       const DISBOARD_ID = '302050872383242240';
       if (message.author.id === DISBOARD_ID) {
+        if (shouldDedupe(`disboard:bumpmsg:${message.id}`, 10 * 60 * 1000)) return;
         const texts = [];
         if (message.content) texts.push(String(message.content));
         if (Array.isArray(message.embeds)) {
@@ -12802,16 +12836,23 @@ client.on(Events.MessageCreate, async (message) => {
           const m = onlyDigitsAndOps.match(/-?\d+/);
           if (m) value = Number(m[0]);
         }
+        // If we couldn't parse a number safely, do NOT reset the counter:
+        // random messages with digits (emojis, IDs, etc.) shouldn't wipe progress.
         if (!Number.isFinite(value)) {
-          await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-          await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Oups… valeur invalide').setDescription('Attendu: **' + expected0 + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on repart en douceur.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+          await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: valeur non reconnue').setDescription('Attendu: **' + expected0 + '**\nJe n\'arrive pas à interpréter ton message comme un nombre (ou une formule).\nOn ne reset pas: tu peux renvoyer **' + expected0 + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
         } else {
-          const next = Math.trunc(value);
+          // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
+          const rounded = Math.round(value);
+          const eps = 1e-9;
+          const next = (Math.abs(value - rounded) <= eps) ? rounded : value;
           const state = cfg.state || { current: 0, lastUserId: '' };
           const expected = (state.current || 0) + 1;
           if ((state.lastUserId||'') === message.author.id) {
             await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
             await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Doucement, un à la fois…').setDescription('Deux chiffres d\'affilée 😉\nAttendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, à toi de rejouer.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+          } else if (!Number.isInteger(next)) {
+            // Non-integer results shouldn't hard-reset the game.
+            await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: résultat non entier').setDescription('Attendu: **' + expected + '**\nTon résultat fait **' + String(next) + '** (non entier). Le comptage attend un entier.\nOn ne reset pas: renvoie **' + expected + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
           } else if (next !== expected) {
             await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
             await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Mauvais numéro').setDescription('Attendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on se retrouve au début 💕').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});

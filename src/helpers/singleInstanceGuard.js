@@ -6,11 +6,26 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOCK_FILE = '/var/data/bot.lock';
+function resolveLockFile() {
+  const candidates = [
+    process.env.BAGBOT_LOCK_FILE,
+    // preferred persistent dir if available
+    '/var/data/bot.lock',
+    // fallback to configured DATA_DIR
+    (process.env.DATA_DIR ? path.join(String(process.env.DATA_DIR), 'bot.lock') : null),
+    // last resort
+    '/tmp/bot.lock'
+  ].filter(Boolean);
+  return candidates[0];
+}
+const LOCK_FILE = resolveLockFile();
 const MAX_LOCK_AGE = 60000; // 60 secondes
 
 function acquireLock() {
   try {
+    // S'assurer que le dossier existe (si ce n'est pas /tmp)
+    try { fs.mkdirSync(path.dirname(LOCK_FILE), { recursive: true }); } catch (_) {}
+
     // Vérifier si le lock existe
     if (fs.existsSync(LOCK_FILE)) {
       const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
@@ -37,7 +52,7 @@ function acquireLock() {
     };
     
     fs.writeFileSync(LOCK_FILE, JSON.stringify(lockData, null, 2), 'utf8');
-    console.log('[Lock] ✅ Lock acquis, PID:', process.pid);
+    console.log('[Lock] ✅ Lock acquis, PID:', process.pid, 'file:', LOCK_FILE);
     
     // Mettre à jour le lock toutes les 30 secondes
     setInterval(() => {

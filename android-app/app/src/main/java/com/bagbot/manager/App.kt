@@ -40,7 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
+import com.bagbot.manager.StaffChatNotificationWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,6 +73,27 @@ import com.bagbot.manager.ui.components.ChannelSelector
 import com.bagbot.manager.ui.components.RoleSelector
 
 private const val TAG = "BAG_APP"
+
+@Composable
+private fun AppBackground(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        // Fond image global
+        Image(
+            painter = painterResource(id = R.drawable.bag_server_logo),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alpha = 0.22f
+        )
+        // Overlay sombre pour lisibilité
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.72f))
+        )
+        content()
+    }
+}
 
 
 // ============================================
@@ -97,7 +121,7 @@ val configGroups = listOf(
         "👮 Modération & Sécurité",
         Icons.Default.Security,
         Color(0xFFE53935),
-        listOf("logs", "autokick", "staffRoleIds", "quarantineRoleId", "tribunal")
+        listOf("logs", "autokick", "inactivity", "staffRoleIds", "quarantineRoleId")
     ),
     ConfigGroup(
         "gamification",
@@ -522,16 +546,17 @@ fun createNotificationChannel(context: Context) {
 }
 
 // Fonction pour envoyer une notification
-fun sendStaffChatNotification(context: Context, senderName: String, message: String) {
+fun sendStaffChatNotification(context: Context, senderName: String, message: String, isMention: Boolean = false) {
     try {
         val notificationId = System.currentTimeMillis().toInt()
         val channelId = "staff_chat_channel"
         
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
-            .setContentTitle("💬 Chat Staff - $senderName")
+            .setContentTitle(if (isMention) "🔔 Mention - $senderName" else "💬 Chat Staff - $senderName")
             .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(if (isMention) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
         
@@ -596,13 +621,25 @@ fun StaffChatScreen(
                         // Vérifier s'il y a de nouveaux messages
                         if (newMessages.size > previousMessageCount && previousMessageCount > 0) {
                             // Nouveau message détecté, envoyer une notification
-                            val latestMessage = newMessages.firstOrNull()
+                            val latestMessage = newMessages.lastOrNull()
                             if (latestMessage != null) {
                                 val currentUserId = userInfo?.get("id").safeStringOrEmpty()
                                 // Ne pas notifier pour ses propres messages
                                 if (latestMessage.userId != currentUserId) {
                                     val senderName = members[latestMessage.userId] ?: latestMessage.username
-                                    sendStaffChatNotification(context, senderName, latestMessage.message)
+                                    val isMention = run {
+                                        val msg = latestMessage.message.lowercase()
+                                        if (msg.contains("@everyone") || msg.contains("@here")) return@run true
+                                        val u = (userInfo?.get("username").safeString() ?: "").trim()
+                                        if (u.isBlank()) return@run false
+                                        msg.contains("@${u.lowercase()}")
+                                    }
+                                    sendStaffChatNotification(
+                                        context = context,
+                                        senderName = senderName,
+                                        message = latestMessage.message,
+                                        isMention = isMention
+                                    )
                                 }
                             }
                         }
@@ -707,6 +744,26 @@ fun StaffChatScreen(
                 IconButton(onClick = { showRoomSelector = !showRoomSelector }) {
                     Icon(Icons.Default.People, "Changer de room", tint = Color.White)
                 }
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val body = buildJsonObject { put("room", selectedRoom) }
+                                    api.postJson("/api/staff/chat/clear", body.toString())
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.showSnackbar("🗑️ Conversation supprimée")
+                                        loadMessages()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.Delete, "Supprimer conversation", tint = Color.White)
+                }
                 IconButton(onClick = { loadMessages() }) {
                     Icon(Icons.Default.Refresh, "Actualiser", tint = Color.White)
                 }
@@ -734,10 +791,10 @@ fun StaffChatScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("💬 Chats privés (Tous les membres)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text("💬 Chats privés (Admins autorisés)", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                     Spacer(Modifier.height(4.dp))
                     
-                    // Liste de TOUS les membres (en ligne et hors ligne)
+                    // Liste des admins autorisés (en ligne et hors ligne)
                     val currentUserId = userInfo?.get("id").safeStringOrEmpty()
                     val onlineAdminIds = onlineAdmins.map { it["userId"].safeStringOrEmpty() }.toSet()
                     
@@ -974,7 +1031,8 @@ fun StaffMainScreen(
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
-    members: Map<String, String>,
+    chatMembers: Map<String, String>,
+    allMembers: Map<String, String>,
     userInfo: JsonObject?,
     isFounder: Boolean,
     isAdmin: Boolean  // Vérification admin pour chat
@@ -1039,7 +1097,7 @@ fun StaffMainScreen(
                     )
                 }
             }
-            StaffChatScreen(api, json, scope, snackbar, members, userInfo)
+            StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
         }
     } else if (isFounder) {
         // Si fondateur: afficher tous les onglets
@@ -1068,8 +1126,8 @@ fun StaffMainScreen(
                 })
             }
             when (selectedStaffTab) {
-                0 -> StaffChatScreen(api, json, scope, snackbar, members, userInfo)  // members ici contient déjà les admins passés depuis StaffMainScreen
-                1 -> AdminScreen(api, members) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+                0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
+                1 -> AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
                 2 -> LogsScreen(api, json, scope, snackbar)
             }
         }
@@ -1099,6 +1157,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var isFounder by remember { mutableStateOf(false) }
     var isAdmin by remember { mutableStateOf(false) }
     var isAuthorized by remember { mutableStateOf(false) }
+    var allowedUserIds by remember { mutableStateOf<List<String>>(emptyList()) }
     
     // Créer userInfo JsonObject pour StaffChat
     val userInfo = remember(userId, userName) {
@@ -1130,6 +1189,17 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
     val json = remember { Json { ignoreUnknownKeys = true; coerceInputValues = true } }
 
+    // Annuaire utilisé par le chat staff: par défaut admins, sinon users autorisés (inclut offline)
+    val staffChatMembers = remember(members, adminMembers, allowedUserIds) {
+        if (allowedUserIds.isNotEmpty()) {
+            allowedUserIds.associateWith { uid ->
+                members[uid] ?: adminMembers[uid] ?: "Utilisateur $uid"
+            }
+        } else {
+            adminMembers
+        }
+    }
+
     // Vérifier si une migration d'URL a eu lieu
     LaunchedEffect(Unit) {
         if (store.wasUrlMigrated()) {
@@ -1157,6 +1227,13 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     // Chargement des données
     LaunchedEffect(token, baseUrl) {
         if (token.isNullOrBlank() || baseUrl.isNullOrBlank()) return@LaunchedEffect
+
+        // Notifications staff (en arrière-plan via WorkManager)
+        try {
+            StaffChatNotificationWorker.schedule(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not schedule staff notifications: ${e.message}")
+        }
         
         isLoading = true
         errorMessage = null
@@ -1296,23 +1373,28 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                 Log.d(TAG, "Fetching /api/configs")
                 try {
                     val configJson = api.getJson("/api/configs")
-                    Log.d(TAG, "Response /api/configs: ${configJson.take(500)}")
+                    Log.d(TAG, "Response /api/configs: ${configJson.take(200)}")
+                    val baseConfig = json.parseToJsonElement(configJson).jsonObject
+
+                    // Injecter une vue fiable de l'inactivité via /api/inactivity
+                    val mergedConfig = try {
+                        val inactivityJson = api.getJson("/api/inactivity")
+                        val inactivityObj = json.parseToJsonElement(inactivityJson).jsonObject
+                        buildJsonObject {
+                            baseConfig.forEach { (k, v) -> put(k, v) }
+                            put("inactivity", inactivityObj)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not fetch /api/inactivity for config tile: ${e.message}")
+                        baseConfig
+                    }
+
                     withContext(Dispatchers.Main) {
-                        configData = json.parseToJsonElement(configJson).jsonObject
+                        configData = mergedConfig
                     }
                     Log.d(TAG, "Config loaded: ${configData?.keys?.size} sections")
-                    Log.d(TAG, "Config keys: ${configData?.keys}")
-                    
-                    // Log spécifique pour autokick
-                    val autokick = configData?.get("autokick")
-                    if (autokick != null) {
-                        Log.d(TAG, "✅ autokick found: ${autokick.toString().take(300)}")
-                    } else {
-                        Log.w(TAG, "⚠️ autokick NOT found in config!")
-                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error /api/configs: ${e.message}")
-                    Log.e(TAG, "Stack trace: ${e.stackTraceToString()}")
                     withContext(Dispatchers.Main) {
                         errorMessage = "Erreur configuration: ${e.message}"
                     }
@@ -1339,6 +1421,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     val allowedUsers = allowedData["allowedUsers"]?.jsonArray.safeStringList()
                     
                     withContext(Dispatchers.Main) {
+                        allowedUserIds = allowedUsers
                         isAuthorized = userId in allowedUsers || isFounder
                         Log.d(TAG, "User authorized: $isAuthorized")
                     }
@@ -1346,6 +1429,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     Log.e(TAG, "Error checking authorization: ${e.message}")
                     withContext(Dispatchers.Main) {
                         // Si erreur, autoriser le fondateur par défaut
+                        allowedUserIds = emptyList()
                         isAuthorized = isFounder
                     }
                 }
@@ -1383,33 +1467,35 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         if (showSplash) {
             SplashScreen(onFinished = { showSplash = false })
         } else {
-            Scaffold(
-                snackbarHost = { SnackbarHost(snackbar) },
-                topBar = {
-                    TopAppBar(
-                        title = { 
-                            Text(
-                                if (selectedConfigSection != null) "Configuration" 
-                                else "💎 BAG Bot Manager", 
-                                fontWeight = FontWeight.Bold
-                            ) 
-                        },
-                        navigationIcon = {
-                            if (selectedConfigSection != null) {
-                                IconButton(onClick = { selectedConfigSection = null }) {
-                                    Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+            AppBackground {
+                Scaffold(
+                    containerColor = Color.Transparent,
+                    snackbarHost = { SnackbarHost(snackbar) },
+                    topBar = {
+                        TopAppBar(
+                            title = { 
+                                Text(
+                                    if (selectedConfigSection != null) "Configuration" 
+                                    else "💎 BAG Bot Manager", 
+                                    fontWeight = FontWeight.Bold
+                                ) 
+                            },
+                            navigationIcon = {
+                                if (selectedConfigSection != null) {
+                                    IconButton(onClick = { selectedConfigSection = null }) {
+                                        Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
+                                    }
                                 }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color(0xFFFF1744),
-                            titleContentColor = Color.White
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color(0xFFFF1744),
+                                titleContentColor = Color.White
+                            )
                         )
-                    )
-                },
-                bottomBar = {
-                    if (token?.isNotBlank() == true && selectedConfigSection == null) {
-                        NavigationBar {
+                    },
+                    bottomBar = {
+                        if (token?.isNotBlank() == true && selectedConfigSection == null) {
+                            NavigationBar(containerColor = Color(0xCC111111)) {
                             NavigationBarItem(
                                 selected = tab == 0,
                                 onClick = { tab = 0 },
@@ -1443,16 +1529,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.MusicNote, "Musique") },
                                 label = { Text("Musique") }
                             )
+                            }
                         }
                     }
-                }
-            ) { padding ->
-                Box(
-                    Modifier
-                        .padding(padding)
-                        .fillMaxSize()
-                        .background(Color(0xFF121212))
-                ) {
+                ) { padding ->
+                    Box(
+                        Modifier
+                            .padding(padding)
+                            .fillMaxSize()
+                    ) {
                     when {
                         selectedConfigSection != null -> {
                             // Afficher l'éditeur de configuration
@@ -1580,13 +1665,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 json = json,
                                 scope = scope,
                                 snackbar = snackbar,
-                                members = adminMembers, // Utiliser adminMembers (uniquement les admins)
+                                chatMembers = staffChatMembers,
+                                allMembers = members,
                                 userInfo = userInfo,
                                 isFounder = isFounder,
                                 isAdmin = isAdmin
                             )
                         }
                     }
+                }
                 }
             }
         }
@@ -3395,47 +3482,76 @@ fun ConfigGroupsScreen(
                 items(configGroups) { group ->
                     val sectionsInConfig = group.sections.count { configData.containsKey(it) }
                     
+                    val grad = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            group.color.copy(alpha = 0.35f),
+                            Color(0xFF121212)
+                        )
+                    )
                     Card(
                         Modifier
                             .fillMaxWidth()
                             .clickable { selectedGroup = group },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E).copy(alpha = 0.75f))
                     ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(grad)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    Modifier
-                                        .size(48.dp)
-                                        .background(group.color.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        group.icon,
-                                        null,
-                                        tint = group.color,
-                                        modifier = Modifier.size(28.dp)
-                                    )
+                            // Logo texte au centre (watermark)
+                            Text(
+                                text = "BAG",
+                                color = Color.White.copy(alpha = 0.08f),
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+
+                            Row(
+                                Modifier.fillMaxWidth().padding(20.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier
+                                            .size(54.dp)
+                                            .background(group.color.copy(alpha = 0.22f), RoundedCornerShape(10.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                group.icon,
+                                                null,
+                                                tint = group.color,
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                            Text(
+                                                text = "BAG",
+                                                color = group.color,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            group.name,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            "$sectionsInConfig/${group.sections.size} sections configurées",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
-                                Spacer(Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        group.name,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Text(
-                                        "$sectionsInConfig/${group.sections.size} sections configurées",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.Gray
-                                    )
-                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = group.color)
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = group.color)
                         }
                     }
                 }
@@ -3525,66 +3641,23 @@ fun renderKeyInfo(
                     keyInfos.add("🔒 Rôle quarantaine" to "${roles[roleId] ?: "Inconnu"} ($roleId)")
                 }
             }
-            "tribunal" -> {
+            "inactivity" -> {
                 val obj = sectionData.jsonObject
-                val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                val accuseRoleId = obj["accuseRoleId"]?.jsonPrimitive?.contentOrNull
-                val avocatRoleId = obj["avocatRoleId"]?.jsonPrimitive?.contentOrNull
-                val jugeRoleId = obj["jugeRoleId"]?.jsonPrimitive?.contentOrNull
-                val categoryId = obj["categoryId"]?.jsonPrimitive?.contentOrNull
-                
-                keyInfos.add("⚖️ Système activé" to if (enabled) "✅ Oui" else "❌ Non")
-                if (accuseRoleId != null) {
-                    keyInfos.add("⚖️ Rôle Accusé" to "${roles[accuseRoleId] ?: "Inconnu"} ($accuseRoleId)")
+                val enabled = obj["enabled"].safeBooleanOrFalse()
+                val delayDays = obj["delayDays"].safeInt()
+                    ?: obj["kickAfterDays"]?.jsonPrimitive?.intOrNull
+
+                keyInfos.add("État" to (if (enabled) "Activé ✅" else "Désactivé ⛔"))
+                if (delayDays != null) keyInfos.add("⏰ Délai" to "$delayDays jours")
+
+                val inactiveRoleId = obj["inactiveRoleId"].safeString()
+                if (!inactiveRoleId.isNullOrBlank()) {
+                    keyInfos.add("🏷️ Rôle inactif" to "${roles[inactiveRoleId] ?: "Inconnu"} ($inactiveRoleId)")
                 }
-                if (avocatRoleId != null) {
-                    keyInfos.add("👔 Rôle Avocat" to "${roles[avocatRoleId] ?: "Inconnu"} ($avocatRoleId)")
-                }
-                if (jugeRoleId != null) {
-                    keyInfos.add("👨‍⚖️ Rôle Juge" to "${roles[jugeRoleId] ?: "Inconnu"} ($jugeRoleId)")
-                }
-                if (categoryId != null) {
-                    keyInfos.add("📁 Catégorie Tribunaux" to "${channels[categoryId] ?: "Inconnue"} ($categoryId)")
-                }
-            }
-            "autokick" -> {
-                // Structure: autokick contient inactivityKick et inactivityTracking
-                val obj = sectionData.jsonObject
-                Log.d("ConfigDetail", "📊 autokick keys: ${obj.keys}")
-                
-                val inactivityKick = obj["inactivityKick"]?.jsonObject
-                val inactivityTracking = obj["inactivityTracking"]?.jsonObject
-                
-                Log.d("ConfigDetail", "🔍 inactivityKick exists: ${inactivityKick != null}")
-                Log.d("ConfigDetail", "🔍 inactivityTracking exists: ${inactivityTracking != null}")
-                
-                if (inactivityKick != null) {
-                    Log.d("ConfigDetail", "📋 inactivityKick keys: ${inactivityKick.keys}")
-                    val enabled = inactivityKick["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                    val delayDays = inactivityKick["delayDays"]?.jsonPrimitive?.intOrNull
-                    val trackedCount = inactivityTracking?.size ?: 0
-                    
-                    Log.d("ConfigDetail", "✅ enabled=$enabled, delayDays=$delayDays, tracked=$trackedCount")
-                    
-                    keyInfos.add("🔔 Inactivité" to if (enabled) "✅ Activé" else "❌ Désactivé")
-                    if (delayDays != null && delayDays > 0) {
-                        keyInfos.add("⏰ Kick après" to "$delayDays jours")
-                    }
-                    if (trackedCount > 0) {
-                        keyInfos.add("👥 Surveillés" to "$trackedCount membres")
-                    }
-                } else {
-                    Log.w("ConfigDetail", "⚠️ inactivityKick is NULL - autokick structure: ${obj.toString().take(200)}")
-                    keyInfos.add("⚠️ Inactivité" to "Non configuré")
-                }
-                
-                // Auto-kick rapide (nouveau membre)
-                val enabled = obj["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
-                val delayMs = obj["delayMs"]?.jsonPrimitive?.longOrNull
-                Log.d("ConfigDetail", "⚡ Auto-kick rapide: enabled=$enabled, delayMs=$delayMs")
-                if (enabled && delayMs != null) {
-                    val delayMin = delayMs / 60000
-                    keyInfos.add("⚡ Auto-kick rapide" to "✅ $delayMin min")
+
+                val excluded = obj["excludedRoleIds"]?.jsonArray.safeStringList()
+                if (excluded.isNotEmpty()) {
+                    keyInfos.add("🚫 Rôles exclus" to excluded.joinToString(", ") { rid -> roles[rid] ?: rid })
                 }
             }
             "economy" -> {
@@ -3807,7 +3880,7 @@ fun getSectionDisplayName(key: String): String {
         "tickets" -> "🎫 Tickets"
         "welcome" -> "👋 Bienvenue"
         "goodbye" -> "👋 Au revoir"
-        "autokick" -> "🦶 Auto-kick & Inactivité"
+        "inactivity" -> "💤 Inactivité"
         "levels" -> "📈 Niveaux/XP"
         "logs" -> "📝 Logs"
         "autokick" -> "🦶 Auto-kick"
@@ -3821,7 +3894,6 @@ fun getSectionDisplayName(key: String): String {
         "geo" -> "🌍 Géolocalisation"
         "quarantineRoleId" -> "🔒 Rôle quarantaine"
         "staffRoleIds" -> "👮 Rôles staff"
-        "tribunal" -> "⚖️ Tribunal"
         "truthdare" -> "🎲 Action ou vérité"
         else -> "⚙️ $key"
     }
@@ -4371,14 +4443,9 @@ fun ConfigEditorScreen(
                     goodbyeChannel = data["channelId"]?.jsonPrimitive?.contentOrNull
                     goodbyeMessage = data["message"]?.jsonPrimitive?.contentOrNull ?: ""
                 }
-                "autokick" -> {
-                    // Structure: autokick.inactivityKick
-                    val inactivityKick = data["inactivityKick"]?.jsonObject
-                    if (inactivityKick != null) {
-                        val delayDays = inactivityKick["delayDays"]?.jsonPrimitive?.intOrNull ?: 30
-                        inactivityThresholdDays = delayDays.toString()
-                        inactivityExemptRoles = inactivityKick["excludedRoleIds"]?.jsonArray.safeStringList()
-                    }
+                "inactivity" -> {
+                    inactivityThresholdDays = data["thresholdDays"]?.jsonPrimitive?.contentOrNull ?: ""
+                    inactivityExemptRoles = data["exemptRoles"]?.jsonArray.safeStringList()
                 }
             }
         }
@@ -4414,17 +4481,11 @@ fun ConfigEditorScreen(
                                 goodbyeChannel?.let { put("channelId", it) }
                                 if (goodbyeMessage.isNotBlank()) put("message", goodbyeMessage)
                             }
-                            "autokick" -> {
-                                // Sauvegarder dans inactivityKick
-                                val inactivityKick = buildJsonObject {
-                                    put("enabled", true) // Activer lors de la sauvegarde
-                                    if (inactivityThresholdDays.isNotBlank()) {
-                                        put("delayDays", inactivityThresholdDays.toIntOrNull() ?: 30)
-                                    }
-                                    put("excludedRoleIds", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
-                                    put("trackActivity", true)
+                            "inactivity" -> {
+                                if (inactivityThresholdDays.isNotBlank()) {
+                                    put("thresholdDays", inactivityThresholdDays.toIntOrNull() ?: 30)
                                 }
-                                put("inactivityKick", inactivityKick)
+                                put("exemptRoles", JsonArray(inactivityExemptRoles.map { JsonPrimitive(it) }))
                             }
                         }
                     }
@@ -4466,7 +4527,7 @@ fun ConfigEditorScreen(
                             "tickets" -> "🎫 Configuration Tickets"
                             "welcome" -> "👋 Configuration Bienvenue"
                             "goodbye" -> "👋 Configuration Au revoir"
-                            "autokick" -> "🦶 Configuration Auto-kick & Inactivité"
+                            "inactivity" -> "💤 Configuration Inactivité"
                             else -> "Configuration: $sectionKey"
                         },
                         style = MaterialTheme.typography.titleLarge,
@@ -4667,7 +4728,7 @@ fun ConfigEditorScreen(
                 }
             }
             
-            "autokick" -> {
+            "inactivity" -> {
                 item {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
                         Column(Modifier.padding(16.dp)) {

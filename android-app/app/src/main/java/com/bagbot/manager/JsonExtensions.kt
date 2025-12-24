@@ -9,51 +9,52 @@ import kotlinx.serialization.json.*
 
 // Helper pour extraire une chaîne de manière sécurisée
 fun JsonElement?.safeString(): String? {
-    if (this == null) return null
-    return try {
-        this.jsonPrimitive?.contentOrNull ?: this.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
-    } catch (e: Exception) {
-        null
+    return when (this) {
+        null -> null
+        is JsonPrimitive -> this.contentOrNull
+        is JsonObject -> this["id"]?.jsonPrimitive?.contentOrNull
+            ?: this["userId"]?.jsonPrimitive?.contentOrNull
+        else -> null
     }
 }
 
 // Helper pour extraire un int de manière sécurisée
 fun JsonElement?.safeInt(): Int? {
-    if (this == null) return null
-    return try {
-        this.jsonPrimitive?.intOrNull
-    } catch (e: Exception) {
-        null
+    return when (this) {
+        null -> null
+        is JsonPrimitive -> this.intOrNull ?: this.contentOrNull?.toIntOrNull()
+        else -> null
     }
 }
 
 // Helper pour extraire un long de manière sécurisée
 fun JsonElement?.safeLong(): Long? {
-    if (this == null) return null
-    return try {
-        this.jsonPrimitive?.longOrNull
-    } catch (e: Exception) {
-        null
+    return when (this) {
+        null -> null
+        is JsonPrimitive -> this.longOrNull ?: this.contentOrNull?.toLongOrNull()
+        else -> null
     }
 }
 
 // Helper pour extraire un boolean de manière sécurisée
 fun JsonElement?.safeBoolean(): Boolean? {
-    if (this == null) return null
-    return try {
-        this.jsonPrimitive?.booleanOrNull
-    } catch (e: Exception) {
-        null
+    return when (this) {
+        null -> null
+        is JsonPrimitive -> this.booleanOrNull ?: when (this.contentOrNull?.trim()?.lowercase()) {
+            "true", "1", "yes", "y", "on" -> true
+            "false", "0", "no", "n", "off" -> false
+            else -> null
+        }
+        else -> null
     }
 }
 
 // Helper pour extraire un double de manière sécurisée
 fun JsonElement?.safeDouble(): Double? {
-    if (this == null) return null
-    return try {
-        this.jsonPrimitive?.doubleOrNull
-    } catch (e: Exception) {
-        null
+    return when (this) {
+        null -> null
+        is JsonPrimitive -> this.doubleOrNull ?: this.contentOrNull?.toDoubleOrNull()
+        else -> null
     }
 }
 

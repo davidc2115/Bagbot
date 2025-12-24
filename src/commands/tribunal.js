@@ -1,166 +1,533 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  UserSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  EmbedBuilder,
+  ChannelType,
+  PermissionFlagsBits,
+} = require('discord.js');
+
+// Simple in-memory wizard state (per user).
+// Note: this intentionally avoids persistence; it's just a UI flow helper.
+const sessions = new Map();
+const SESSION_TTL_MS = 10 * 60 * 1000;
+
+function now() { return Date.now(); }
+
+function getSession(userId) {
+  const s = sessions.get(userId);
+  if (!s) return null;
+  if (s.expiresAt && s.expiresAt < now()) {
+    sessions.delete(userId);
+    return null;
+  }
+  return s;
+}
+
+function upsertSession(userId, patch) {
+  const current = getSession(userId) || { userId };
+  const next = { ...current, ...patch, expiresAt: now() + SESSION_TTL_MS };
+  sessions.set(userId, next);
+  return next;
+}
+
+function buildEmbed(step, session) {
+  const accused = session.accusedId ? `<@${session.accusedId}>` : '—';
+  const lawyer = session.lawyerId ? `<@${session.lawyerId}>` : '—';
+  const charge = session.charge ? session.charge : '—';
+
+  const embed = new EmbedBuilder()
+    .setColor(0x8e24aa)
+    .setTitle('⚖️ Tribunal')
+    .setDescription(
+      step === 'accused' ? 'Choisis **l’accusé**.' :
+      step === 'lawyer' ? 'Choisis **l’avocat** (optionnel).' :
+      step === 'charge' ? 'Entre le **chef d’accusation**.' :
+      step === 'confirm' ? 'Vérifie le récap et **valide**.' :
+      'Suivi du dossier.'
+    )
+    .addFields(
+      { name: 'Accusé', value: accused, inline: true },
+      { name: 'Avocat', value: lawyer, inline: true },
+      { name: 'Chef d’accusation', value: charge.length > 1024 ? charge.slice(0, 1021) + '…' : charge, inline: false },
+    )
+    .setFooter({ text: 'BAG • Tribunal' })
+    .setTimestamp(new Date());
+
+  return embed;
+}
+
+function rowCancel(ownerId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`tribunal:cancel:${ownerId}`)
+      .setLabel('Annuler')
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+function rowAccused(ownerId) {
+  const select = new UserSelectMenuBuilder()
+    .setCustomId(`tribunal:accused:${ownerId}`)
+    .setPlaceholder('Sélectionner l’accusé…')
+    .setMinValues(1)
+    .setMaxValues(1);
+  return [
+    new ActionRowBuilder().addComponents(select),
+    rowCancel(ownerId),
+  ];
+}
+
+function rowLawyer(ownerId) {
+  const select = new UserSelectMenuBuilder()
+    .setCustomId(`tribunal:lawyer:${ownerId}`)
+    .setPlaceholder('Sélectionner l’avocat (optionnel)…')
+    .setMinValues(1)
+    .setMaxValues(1);
+  return [
+    new ActionRowBuilder().addComponents(select),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`tribunal:skip_lawyer:${ownerId}`)
+        .setLabel('Sans avocat')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`tribunal:enter_charge:${ownerId}`)
+        .setLabel('Entrer accusation')
+        .setStyle(ButtonStyle.Primary),
+    ),
+    rowCancel(ownerId),
+  ];
+}
+
+function rowCharge(ownerId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`tribunal:enter_charge:${ownerId}`)
+        .setLabel('Entrer chef d’accusation')
+        .setStyle(ButtonStyle.Primary),
+    ),
+    rowCancel(ownerId),
+  ];
+}
+
+function rowConfirm(ownerId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`tribunal:confirm:${ownerId}`)
+        .setLabel('Valider')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`tribunal:cancel:${ownerId}`)
+        .setLabel('Annuler')
+        .setStyle(ButtonStyle.Secondary),
+    )
+  ];
+}
+
+function caseButtons(caseId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`tribunal_case:judge_take:${caseId}`)
+        .setLabel('Juge: prendre le dossier')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`tribunal_case:accused_lawyer_pick:${caseId}`)
+        .setLabel("Accusé: choisir l'avocat")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`tribunal_case:close:${caseId}`)
+        .setLabel('Clôturer')
+        .setStyle(ButtonStyle.Danger),
+    )
+  ];
+}
+
+function slugifyChannelName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'proces';
+}
+
+async function getOrCreateTribunalCategory(guild, storage) {
+  const gid = guild.id;
+  const cfg = await storage.getTribunalConfig(gid);
+  const byId = cfg.categoryId ? guild.channels.cache.get(cfg.categoryId) : null;
+  if (byId && byId.type === ChannelType.GuildCategory) return byId;
+
+  const existing = guild.channels.cache.find(
+    ch => ch.type === ChannelType.GuildCategory && /tribunal|proc[eè]s|justice/i.test(ch.name || '')
+  );
+  if (existing) {
+    await storage.updateTribunalConfig(gid, { categoryId: existing.id });
+    return existing;
+  }
+
+  const created = await guild.channels.create({
+    name: '⚖️ TRIBUNAL',
+    type: ChannelType.GuildCategory,
+  });
+  await storage.updateTribunalConfig(gid, { categoryId: created.id });
+  return created;
+}
+
+function canActAsJudge(member) {
+  try {
+    if (!member) return false;
+    return member.permissions?.has(PermissionFlagsBits.Administrator)
+      || member.permissions?.has(PermissionFlagsBits.ModerateMembers)
+      || member.permissions?.has(PermissionFlagsBits.ManageGuild);
+  } catch (_) {
+    return false;
+  }
+}
+
+function isAdmin(member) {
+  try {
+    return Boolean(member?.permissions?.has?.(PermissionFlagsBits.Administrator));
+  } catch (_) {
+    return false;
+  }
+}
+
+async function buildStaffRoleOverwrites(guild) {
+  // Try to allow staff roles (moderation/admin) to view the case channel.
+  const roles = Array.from(guild.roles.cache.values());
+  const staffRoles = roles.filter(r => {
+    if (!r || r.managed) return false;
+    if (r.id === guild.id) return false; // @everyone
+    const p = r.permissions;
+    return p?.has(PermissionFlagsBits.Administrator) || p?.has(PermissionFlagsBits.ModerateMembers);
+  });
+  // Limit to avoid hitting overwrite limits.
+  return staffRoles.slice(0, 20).map(r => ({
+    id: r.id,
+    allow: [
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.ManageMessages,
+    ],
+  }));
+}
+
+function caseEmbedFromRecord(rec) {
+  return new EmbedBuilder()
+    .setColor(0x5e35b1)
+    .setTitle('⚖️ Procès ouvert')
+    .setDescription('Un juge doit prendre le dossier, puis l’accusé peut choisir un avocat.')
+    .addFields(
+      { name: 'Plaignant', value: rec.plaintiffId ? `<@${rec.plaintiffId}>` : '—', inline: true },
+      { name: 'Accusé', value: rec.accusedId ? `<@${rec.accusedId}>` : '—', inline: true },
+      { name: 'Juge', value: rec.judgeId ? `<@${rec.judgeId}>` : '⏳ En attente', inline: true },
+      { name: 'Avocat (plaignant)', value: rec.plaintiffLawyerId ? `<@${rec.plaintiffLawyerId}>` : 'Aucun', inline: true },
+      { name: 'Avocat (accusé)', value: rec.accusedLawyerId ? `<@${rec.accusedLawyerId}>` : '⏳ À choisir', inline: true },
+      { name: 'Chef d’accusation', value: rec.charge ? String(rec.charge).slice(0, 1024) : '—', inline: false },
+      { name: 'Statut', value: rec.status || 'open', inline: true },
+    )
+    .setFooter({ text: `BAG • Tribunal • Dossier ${rec.id}` })
+    .setTimestamp(new Date(rec.createdAt || Date.now()));
+}
+
+function ensureOwner(interaction, ownerId) {
+  if (interaction.user.id !== ownerId) {
+    // Do not leak flow state to others.
+    try { interaction.reply({ content: '⛔ Ce menu ne vous appartient pas.', ephemeral: true }); } catch (_) {}
+    return false;
+  }
+  return true;
+}
 
 module.exports = {
-    name: 'tribunal',
-    data: new SlashCommandBuilder()
-        .setName('tribunal')
-        .setDescription('Ouvrir un procès avec accusé et avocat du plaignant')
-        .addUserOption(option =>
-            option.setName('accusé')
-                .setDescription('La personne accusée')
-                .setRequired(true))
-        .addUserOption(option =>
-            option.setName('avocat')
-                .setDescription('L\'avocat du plaignant')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('chef-accusation')
-                .setDescription('Le chef d\'accusation (motif du procès)')
-                .setRequired(true)
-                .setMaxLength(200))
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
-    
-    async execute(interaction) {
-        const accuse = interaction.options.getUser('accusé');
-        const avocatPlaignant = interaction.options.getUser('avocat');
-        const chefAccusation = interaction.options.getString('chef-accusation');
-        const plaignant = interaction.user;
+  name: 'tribunal',
+
+  data: new SlashCommandBuilder()
+    .setName('tribunal')
+    .setDescription('⚖️ Ouvrir un dossier au tribunal')
+    .setDMPermission(false),
+
+  async execute(interaction) {
+    const ownerId = interaction.user.id;
+    upsertSession(ownerId, { step: 'accused', accusedId: null, lawyerId: null, charge: '' });
+    const embed = buildEmbed('accused', getSession(ownerId) || {});
+    return interaction.reply({ embeds: [embed], components: rowAccused(ownerId), ephemeral: true });
+  },
+
+  async handleInteraction(interaction) {
+    try {
+      // Case channel interactions (judge/lawyer/close)
+      if (typeof interaction.customId === 'string' && interaction.customId.startsWith('tribunal_case:')) {
+        const storage = require('../storage/jsonStore');
+        const parts = interaction.customId.split(':');
+        const action = parts[1];
+        const caseId = parts[2];
         const guild = interaction.guild;
+        if (!guild || !caseId) return true;
 
-        // Vérifications
-        if (accuse.bot) {
-            return interaction.reply({ content: '❌ Vous ne pouvez pas accuser un bot.', ephemeral: true });
-        }
-        if (avocatPlaignant.bot) {
-            return interaction.reply({ content: '❌ L\'avocat ne peut pas être un bot.', ephemeral: true });
-        }
-        if (accuse.id === plaignant.id) {
-            return interaction.reply({ content: '❌ Vous ne pouvez pas vous accuser vous-même.', ephemeral: true });
-        }
-        if (avocatPlaignant.id === plaignant.id) {
-            return interaction.reply({ content: '❌ Vous ne pouvez pas être votre propre avocat.', ephemeral: true });
-        }
-        if (accuse.id === avocatPlaignant.id) {
-            return interaction.reply({ content: '❌ L\'accusé ne peut pas être son propre avocat.', ephemeral: true });
+        const rec = await storage.getTribunalCase(guild.id, caseId);
+        if (!rec) {
+          try {
+            if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: '❌ Dossier introuvable (peut-être expiré).', ephemeral: true });
+            else await interaction.followUp({ content: '❌ Dossier introuvable (peut-être expiré).', ephemeral: true });
+          } catch (_) {}
+          return true;
         }
 
-        await interaction.deferReply();
-
-        try {
-            // Créer/récupérer les rôles
-            let roleAccuse = guild.roles.cache.find(r => r.name === '⚖️ Accusé');
-            if (!roleAccuse) {
-                roleAccuse = await guild.roles.create({
-                    name: '⚖️ Accusé',
-                    color: 0xFF0000, // Rouge
-                    reason: 'Rôle pour les procès',
-                });
+        if (interaction.isButton()) {
+          if (action === 'judge_take') {
+            try { await interaction.deferUpdate(); } catch (_) {}
+            const member = interaction.member;
+            if (!canActAsJudge(member)) {
+              try { await interaction.followUp({ content: '⛔ Réservé au staff (juge).', ephemeral: true }); } catch (_) {}
+              return true;
             }
+            const updated = await storage.upsertTribunalCase(guild.id, caseId, { judgeId: interaction.user.id, status: 'in_progress' });
+            // Update panel message if possible
+            try {
+              const ch = guild.channels.cache.get(updated.channelId) || await guild.channels.fetch(updated.channelId).catch(() => null);
+              const msg = ch && updated.panelMessageId ? await ch.messages.fetch(updated.panelMessageId).catch(() => null) : null;
+              if (msg) await msg.edit({ embeds: [caseEmbedFromRecord(updated)], components: caseButtons(caseId) }).catch(() => {});
+            } catch (_) {}
+            return true;
+          }
 
-            let roleAvocat = guild.roles.cache.find(r => r.name === '👔 Avocat');
-            if (!roleAvocat) {
-                roleAvocat = await guild.roles.create({
-                    name: '👔 Avocat',
-                    color: 0x2196F3, // Bleu
-                    reason: 'Rôle pour les avocats',
-                });
+          if (action === 'accused_lawyer_pick') {
+            // Only accused can pick their lawyer
+            if (interaction.user.id !== String(rec.accusedId)) {
+              try { await interaction.reply({ content: "⛔ Seul l'accusé peut choisir son avocat.", ephemeral: true }); } catch (_) {}
+              return true;
             }
+            try { await interaction.reply({ content: "Choisis ton avocat :", components: [new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`tribunal_case:accused_lawyer_select:${caseId}`).setPlaceholder("Sélectionner l'avocat…").setMinValues(1).setMaxValues(1))], ephemeral: true }); } catch (_) {}
+            return true;
+          }
 
-            // Créer/récupérer la catégorie
-            let categorie = guild.channels.cache.find(c => c.name === '⚖️ TRIBUNAUX' && c.type === ChannelType.GuildCategory);
-            if (!categorie) {
-                categorie = await guild.channels.create({
-                    name: '⚖️ TRIBUNAUX',
-                    type: ChannelType.GuildCategory,
-                });
+          if (action === 'close') {
+            try { await interaction.deferUpdate(); } catch (_) {}
+            const member = interaction.member;
+            const isJudgeUser = rec.judgeId && interaction.user.id === String(rec.judgeId);
+            if (!(isJudgeUser || isAdmin(member))) {
+              try { await interaction.followUp({ content: '⛔ Seul le juge (ou un admin) peut clôturer.', ephemeral: true }); } catch (_) {}
+              return true;
             }
+            const updated = await storage.upsertTribunalCase(guild.id, caseId, { status: 'closed', closedAt: Date.now() });
+            try {
+              const ch = guild.channels.cache.get(updated.channelId) || await guild.channels.fetch(updated.channelId).catch(() => null);
+              const msg = ch && updated.panelMessageId ? await ch.messages.fetch(updated.panelMessageId).catch(() => null) : null;
+              if (msg) await msg.edit({ embeds: [caseEmbedFromRecord(updated)], components: [] }).catch(() => {});
+              if (ch) {
+                await ch.send({ content: `✅ Dossier clôturé par <@${interaction.user.id}>.` }).catch(() => {});
+                // Ensure channel is age-restricted
+                try { await ch.setNSFW?.(true); } catch (_) {}
+                // Lock the channel: keep visible, but prevent everyone from writing.
+                await ch.permissionOverwrites.edit(guild.roles.everyone.id, { SendMessages: false, AddReactions: false }).catch(() => {});
+                await ch.setName(`cloture-${String(ch.name || 'proces').replace(/^cloture-/, '').slice(0, 80)}`.slice(0, 90)).catch(() => {});
+              }
+            } catch (_) {}
+            return true;
+          }
+        }
 
-            // Créer le channel tribunal
-            const channelName = `⚖️│proces-de-${accuse.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-            const tribunalChannel = await guild.channels.create({
-                name: channelName,
-                type: ChannelType.GuildText,
-                parent: categorie.id,
-                topic: `⚖️ Procès | Plaignant: ${plaignant.id} | Accusé: ${accuse.id} | AvocatPlaignant: ${avocatPlaignant.id} | AvocatDefense: null | Juge: null | ChefAccusation: ${Buffer.from(chefAccusation).toString('base64')}`,
-                permissionOverwrites: [
-                    {
-                        id: guild.id,
-                        deny: [PermissionFlagsBits.ViewChannel],
-                    },
-                    {
-                        id: guild.roles.everyone,
-                        allow: [
-                            PermissionFlagsBits.ViewChannel,
-                            PermissionFlagsBits.ReadMessageHistory,
-                            PermissionFlagsBits.SendMessages,
-                            PermissionFlagsBits.AddReactions
-                        ],
-                    },
-                ],
-            });
+        if (interaction.isUserSelectMenu && interaction.isUserSelectMenu() && action === 'accused_lawyer_select') {
+          const picked = interaction.values?.[0];
+          if (!picked) return true;
+          if (interaction.user.id !== String(rec.accusedId)) {
+            try { await interaction.reply({ content: "⛔ Seul l'accusé peut choisir son avocat.", ephemeral: true }); } catch (_) {}
+            return true;
+          }
+          try { await interaction.deferUpdate(); } catch (_) {}
+          const updated = await storage.upsertTribunalCase(guild.id, caseId, { accusedLawyerId: String(picked) });
+          try {
+            const ch = guild.channels.cache.get(updated.channelId) || await guild.channels.fetch(updated.channelId).catch(() => null);
+            const msg = ch && updated.panelMessageId ? await ch.messages.fetch(updated.panelMessageId).catch(() => null) : null;
+            if (msg) await msg.edit({ embeds: [caseEmbedFromRecord(updated)], components: caseButtons(caseId) }).catch(() => {});
+            if (ch) {
+              // Grant access to picked lawyer
+              await ch.permissionOverwrites.edit(picked, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => {});
+              await ch.send({ content: `👩‍⚖️ Avocat de l'accusé choisi: <@${picked}>` }).catch(() => {});
+            }
+          } catch (_) {}
+          try { await interaction.followUp({ content: `✅ Avocat sélectionné: <@${picked}>`, ephemeral: true }); } catch (_) {}
+          return true;
+        }
+      }
 
-            // Attribuer les rôles
-            const accuseMember = await guild.members.fetch(accuse.id);
-            const avocatPlaignantMember = await guild.members.fetch(avocatPlaignant.id);
-            
-            await accuseMember.roles.add(roleAccuse);
-            await avocatPlaignantMember.roles.add(roleAvocat);
+      // Buttons
+      if (interaction.isButton() && typeof interaction.customId === 'string' && interaction.customId.startsWith('tribunal:')) {
+        const [, action, ownerId] = interaction.customId.split(':');
+        if (!ownerId || !ensureOwner(interaction, ownerId)) return true;
 
-            // Embed d'ouverture
-            const embed = {
-                color: 0x5865F2,
-                title: '⚖️ OUVERTURE DU PROCÈS',
-                description: `**Un nouveau procès a été ouvert !**\n\n📋 **Chef d'accusation :** ${chefAccusation}\n\n👤 **Plaignant :** ${plaignant}\n👔 **Avocat du plaignant :** ${avocatPlaignant} ${roleAvocat}\n⚠️ **Accusé :** ${accuse} ${roleAccuse}\n👔 **Avocat de la défense :** *En attente de sélection par l'accusé*\n👨‍⚖️ **Juge :** Aucun (utilisez le bouton ci-dessous)`,
-                timestamp: new Date(),
-                footer: { text: '⚖️ Système de Tribunal' },
-            };
+        if (action === 'cancel') {
+          try { await interaction.deferUpdate(); } catch (_) {}
+          sessions.delete(ownerId);
+          try { await interaction.editReply({ content: '✅ Tribunal annulé.', embeds: [], components: [] }); } catch (_) {}
+          return true;
+        }
 
-            // Bouton pour devenir juge
-            const jugeButton = new ButtonBuilder()
-                .setCustomId('tribunal_devenir_juge:' + tribunalChannel.id)
-                .setLabel('👨‍⚖️ Devenir Juge')
-                .setStyle(ButtonStyle.Primary);
-            
-            const buttonRow = new ActionRowBuilder().addComponents(jugeButton);
+        if (action === 'skip_lawyer') {
+          try { await interaction.deferUpdate(); } catch (_) {}
+          const s = upsertSession(ownerId, { lawyerId: null, step: 'charge' });
+          const embed = buildEmbed('charge', s);
+          try { await interaction.editReply({ embeds: [embed], components: rowCharge(ownerId) }); } catch (_) {}
+          return true;
+        }
 
-            // Message permanent
-            await tribunalChannel.send({ embeds: [embed], components: [buttonRow] });
+        if (action === 'enter_charge') {
+          const modal = new ModalBuilder()
+            .setCustomId(`tribunal:charge_modal:${ownerId}`)
+            .setTitle('Chef d’accusation');
+          const input = new TextInputBuilder()
+            .setCustomId('charge')
+            .setLabel('Chef d’accusation')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMaxLength(900)
+            .setPlaceholder('Ex: Vol de cookies, spam, trahison…');
+          modal.addComponents(new ActionRowBuilder().addComponents(input));
+          await interaction.showModal(modal);
+          return true;
+        }
 
-            // Menu de sélection pour l'avocat de la défense (visible uniquement par l'accusé)
-            const members = await guild.members.fetch();
-            const availableMembers = members.filter(m => 
-                !m.user.bot && 
-                m.id !== accuse.id && 
-                m.id !== avocatPlaignant.id
-            );
+        if (action === 'confirm') {
+          // Ack immediately to avoid "application did not respond"
+          try { await interaction.deferUpdate(); } catch (_) {}
+          const s = getSession(ownerId);
+          if (!s || !s.accusedId) {
+            try { await interaction.editReply({ content: '❌ Session expirée. Relance `/tribunal`.', embeds: [], components: [] }); } catch (_) {}
+            return true;
+          }
+          const storage = require('../storage/jsonStore');
+          const guild = interaction.guild;
+          if (!guild) {
+            try { await interaction.editReply({ content: '❌ Impossible (pas de serveur).', embeds: [], components: [] }); } catch (_) {}
+            return true;
+          }
 
-            const selectMenu = new StringSelectMenuBuilder()
-                .setCustomId('tribunal_select_avocat_defense:' + tribunalChannel.id)
-                .setPlaceholder('Sélectionnez votre avocat de la défense')
-                .addOptions(
-                    Array.from(availableMembers.values()).slice(0, 25).map(member => ({
-                        label: member.user.username,
-                        description: `ID: ${member.id}`,
-                        value: member.id,
-                    }))
-                );
+          // Create case record (persisted)
+          const caseId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+          const record = await storage.upsertTribunalCase(guild.id, caseId, {
+            id: caseId,
+            createdAt: Date.now(),
+            status: 'open',
+            plaintiffId: ownerId,
+            accusedId: String(s.accusedId),
+            plaintiffLawyerId: s.lawyerId ? String(s.lawyerId) : '',
+            accusedLawyerId: '',
+            judgeId: '',
+            charge: String(s.charge || '').trim(),
+            channelId: '',
+            panelMessageId: '',
+          });
 
-            const selectRow = new ActionRowBuilder().addComponents(selectMenu);
+          // Create channel under tribunal category
+          const category = await getOrCreateTribunalCategory(guild, storage);
+          const accusedMember = await guild.members.fetch(record.accusedId).catch(() => null);
+          const accusedName = accusedMember?.displayName || accusedMember?.user?.username || 'accuse';
+          const chanName = `proces-${slugifyChannelName(accusedName)}`.slice(0, 90);
 
-            await tribunalChannel.send({
-                content: `${accuse}, veuillez sélectionner votre avocat de la défense :`,
-                components: [selectRow],
-            });
+          // Public case channel: visible & writable by everyone.
+          // Keep minimal overwrites (only ensure bot can manage).
+          const overwrites = [
+            {
+              id: guild.members.me.id,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ManageChannels,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageMessages,
+              ],
+            },
+          ];
 
+          const caseChannel = await guild.channels.create({
+            name: chanName,
+            type: ChannelType.GuildText,
+            parent: category.id,
+            topic: `Dossier tribunal ${caseId} • Accusé=${record.accusedId} • Plaignant=${record.plaintiffId}`,
+            permissionOverwrites: overwrites,
+            nsfw: true, // soumis à l'âge
+          });
+
+          await storage.upsertTribunalCase(guild.id, caseId, { channelId: caseChannel.id });
+
+          const panelEmbed = caseEmbedFromRecord(record);
+          const content = `⚖️ **Procès ouvert** — ${caseChannel}\nPlaignant: <@${record.plaintiffId}> • Accusé: <@${record.accusedId}>`;
+          const panelMsg = await caseChannel.send({ content, embeds: [panelEmbed], components: caseButtons(caseId) }).catch(() => null);
+          if (panelMsg?.id) {
+            await storage.upsertTribunalCase(guild.id, caseId, { panelMessageId: panelMsg.id });
+          }
+
+          sessions.delete(ownerId);
+          try {
             await interaction.editReply({
-                content: `✅ Procès ouvert dans ${tribunalChannel} !\n\n⚠️ ${accuse}, veuillez sélectionner votre avocat de la défense dans le channel.`,
+              content: `✅ Dossier envoyé au tribunal.\nSalon créé: ${caseChannel}`,
+              embeds: [],
+              components: [],
             });
-
-        } catch (error) {
-            console.error('Erreur lors de la création du tribunal:', error);
-            await interaction.editReply({
-                content: `❌ Une erreur est survenue : ${error.message}`,
-            });
+          } catch (_) {}
+          return true;
         }
-    },
+
+        return false;
+      }
+
+      // Select menus
+      if (interaction.isUserSelectMenu() && typeof interaction.customId === 'string' && interaction.customId.startsWith('tribunal:')) {
+        const [, kind, ownerId] = interaction.customId.split(':');
+        if (!ownerId || !ensureOwner(interaction, ownerId)) return true;
+        const picked = interaction.values?.[0];
+        if (!picked) return true;
+
+        if (kind === 'accused') {
+          try { await interaction.deferUpdate(); } catch (_) {}
+          const s = upsertSession(ownerId, { accusedId: picked, step: 'lawyer' });
+          const embed = buildEmbed('lawyer', s);
+          try { await interaction.editReply({ embeds: [embed], components: rowLawyer(ownerId) }); } catch (_) {}
+          return true;
+        }
+
+        if (kind === 'lawyer') {
+          try { await interaction.deferUpdate(); } catch (_) {}
+          const s = upsertSession(ownerId, { lawyerId: picked, step: 'charge' });
+          const embed = buildEmbed('charge', s);
+          try { await interaction.editReply({ embeds: [embed], components: rowCharge(ownerId) }); } catch (_) {}
+          return true;
+        }
+
+        return false;
+      }
+
+      // Modal submit
+      if (interaction.isModalSubmit() && typeof interaction.customId === 'string' && interaction.customId.startsWith('tribunal:charge_modal:')) {
+        const ownerId = interaction.customId.split(':')[2];
+        if (!ownerId || !ensureOwner(interaction, ownerId)) return true;
+        const charge = String(interaction.fields.getTextInputValue('charge') || '').trim();
+        const s = upsertSession(ownerId, { charge, step: 'confirm' });
+        const embed = buildEmbed('confirm', s);
+        try { await interaction.reply({ embeds: [embed], components: rowConfirm(ownerId), ephemeral: true }); } catch (_) {}
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      try {
+        const msg = `❌ Une erreur est survenue : ${e?.message || String(e)}`;
+        if (interaction.deferred || interaction.replied) await interaction.followUp({ content: msg, ephemeral: true });
+        else await interaction.reply({ content: msg, ephemeral: true });
+      } catch (_) {}
+      return true;
+    }
+  }
 };
+
