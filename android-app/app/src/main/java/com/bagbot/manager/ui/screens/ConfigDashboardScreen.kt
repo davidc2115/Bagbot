@@ -2975,7 +2975,7 @@ private fun BackupsTab(
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val resp = api.getJson("/backups")
+                    val resp = api.getJson("/api/backups")
                     val obj = json.parseToJsonElement(resp).jsonObject
                     val list = obj["backups"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
                     withContext(Dispatchers.Main) { backups = list }
@@ -3035,10 +3035,20 @@ private fun BackupsTab(
 
         itemsIndexed(backups) { idx, b ->
             val filename = b["filename"]?.jsonPrimitive?.contentOrNull ?: ""
-            val date = b["date"]?.jsonPrimitive?.contentOrNull ?: ""
-            val size = b["size"]?.jsonPrimitive?.contentOrNull ?: ""
+            val displayName = b["displayName"]?.jsonPrimitive?.contentOrNull
+            val timestamp = b["timestamp"]?.jsonPrimitive?.contentOrNull ?: ""
+            val type = b["type"]?.jsonPrimitive?.contentOrNull ?: ""
+            val sizeBytes = b["size"]?.jsonPrimitive?.longOrNull ?: 0L
+            val canRestore = b["canRestore"]?.jsonPrimitive?.booleanOrNull ?: false
 
-            SectionCard(title = "${idx + 1}. $filename", subtitle = "$date • $size") {
+            val subtitle = displayName
+                ?: run {
+                    val kb = (sizeBytes / 1024.0).toInt()
+                    val typeLabel = if (type.isBlank()) "" else " • $type"
+                    "${timestamp}$typeLabel • ${kb} KB"
+                }
+
+            SectionCard(title = "${idx + 1}. $filename", subtitle = subtitle) {
                 Button(
                     onClick = {
                         if (filename.isBlank()) return@Button
@@ -3057,9 +3067,13 @@ private fun BackupsTab(
                             }
                         }
                     },
-                    enabled = !isRestoring
+                    enabled = (!isRestoring && canRestore)
                 ) {
-                    Text(if (isRestoring) "Restauration..." else "Restaurer")
+                    Text(
+                        if (isRestoring) "Restauration..."
+                        else if (!canRestore) "Non supporté"
+                        else "Restaurer"
+                    )
                 }
             }
         }

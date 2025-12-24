@@ -6,6 +6,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const listLocalBackups = require('./helpers/listLocalBackups');
 
 // Importer les fonctions du bot
 const { 
@@ -1905,6 +1906,33 @@ app.get('/backups', (req, res) => {
       .sort((a, b) => new Date(b.created) - new Date(a.created));
     
     res.json({ backups: files });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/backups - Liste unifiée des backups (Android)
+app.get('/api/backups', requireAuth, async (req, res) => {
+  try {
+    const list = await listLocalBackups(String(GUILD));
+    const safe = list.map((b) => {
+      const filename = b.filename || '';
+      const type = b.type || 'other';
+      const timestamp = b.timestamp || '';
+      const size = typeof b.size === 'number' ? b.size : 0;
+      const displayName = b.displayName || filename;
+
+      // Restauration via l'API actuelle uniquement pour les backups per-guild (config-*.json)
+      const canRestore = Boolean(
+        b.fullPath &&
+        String(b.fullPath).includes(`guild-${String(GUILD)}`) &&
+        String(filename).toLowerCase().startsWith('config-')
+      );
+
+      return { filename, type, timestamp, size, displayName, canRestore };
+    });
+
+    res.json({ backups: safe });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
