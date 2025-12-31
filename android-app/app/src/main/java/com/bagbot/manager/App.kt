@@ -3392,7 +3392,7 @@ fun AppConfigScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("Version: 6.1.12", color = Color.Gray)
+                    Text("Version: 6.1.13", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
