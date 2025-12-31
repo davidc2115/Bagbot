@@ -10,7 +10,7 @@ class SettingsStore private constructor(context: Context) {
         @Volatile
         private var instance: SettingsStore? = null
         
-        private const val CURRENT_VERSION = 6113 // Version 6.1.13
+        private const val CURRENT_VERSION = 6114 // Version 6.1.14
         
         fun getInstance(context: Context? = null): SettingsStore {
             return instance ?: synchronized(this) {
