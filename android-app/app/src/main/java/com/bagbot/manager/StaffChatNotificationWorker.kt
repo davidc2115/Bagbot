@@ -165,7 +165,7 @@ class StaffChatNotificationWorker(
             // Si le serveur révoque le token (plus admin / token invalide),
             // on déconnecte et on stoppe le worker.
             val msg = e.message ?: ""
-            if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || msg.contains("NOT_ADMIN")) {
+            if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || msg.contains("NOT_ADMIN") || msg.contains("NOT_AUTHORIZED")) {
                 try {
                     SettingsStore.init(applicationContext)
                     val store = SettingsStore.getInstance()

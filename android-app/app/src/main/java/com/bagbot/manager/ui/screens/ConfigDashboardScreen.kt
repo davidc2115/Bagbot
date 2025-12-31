@@ -960,6 +960,8 @@ private fun EconomyConfigTab(
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text("🎭 Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(4.dp))
+                                Text("${actionsKeys.size} action(s)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(8.dp))
 
                                 val actionItems = remember(actionsKeys, actionsListObj) {

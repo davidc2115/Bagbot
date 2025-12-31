@@ -1596,7 +1596,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                     channels = channels,
                                     roles = roles,
                                     isFounder = isFounder,
-                                    isAdmin = isAdmin
+                                    isAdmin = isAdmin,
+                                    currentUserId = userId,
+                                    currentUserName = userName
                                 )
                             }
                         }
@@ -1770,7 +1772,9 @@ fun BotControlScreen(
     channels: Map<String, String>,
     roles: Map<String, String>,
     isFounder: Boolean,
-    isAdmin: Boolean = false
+    isAdmin: Boolean = false,
+    currentUserId: String = "",
+    currentUserName: String = ""
 ) {
     // Charger les membres connectés
     var connectedUsers by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // userId, username, role
@@ -1793,38 +1797,62 @@ fun BotControlScreen(
                         Log.e("BotControl", "Erreur chargement staffRoleIds: ${e.message}")
                     }
                     
-                    // Charger les sessions
-                    val resp = api.getJson("/api/admin/sessions")
-                    Log.d("BotControl", "Sessions response: ${resp.take(300)}")
-                    val obj = json.parseToJsonElement(resp).jsonObject
-                    val sessionsArray = obj["sessions"]?.jsonArray
-                    Log.d("BotControl", "Sessions count: ${sessionsArray?.size ?: 0}")
-                    
-                    val sessions = sessionsArray?.mapNotNull {
-                        val session = it.jsonObject
-                        val userId = session["userId"]?.jsonPrimitive?.contentOrNull
-                        val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
-                        
-                        // Calculer le rôle côté client
-                        val userRoles = session["roles"]?.jsonArray.safeStringList()
-                        
-                        Log.d("BotControl", "User $username ($userId) has ${userRoles.size} roles, staffRoles: ${staffRoleIds.size}")
-                        
-                        val role = when {
-                            userId == founderId -> "👑 Fondateur"
-                            userRoles.any { it in staffRoleIds } -> "⚡ Admin"
-                            else -> "👤 Membre"
-                        }
-                        
-                        Log.d("BotControl", "User $username assigned role: $role")
-                        
-                        if (userId != null) Triple(userId, username, role) else null
-                    } ?: emptyList()
-                    
-                    Log.d("BotControl", "Final sessions list: ${sessions.size} members")
+                    // Charger les sessions (fondateur) ou la liste "online" (admins + autorisés)
+                    val sessions: List<Triple<String, String, String>> = if (isFounder) {
+                        val resp = api.getJson("/api/admin/sessions")
+                        val obj = json.parseToJsonElement(resp).jsonObject
+                        val sessionsArray = obj["sessions"]?.jsonArray
+                        sessionsArray?.mapNotNull {
+                            val session = it.jsonObject
+                            val userId = session["userId"]?.jsonPrimitive?.contentOrNull
+                            val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                            val userRoles = session["roles"]?.jsonArray.safeStringList()
+                            val role = when {
+                                userId == founderId -> "👑 Fondateur"
+                                userRoles.any { it in staffRoleIds } -> "⚡ Admin"
+                                else -> "👤 Membre"
+                            }
+                            if (userId != null) Triple(userId, username, role) else null
+                        } ?: emptyList()
+                    } else {
+                        // /api/staff/online est accessible (admins + allowed)
+                        val resp = api.getJson("/api/staff/online")
+                        val obj = json.parseToJsonElement(resp).jsonObject
+                        val arr = obj["admins"]?.jsonArray
+                        arr?.mapNotNull {
+                            val o = it.jsonObject
+                            val userId = o["userId"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                            val username = o["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                            val isF = o["isFounder"].safeBoolean() ?: false
+                            val isA = o["isAdmin"].safeBoolean() ?: false
+                            val isAllowed = o["isAllowed"].safeBoolean() ?: false
+                            val role = when {
+                                isF || userId == founderId -> "👑 Fondateur"
+                                isA -> "⚡ Admin"
+                                isAllowed -> "✅ Autorisé"
+                                else -> "👤 Membre"
+                            }
+                            Triple(userId, username, role)
+                        } ?: emptyList()
+                    }
+
+                    // Fallback: au minimum afficher l'utilisateur courant
+                    val fallback = if (sessions.isEmpty() && currentUserId.isNotBlank()) {
+                        listOf(
+                            Triple(
+                                currentUserId,
+                                currentUserName.ifBlank { members[currentUserId] ?: "Vous" },
+                                when {
+                                    isFounder || currentUserId == founderId -> "👑 Fondateur"
+                                    isAdmin -> "⚡ Admin"
+                                    else -> "👤 Membre"
+                                }
+                            )
+                        )
+                    } else sessions
                     
                     withContext(Dispatchers.Main) {
-                        connectedUsers = sessions
+                        connectedUsers = fallback
                     }
                 } catch (e: Exception) {
                     Log.e("BotControl", "Erreur chargement sessions: ${e.message}")
