@@ -530,30 +530,18 @@ data class StaffMessage(
 
 // Fonction pour créer le canal de notification
 fun createNotificationChannel(context: Context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channelId = "staff_chat_channel"
-        val channelName = "Chat Staff"
-        val channelDescription = "Notifications pour les messages du chat staff"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        
-        val channel = NotificationChannel(channelId, channelName, importance).apply {
-            description = channelDescription
-        }
-        
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(channel)
-    }
+    StaffChatNotifications.createChannel(context)
 }
 
 // Fonction pour envoyer une notification
 fun sendStaffChatNotification(context: Context, senderName: String, message: String, isMention: Boolean = false) {
     try {
-        val notificationId = System.currentTimeMillis().toInt()
-        val channelId = "staff_chat_channel"
+        val notificationId = StaffChatNotifications.NOTIFICATION_ID
+        val channelId = StaffChatNotifications.CHANNEL_ID
         
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
-            .setContentTitle(if (isMention) "🔔 Mention - $senderName" else "💬 Chat Staff - $senderName")
+            .setContentTitle(if (isMention) "🔔 Chat Staff - $senderName" else "💬 Chat Staff - $senderName")
             .setContentText(message)
             .setPriority(if (isMention) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -582,7 +570,6 @@ fun StaffChatScreen(
 ) {
     val context = LocalContext.current
     var messages by remember { mutableStateOf<List<StaffMessage>>(emptyList()) }
-    var previousMessageCount by remember { mutableStateOf(0) }
     var newMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var isSending by remember { mutableStateOf(false) }
@@ -617,34 +604,14 @@ fun StaffChatScreen(
                                 room = msg["room"].safeString() ?: "global"
                             )
                         } ?: emptyList()
-                        
-                        // Vérifier s'il y a de nouveaux messages
-                        if (newMessages.size > previousMessageCount && previousMessageCount > 0) {
-                            // Nouveau message détecté, envoyer une notification
-                            val latestMessage = newMessages.lastOrNull()
-                            if (latestMessage != null) {
-                                val currentUserId = userInfo?.get("id").safeStringOrEmpty()
-                                // Ne pas notifier pour ses propres messages
-                                if (latestMessage.userId != currentUserId) {
-                                    val senderName = members[latestMessage.userId] ?: latestMessage.username
-                                    val isMention = run {
-                                        val msg = latestMessage.message.lowercase()
-                                        if (msg.contains("@everyone") || msg.contains("@here")) return@run true
-                                        val u = (userInfo?.get("username").safeString() ?: "").trim()
-                                        if (u.isBlank()) return@run false
-                                        msg.contains("@${u.lowercase()}")
-                                    }
-                                    sendStaffChatNotification(
-                                        context = context,
-                                        senderName = senderName,
-                                        message = latestMessage.message,
-                                        isMention = isMention
-                                    )
-                                }
-                            }
+
+                        // Marquer comme "lu" côté app (évite re-notif) + retirer la notif existante
+                        val maxId = newMessages.mapNotNull { it.id.toLongOrNull() }.maxOrNull()
+                        if (maxId != null) {
+                            StaffChatNotifications.markSeen(context, maxId)
+                            StaffChatNotifications.cancel(context)
                         }
-                        
-                        previousMessageCount = newMessages.size
+
                         messages = newMessages
                     }
                 } catch (e: Exception) {
@@ -1035,12 +1002,22 @@ fun StaffMainScreen(
     allMembers: Map<String, String>,
     userInfo: JsonObject?,
     isFounder: Boolean,
-    isAdmin: Boolean  // Vérification admin pour chat
+    isAdmin: Boolean,  // Vérification admin pour chat
+    isAuthorized: Boolean,
+    requestedTab: Int? = null,
+    onRequestedTabConsumed: () -> Unit = {}
 ) {
     var selectedStaffTab by remember { mutableStateOf(0) }
+
+    LaunchedEffect(requestedTab) {
+        if (requestedTab != null) {
+            selectedStaffTab = requestedTab
+            onRequestedTabConsumed()
+        }
+    }
     
-    // Vérifier si l'utilisateur est admin (pas juste founder)
-    if (!isAdmin && !isFounder) {
+    // Vérifier si l'utilisateur est autorisé (liste allowed-users) ou admin Discord
+    if (!isAuthorized && !isAdmin && !isFounder) {
         // Afficher message si pas admin
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
@@ -1075,48 +1052,26 @@ fun StaffMainScreen(
         }
         return
     }
-    
-    // Si admin simple (non-fondateur): afficher UNIQUEMENT le Chat Staff
-    if (isAdmin && !isFounder) {
-        Column(Modifier.fillMaxSize()) {
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Chat, null, tint = Color.White, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "💬 Chat Staff",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+
+    val canSeeLogs = isFounder || isAdmin
+
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Chat Staff")
                 }
-            }
-            StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
-        }
-    } else if (isFounder) {
-        // Si fondateur: afficher tous les onglets
-        Column(Modifier.fillMaxSize()) {
-            TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
-                Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Chat Staff")
-                    }
-                })
-                Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Admin")
-                    }
-                })
+            })
+            Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Admin")
+                }
+            })
+            if (canSeeLogs) {
                 Tab(selected = selectedStaffTab == 2, onClick = { selectedStaffTab = 2 }, text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp))
@@ -1125,11 +1080,11 @@ fun StaffMainScreen(
                     }
                 })
             }
-            when (selectedStaffTab) {
-                0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
-                1 -> AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
-                2 -> LogsScreen(api, json, scope, snackbar)
-            }
+        }
+        when (selectedStaffTab) {
+            0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
+            1 -> AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+            2 -> if (canSeeLogs) LogsScreen(api, json, scope, snackbar) else Unit
         }
     }
 }
@@ -1158,6 +1113,14 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var isAdmin by remember { mutableStateOf(false) }
     var isAuthorized by remember { mutableStateOf(false) }
     var allowedUserIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // Personnalisation (par utilisateur Discord, stockée localement)
+    var brandingVersion by remember { mutableIntStateOf(0) }
+    val appDisplayName = remember(userId, brandingVersion) { store.getCustomAppName(userId) }
+    val appLogoUrl = remember(userId, brandingVersion) { store.getCustomLogoUrl(userId) }
+
+    // Deep links internes (ex: ouvrir le chat staff depuis une notification)
+    var staffRequestedTab by remember { mutableStateOf<Int?>(null) }
     
     // Créer userInfo JsonObject pour StaffChat
     val userInfo = remember(userId, userName) {
@@ -1213,13 +1176,29 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         }
     }
 
-    // Gestion du deep link OAuth
+    // Gestion du deep link (OAuth + navigation interne)
     LaunchedEffect(deepLink) {
-        deepLink?.getQueryParameter("token")?.takeIf { it.isNotBlank() }?.let { t ->
+        if (deepLink == null) return@LaunchedEffect
+
+        // OAuth
+        deepLink.getQueryParameter("token")?.takeIf { it.isNotBlank() }?.let { t ->
             Log.d(TAG, "Token reçu via deep link")
             store.setToken(t.trim())
             token = t.trim()
             snackbar.showSnackbar("✅ Authentification réussie !")
+            onDeepLinkConsumed()
+            return@LaunchedEffect
+        }
+
+        // Navigation: bagbot://staffchat?room=global&seen=...
+        if (deepLink.scheme == "bagbot" && deepLink.host == "staffchat") {
+            val seen = deepLink.getQueryParameter("seen")?.toLongOrNull()
+            if (seen != null) {
+                StaffChatNotifications.markSeen(context, seen)
+                StaffChatNotifications.cancel(context)
+            }
+            tab = 3
+            staffRequestedTab = 0
             onDeepLinkConsumed()
         }
     }
@@ -1476,7 +1455,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             title = { 
                                 Text(
                                     if (selectedConfigSection != null) "Configuration" 
-                                    else "💎 BAG Bot Manager", 
+                                    else (appDisplayName?.takeIf { it.isNotBlank() } ?: "💎 BAG Bot Manager"),
                                     fontWeight = FontWeight.Bold
                                 ) 
                             },
@@ -1485,6 +1464,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                     IconButton(onClick = { selectedConfigSection = null }) {
                                         Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
                                     }
+                                } else if (!appLogoUrl.isNullOrBlank()) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(appLogoUrl),
+                                        contentDescription = "Logo",
+                                        modifier = Modifier
+                                            .padding(start = 12.dp)
+                                            .size(34.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                    )
                                 }
                             },
                             colors = TopAppBarDefaults.topAppBarColors(
@@ -1515,7 +1503,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 label = { Text("Config") }
                             )
                             // Accès Admin : Fondateur OU Admin (avec rôle staff)
-                            if (isFounder || isAdmin) {
+                            if (isAuthorized || isAdmin) {
                                 NavigationBarItem(
                                     selected = tab == 3,
                                     onClick = { tab = 3 },
@@ -1599,9 +1587,11 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 baseUrl = baseUrl,
                                 token = token,
                                 userName = userName,
+                                userId = userId,
                                 store = store,
                                 scope = scope,
                                 snackbar = snackbar,
+                                onBrandingChanged = { brandingVersion += 1 },
                                 onDisconnect = {
                                     token = null
                                     userName = ""
@@ -1659,7 +1649,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             )
                         }
                         // Accès Admin : Fondateur OU Admin (avec rôle staff)
-                        tab == 3 && (isFounder || isAdmin) -> {
+                        tab == 3 && (isAuthorized || isAdmin) -> {
                             StaffMainScreen(
                                 api = api,
                                 json = json,
@@ -1669,7 +1659,10 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 allMembers = members,
                                 userInfo = userInfo,
                                 isFounder = isFounder,
-                                isAdmin = isAdmin
+                                isAdmin = isAdmin,
+                                isAuthorized = isAuthorized,
+                                requestedTab = staffRequestedTab,
+                                onRequestedTabConsumed = { staffRequestedTab = null }
                             )
                         }
                     }
@@ -3282,11 +3275,24 @@ fun AppConfigScreen(
     baseUrl: String,
     token: String?,
     userName: String,
+    userId: String,
     store: SettingsStore,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
+    onBrandingChanged: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    var customAppName by remember { mutableStateOf("") }
+    var customLogoUrl by remember { mutableStateOf("") }
+    var customNotifTitle by remember { mutableStateOf("") }
+
+    LaunchedEffect(userId) {
+        if (userId.isBlank()) return@LaunchedEffect
+        customAppName = store.getCustomAppName(userId).orEmpty()
+        customLogoUrl = store.getCustomLogoUrl(userId).orEmpty()
+        customNotifTitle = store.getStaffChatNotificationTitle(userId).orEmpty()
+    }
+
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -3340,13 +3346,79 @@ fun AppConfigScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("Version: 5.9.13", color = Color.Gray)
+                    Text("Version: 6.1.12", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
                     )
                     if (userName.isNotBlank()) {
                         Text("Utilisateur: $userName", color = Color.White)
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "🎨 Personnalisation",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = customAppName,
+                        onValueChange = { customAppName = it },
+                        label = { Text("Nom affiché de l'application") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = customLogoUrl,
+                        onValueChange = { customLogoUrl = it },
+                        label = { Text("Logo (URL image)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = customNotifTitle,
+                        onValueChange = { customNotifTitle = it },
+                        label = { Text("Nom affiché des notifications (Chat Staff)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                if (userId.isBlank()) {
+                                    snackbar.showSnackbar("❌ Impossible: utilisateur non chargé")
+                                    return@launch
+                                }
+                                store.setCustomAppName(userId, customAppName)
+                                store.setCustomLogoUrl(userId, customLogoUrl)
+                                store.setStaffChatNotificationTitle(userId, customNotifTitle)
+                                onBrandingChanged()
+                                snackbar.showSnackbar("✅ Personnalisation sauvegardée")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Save, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Sauvegarder")
                     }
                 }
             }

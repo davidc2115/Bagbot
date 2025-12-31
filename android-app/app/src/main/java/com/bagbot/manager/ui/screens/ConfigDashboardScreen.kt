@@ -34,6 +34,7 @@ import com.bagbot.manager.ApiClient
 import com.bagbot.manager.ui.components.ChannelSelector
 import com.bagbot.manager.ui.components.MemberSelector
 import com.bagbot.manager.ui.components.RoleSelector
+import com.bagbot.manager.ui.components.SearchableKeySelector
 import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -952,32 +953,18 @@ private fun EconomyConfigTab(
                             Column(Modifier.padding(16.dp)) {
                                 Text("🎭 Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
                                 Spacer(Modifier.height(8.dp))
-                                
-                                var expanded by remember { mutableStateOf(false) }
-                                Box {
-                                    OutlinedButton(
-                                        onClick = { expanded = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(label.ifBlank { selectedActionKey }, modifier = Modifier.weight(1f))
-                                        Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
-                                    }
-                                    androidx.compose.material3.DropdownMenu(
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
-                                    ) {
-                                        actionsKeys.forEach { key ->
-                                            androidx.compose.material3.DropdownMenuItem(
-                                                text = { Text(actionsListObj?.obj(key)?.str("label") ?: key) },
-                                                onClick = {
-                                                    selectedActionKey = key
-                                                    expanded = false
-                                                }
-                                            )
-                                        }
+
+                                val actionItems = remember(actionsKeys, actionsListObj) {
+                                    actionsKeys.map { key ->
+                                        key to (actionsListObj?.obj(key)?.str("label") ?: key)
                                     }
                                 }
+                                SearchableKeySelector(
+                                    items = actionItems,
+                                    selectedKey = selectedActionKey.takeIf { it.isNotBlank() },
+                                    onSelected = { selectedActionKey = it },
+                                    label = "Sélectionner une action"
+                                )
                             }
                         }
                     }
