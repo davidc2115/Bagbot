@@ -1052,8 +1052,7 @@ fun StaffMainScreen(
         }
         return
     }
-
-    val canSeeLogs = isFounder || isAdmin
+    val isLimitedStaff = !isFounder
 
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
@@ -1064,14 +1063,24 @@ fun StaffMainScreen(
                     Text("Chat Staff")
                 }
             })
-            Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Admin")
-                }
-            })
-            if (canSeeLogs) {
+            if (isLimitedStaff) {
+                // Admin Discord + membres autorisés: UNIQUEMENT Chat Staff + Système
+                Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Système")
+                    }
+                })
+            } else {
+                // Fondateur: accès complet (Admin + Logs)
+                Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Admin")
+                    }
+                })
                 Tab(selected = selectedStaffTab == 2, onClick = { selectedStaffTab = 2 }, text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp))
@@ -1083,8 +1092,17 @@ fun StaffMainScreen(
         }
         when (selectedStaffTab) {
             0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
-            1 -> AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
-            2 -> if (canSeeLogs) LogsScreen(api, json, scope, snackbar) else Unit
+            1 -> {
+                if (isLimitedStaff) {
+                    // Réutilise l'onglet Système de l'écran Admin
+                    com.bagbot.manager.ui.screens.SystemTab(api, json, scope) { msg ->
+                        scope.launch { snackbar.showSnackbar(msg) }
+                    }
+                } else {
+                    AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+                }
+            }
+            2 -> if (!isLimitedStaff) LogsScreen(api, json, scope, snackbar) else Unit
         }
     }
 }
