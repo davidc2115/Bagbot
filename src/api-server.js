@@ -42,9 +42,62 @@ const FOUNDER_ID = process.env.FOUNDER_ID || '943487722738311219';
 // Token storage (simplifié - en production utiliser une vraie DB)
 const appTokens = new Map();
 
+// Active sessions (for "membres connectés" / online staff)
+// userId -> { userId, username, avatar, isAdmin, isFounder, isAllowed, lastActivity }
+const activeSessions = new Map();
+const ACTIVE_SESSION_TTL_MS = 15 * 60 * 1000;
+
 // Permissions cache to avoid hitting Discord API on every request
 const permissionsCache = new Map(); // userId -> { data, checkedAt }
 const PERMISSIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function touchActiveSession(userData) {
+  try {
+    if (!userData || !userData.userId) return;
+    const uid = String(userData.userId);
+    const now = Date.now();
+    activeSessions.set(uid, {
+      userId: uid,
+      username: userData.username || 'User',
+      avatar: userData.avatar || null,
+      isAdmin: Boolean(userData.isAdmin),
+      isFounder: Boolean(userData.isFounder),
+      isAllowed: Boolean(userData.isAllowed),
+      lastActivity: now,
+    });
+  } catch (_) {}
+}
+
+function getOnlineSessions() {
+  const now = Date.now();
+  const out = [];
+  for (const s of activeSessions.values()) {
+    if (!s || !s.userId) continue;
+    if ((now - (s.lastActivity || 0)) <= ACTIVE_SESSION_TTL_MS) out.push(s);
+  }
+  return out;
+}
+
+async function getAllowedUsersList() {
+  try {
+    const appConfigPath = path.join(__dirname, '../data/app-config.json');
+    if (!fs.existsSync(appConfigPath)) return [];
+    const appConfig = JSON.parse(fs.readFileSync(appConfigPath, 'utf8'));
+    const list = appConfig.allowedUsers || [];
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((it) => {
+        if (!it) return null;
+        if (typeof it === 'string') return it;
+        if (typeof it === 'object' && typeof it.userId === 'string') return it.userId;
+        return null;
+      })
+      .filter(Boolean)
+      .map(String);
+  } catch (_) {
+    return [];
+  }
+}
 
 function base64UrlEncode(input) {
   return Buffer.from(input)
@@ -124,26 +177,29 @@ async function verifyAppToken(token) {
 async function checkUserPermissions(userId, client) {
   try {
     if (userId === FOUNDER_ID) {
-      return { isFounder: true, isAdmin: true, username: 'Founder', discriminator: '0', avatar: null };
+      return { isFounder: true, isAdmin: true, isAllowed: true, username: 'Founder', discriminator: '0', avatar: null };
     }
     
     const guild = client.guilds.cache.get(GUILD);
-    if (!guild) return { isFounder: false, isAdmin: false, username: null, discriminator: null, avatar: null };
+    if (!guild) return { isFounder: false, isAdmin: false, isAllowed: false, username: null, discriminator: null, avatar: null };
     
     const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member) return { isFounder: false, isAdmin: false, username: null, discriminator: null, avatar: null };
+    if (!member) return { isFounder: false, isAdmin: false, isAllowed: false, username: null, discriminator: null, avatar: null };
     
     const isAdmin = member.permissions.has('Administrator');
+    const allowedUsers = await getAllowedUsersList();
+    const isAllowed = allowedUsers.includes(String(userId));
     return {
       isFounder: false,
       isAdmin,
+      isAllowed,
       username: member.user?.username || null,
       discriminator: member.user?.discriminator || null,
       avatar: member.user?.avatar || null,
     };
   } catch (error) {
     console.error('[API] Error checking permissions:', error);
-    return { isFounder: false, isAdmin: false, username: null, discriminator: null, avatar: null };
+    return { isFounder: false, isAdmin: false, isAllowed: false, username: null, discriminator: null, avatar: null };
   }
 }
 
@@ -178,11 +234,11 @@ async function requireAuth(req, res, next) {
 
   const permissions = await getCachedPermissions(userId, client);
 
-  // Si l'utilisateur n'est plus admin/fondateur => accès révoqué (app doit vider le token)
-  if (!permissions.isAdmin && !permissions.isFounder) {
+  // Si l'utilisateur n'est plus admin/fondateur/autorisé => accès révoqué (app doit vider le token)
+  if (!permissions.isAdmin && !permissions.isFounder && !permissions.isAllowed) {
     return res.status(401).json({
-      error: 'NOT_ADMIN',
-      message: 'Votre accès a été révoqué (vous n’êtes plus admin).',
+      error: 'NOT_AUTHORIZED',
+      message: 'Votre accès a été révoqué (vous n’êtes pas autorisé).',
     });
   }
 
@@ -193,9 +249,23 @@ async function requireAuth(req, res, next) {
     avatar: permissions.avatar || payload.avatar || null,
     isFounder: Boolean(permissions.isFounder),
     isAdmin: Boolean(permissions.isAdmin),
+    isAllowed: Boolean(permissions.isAllowed),
     timestamp: Date.now(),
   };
 
+  touchActiveSession(req.userData);
+  next();
+}
+
+function requireDiscordAdmin(req, res, next) {
+  if (!req.userData?.isFounder && !req.userData?.isAdmin) {
+    return res.status(403).json({ error: 'ADMIN_ONLY' });
+  }
+  next();
+}
+
+function requireFounder(req, res, next) {
+  if (!req.userData?.isFounder) return res.status(403).json({ error: 'FOUNDER_ONLY' });
   next();
 }
 
@@ -322,11 +392,11 @@ app.get('/auth/mobile/callback', async (req, res) => {
     // Vérifier permissions
     const permissions = await checkUserPermissions(userData.id, req.app.locals.client);
     
-    if (!permissions.isAdmin && !permissions.isFounder) {
+    if (!permissions.isAdmin && !permissions.isFounder && !permissions.isAllowed) {
       return res.send(`
         <html><body style="font-family: Arial; text-align: center; padding: 50px;">
           <h1>❌ Accès refusé</h1>
-          <p>Vous devez être administrateur du serveur.</p>
+          <p>Vous devez être administrateur du serveur (ou membre autorisé).</p>
         </body></html>
       `);
     }
@@ -359,7 +429,8 @@ app.get('/api/me', requireAuth, (req, res) => {
     discriminator: req.userData.discriminator,
     avatar: req.userData.avatar,
     isFounder: req.userData.isFounder,
-    isAdmin: req.userData.isAdmin
+    isAdmin: req.userData.isAdmin,
+    isAllowed: req.userData.isAllowed
   });
 });
 
@@ -380,8 +451,8 @@ app.post('/auth/login', async (req, res) => {
   // Vérifier permissions
   const permissions = await checkUserPermissions(userId, req.app.locals.client);
   
-  if (!permissions.isAdmin && !permissions.isFounder) {
-    return res.status(403).json({ error: 'Unauthorized - Admin required' });
+  if (!permissions.isAdmin && !permissions.isFounder && !permissions.isAllowed) {
+    return res.status(403).json({ error: 'Unauthorized - Admin or allowed required' });
   }
   
   // Créer token
@@ -514,7 +585,7 @@ app.get('/api/configs', async (req, res) => {
 });
 
 // PUT /api/configs/:section - Mettre à jour une section
-app.put('/api/configs/:section', requireAuth, async (req, res) => {
+app.put('/api/configs/:section', requireAuth, requireDiscordAdmin, async (req, res) => {
   const { section } = req.params;
   const updates = req.body;
   
@@ -964,14 +1035,15 @@ app.get('/api/staff/chat/file/:filename', (req, res) => {
 // GET liste des admins en ligne (pour chat privé)
 app.get('/api/staff/online', requireAuth, (req, res) => {
   try {
-    // Récupérer la liste des sessions actives
-    const onlineAdmins = sessions.map(s => ({
+    const online = getOnlineSessions().map(s => ({
       userId: s.userId,
       username: s.username,
-      lastActivity: s.lastActivity
+      lastActivity: new Date(s.lastActivity).toISOString(),
+      isAdmin: Boolean(s.isAdmin),
+      isFounder: Boolean(s.isFounder),
+      isAllowed: Boolean(s.isAllowed),
     }));
-    
-    res.json({ admins: onlineAdmins });
+    res.json({ admins: online });
   } catch (error) {
     console.error('[BOT-API] Error fetching online admins:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -1071,40 +1143,38 @@ app.get('/api/music/stream/:filename', (req, res) => {
 // ========== ADMIN ==========
 
 // GET /api/admin/sessions - Membres connectés avec rôles Discord
-app.get('/api/admin/sessions', requireAuth, async (req, res) => {
+app.get('/api/admin/sessions', requireAuth, requireFounder, async (req, res) => {
   try {
     const client = req.app.locals.client;
     const guild = client?.guilds.cache.get(GUILD);
     
     const sessions = [];
-    for (const [key, data] of appTokens.entries()) {
-      if (key.startsWith('token_')) {
-        // Récupérer les rôles Discord de l'utilisateur
-        let roles = [];
-        try {
-          if (guild) {
-            const member = await guild.members.fetch(data.userId).catch(() => null);
-            if (member) {
-              roles = member.roles.cache.map(r => r.id).filter(id => id !== guild.id);
-            }
-          }
-        } catch (e) {
-          console.warn(`[BOT-API] Could not fetch roles for ${data.userId}:`, e.message);
+    const online = getOnlineSessions();
+    for (const data of online) {
+      // Récupérer les rôles Discord de l'utilisateur
+      let roles = [];
+      try {
+        if (guild) {
+          const member = await guild.members.fetch(data.userId).catch(() => null);
+          if (member) roles = member.roles.cache.map(r => r.id).filter(id => id !== guild.id);
         }
-        
-        sessions.push({
-          userId: data.userId,
-          username: data.username,
-          discriminator: data.discriminator || '0',
-          avatar: data.avatar,
-          isAdmin: data.isAdmin || false,
-          isFounder: data.isFounder || false,
-          roles: roles, // Ajouter les rôles Discord
-          connectedAt: new Date(data.timestamp).toISOString(),
-          lastActivity: new Date(data.timestamp).toISOString(),
-          isOnline: true
-        });
+      } catch (e) {
+        console.warn(`[BOT-API] Could not fetch roles for ${data.userId}:`, e.message);
       }
+      
+      sessions.push({
+        userId: data.userId,
+        username: data.username,
+        discriminator: '0',
+        avatar: data.avatar,
+        isAdmin: Boolean(data.isAdmin),
+        isFounder: Boolean(data.isFounder),
+        isAllowed: Boolean(data.isAllowed),
+        roles: roles, // Ajouter les rôles Discord
+        connectedAt: new Date(data.lastActivity || Date.now()).toISOString(),
+        lastActivity: new Date(data.lastActivity || Date.now()).toISOString(),
+        isOnline: true
+      });
     }
     
     console.log(`[BOT-API] Returning ${sessions.length} sessions with roles`);
@@ -1491,7 +1561,7 @@ app.delete('/api/music/playlists/:id', requireAuth, (req, res) => {
 // ========== ENDPOINTS MANQUANTS POUR COMPATIBILITÉ APP ANDROID ==========
 
 // POST /api/economy - Sauvegarder config économie (utilise PUT /api/configs/economy)
-app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
+app.post('/api/economy', requireAuth, requireDiscordAdmin, express.json(), async (req, res) => {
   try {
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};

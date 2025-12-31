@@ -3388,6 +3388,13 @@ fun AppConfigScreen(
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "ℹ️ Le nom sous l’icône Android ne peut pas être modifié dynamiquement. " +
+                            "Utilise plutôt un raccourci sur l’accueil avec ton nom + logo.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                     Spacer(Modifier.height(12.dp))
 
                     OutlinedTextField(
@@ -3437,6 +3444,31 @@ fun AppConfigScreen(
                         Icon(Icons.Default.Save, null)
                         Spacer(Modifier.width(8.dp))
                         Text("Sauvegarder")
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    val context = LocalContext.current
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val label = customAppName.trim().ifBlank { "💎 BAG Bot Manager" }
+                                val ok = ShortcutUtils.pinCustomShortcut(
+                                    context = context,
+                                    label = label,
+                                    logoUrl = customLogoUrl
+                                )
+                                snackbar.showSnackbar(
+                                    if (ok) "✅ Raccourci proposé (confirme sur Android pour l’ajouter)"
+                                    else "❌ Raccourci non supporté sur cet appareil"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("📌 Créer un raccourci sur l’accueil")
                     }
                 }
             }

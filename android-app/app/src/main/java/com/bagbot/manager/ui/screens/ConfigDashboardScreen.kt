@@ -62,6 +62,7 @@ private enum class DashTab(val label: String) {
     Actions("🎬 Actions"),
     Tickets("🎫 Tickets"),
     Logs("📝 Logs"),
+    Tribunal("⚖️ Tribunal"),
     Confess("💬 Confess"),
     Welcome("👋 Welcome"),
     Goodbye("😢 Goodbye"),
@@ -219,7 +220,7 @@ fun ConfigDashboardScreen(
             // Show selected category content
             when (selectedTab) {
                 DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
-                DashTab.Economy -> EconomyConfigTab(configData, members, api, json, scope, snackbar)
+                DashTab.Economy -> EconomyConfigTab(configData, members, channels, api, json, scope, snackbar)
                 DashTab.Levels -> LevelsConfigTab(configData, roles, members, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
@@ -239,6 +240,7 @@ fun ConfigDashboardScreen(
                 DashTab.Geo -> GeoConfigTab(configData, members)
                 DashTab.Backups -> BackupsTab(api, json, scope, snackbar)
                 DashTab.Control -> ControlTab(api, json, scope, snackbar)
+                DashTab.Tribunal -> TribunalConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 null -> {} // Should not happen
             }
         }
@@ -784,13 +786,14 @@ private fun StatCard(
 private fun EconomyConfigTab(
     configData: JsonObject?,
     members: Map<String, String>,
+    channels: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    val subTabs = listOf("Settings", "Actions", "Users", "Boutique", "Karma", "Suites")
+    val subTabs = listOf("Settings", "Actions", "Users", "Boutique", "Karma", "Suites", "Drops")
     
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
@@ -902,11 +905,16 @@ private fun EconomyConfigTab(
                 val actionsConfigObj = eco?.obj("actions")?.obj("config")
                 val actionsEnabled = eco?.obj("actions")?.arr("enabled").safeStringList()
 
-                val actionsKeys = remember(actionsListObj, actionsConfigObj, actionsEnabled) {
+                val actionsGifsObj = eco?.obj("actions")?.obj("gifs")
+                val actionsMessagesObj = eco?.obj("actions")?.obj("messages")
+
+                val actionsKeys = remember(actionsListObj, actionsConfigObj, actionsEnabled, actionsGifsObj, actionsMessagesObj) {
                     val keys = mutableSetOf<String>()
                     actionsEnabled.forEach { if (it.isNotBlank()) keys.add(it) }
                     actionsListObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsConfigObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    actionsGifsObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    actionsMessagesObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     keys.toList().sorted()
                 }
 
@@ -2055,6 +2063,209 @@ private fun EconomyConfigTab(
                                 Icon(Icons.Default.Save, null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Sauvegarder Suites")
+                            }
+                        }
+                    }
+                }
+            }
+            6 -> {
+                val drops = configData?.obj("drops")
+                var enabled by remember { mutableStateOf(drops?.bool("enabled") ?: false) }
+                var channelId by remember { mutableStateOf(drops?.str("channelId") ?: "") }
+                var intervalValue by remember { mutableStateOf((drops?.int("intervalValue") ?: 1).toString()) }
+                var intervalUnit by remember { mutableStateOf(drops?.str("intervalUnit") ?: "hours") } // hours|days
+
+                val types = drops?.obj("types")
+                val xp = types?.obj("xp")
+                val money = types?.obj("money")
+
+                var xpEnabled by remember { mutableStateOf(xp?.bool("enabled") ?: false) }
+                var xpMin by remember { mutableStateOf((xp?.int("min") ?: 5).toString()) }
+                var xpMax by remember { mutableStateOf((xp?.int("max") ?: 25).toString()) }
+
+                var moneyEnabled by remember { mutableStateOf(money?.bool("enabled") ?: false) }
+                var moneyMin by remember { mutableStateOf((money?.int("min") ?: 10).toString()) }
+                var moneyMax by remember { mutableStateOf((money?.int("max") ?: 100).toString()) }
+
+                var savingDrops by remember { mutableStateOf(false) }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text(
+                            "🎁 Drops Automatiques",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Drops XP / Argent automatiques dans un salon",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
+                    }
+
+                    item {
+                        SectionCard(title = "⚙️ Configuration") {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Activé", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Switch(checked = enabled, onCheckedChange = { enabled = it })
+                            }
+                            Spacer(Modifier.height(10.dp))
+
+                            ChannelSelector(
+                                channels = channels,
+                                selectedChannelId = channelId.takeIf { it.isNotBlank() },
+                                onChannelSelected = { channelId = it },
+                                label = "Sélectionner le salon des drops"
+                            )
+                            Spacer(Modifier.height(10.dp))
+
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = intervalValue,
+                                    onValueChange = { intervalValue = it },
+                                    label = { Text("Délai") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+
+                                Box(Modifier.weight(1f)) {
+                                    var unitMenuExpanded by remember { mutableStateOf(false) }
+                                    OutlinedButton(
+                                        onClick = { unitMenuExpanded = true },
+                                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                                    ) {
+                                        Text(if (intervalUnit == "days") "Jours" else "Heures", modifier = Modifier.weight(1f))
+                                        Icon(Icons.Default.ArrowDropDown, null)
+                                    }
+                                    DropdownMenu(
+                                        expanded = unitMenuExpanded,
+                                        onDismissRequest = { unitMenuExpanded = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Heures") },
+                                            onClick = { intervalUnit = "hours"; unitMenuExpanded = false }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Jours") },
+                                            onClick = { intervalUnit = "days"; unitMenuExpanded = false }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        SectionCard(title = "✨ Drop XP") {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Activé", color = Color.White)
+                                Switch(checked = xpEnabled, onCheckedChange = { xpEnabled = it })
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = xpMin,
+                                    onValueChange = { xpMin = it },
+                                    label = { Text("Min") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                OutlinedTextField(
+                                    value = xpMax,
+                                    onValueChange = { xpMax = it },
+                                    label = { Text("Max") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        SectionCard(title = "💰 Drop Argent") {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Activé", color = Color.White)
+                                Switch(checked = moneyEnabled, onCheckedChange = { moneyEnabled = it })
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = moneyMin,
+                                    onValueChange = { moneyMin = it },
+                                    label = { Text("Min") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                                OutlinedTextField(
+                                    value = moneyMax,
+                                    onValueChange = { moneyMax = it },
+                                    label = { Text("Max") },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    savingDrops = true
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val body = buildJsonObject {
+                                                put("enabled", enabled)
+                                                put("channelId", channelId)
+                                                put("intervalValue", intervalValue.toIntOrNull() ?: 1)
+                                                put("intervalUnit", intervalUnit)
+                                                put("types", buildJsonObject {
+                                                    put("xp", buildJsonObject {
+                                                        put("enabled", xpEnabled)
+                                                        put("min", xpMin.toIntOrNull() ?: 5)
+                                                        put("max", xpMax.toIntOrNull() ?: (xpMin.toIntOrNull() ?: 5))
+                                                    })
+                                                    put("money", buildJsonObject {
+                                                        put("enabled", moneyEnabled)
+                                                        put("min", moneyMin.toIntOrNull() ?: 10)
+                                                        put("max", moneyMax.toIntOrNull() ?: (moneyMin.toIntOrNull() ?: 10))
+                                                    })
+                                                })
+                                            }
+                                            api.putJson("/api/configs/drops", json.encodeToString(JsonObject.serializer(), body))
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Drops sauvegardés") }
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        } finally {
+                                            withContext(Dispatchers.Main) { savingDrops = false }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            enabled = !savingDrops
+                        ) {
+                            if (savingDrops) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                            else {
+                                Icon(Icons.Default.Save, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Sauvegarder Drops")
                             }
                         }
                     }
@@ -7043,6 +7254,121 @@ private fun GeoConfigTab(
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TribunalConfigTab(
+    configData: JsonObject?,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    val tribunal = configData?.obj("tribunal")
+    val casesObj = tribunal?.obj("cases")
+    val caseEntries = remember(casesObj) {
+        casesObj?.jsonObject?.entries?.toList().orEmpty()
+            .sortedByDescending { (_, v) -> v.jsonObject["updatedAt"].safeLong() ?: 0L }
+    }
+
+    var categoryId by remember { mutableStateOf(tribunal?.str("categoryId") ?: "") }
+    var judgeRoleId by remember { mutableStateOf(tribunal?.str("judgeRoleId") ?: "") }
+    var saving by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                "⚖️ Tribunal",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "${caseEntries.size} dossier(s) dans la config",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+        }
+
+        item {
+            SectionCard(title = "⚙️ Configuration", subtitle = "Catégorie + rôle juge") {
+                Text("Catégorie (Discord)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = categoryId.takeIf { it.isNotBlank() },
+                    onChannelSelected = { categoryId = it },
+                    label = "Sélectionner une catégorie"
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                Text("Rôle Juge (optionnel)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                RoleSelector(
+                    roles = roles,
+                    selectedRoleId = judgeRoleId.takeIf { it.isNotBlank() },
+                    onRoleSelected = { judgeRoleId = it },
+                    label = "Sélectionner un rôle"
+                )
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    scope.launch {
+                        saving = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val body = buildJsonObject {
+                                    put("categoryId", categoryId)
+                                    put("judgeRoleId", judgeRoleId)
+                                }
+                                api.putJson("/api/configs/tribunal", json.encodeToString(JsonObject.serializer(), body))
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Tribunal sauvegardé") }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                            } finally {
+                                withContext(Dispatchers.Main) { saving = false }
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !saving
+            ) {
+                if (saving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                else {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder Tribunal")
+                }
+            }
+        }
+
+        if (caseEntries.isNotEmpty()) {
+            item {
+                SectionCard(title = "📂 Dossiers (aperçu)", subtitle = "Lecture seule") {
+                    caseEntries.take(15).forEach { (id, el) ->
+                        val o = el.jsonObject
+                        val status = o["status"].safeString() ?: "?"
+                        val plaintiffId = o["plaintiffId"].safeStringOrEmpty()
+                        val accusedId = o["accusedId"].safeStringOrEmpty()
+                        val judgeId = o["judgeId"].safeStringOrEmpty()
+                        Text(
+                            "• $id — $status — plaignant:${plaintiffId.takeLast(6)} accusé:${accusedId.takeLast(6)} juge:${judgeId.takeLast(6)}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }

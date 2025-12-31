@@ -5953,6 +5953,15 @@ client.once(Events.ClientReady, async (readyClient) => {
     console.error('[Bot] ❌ Erreur initialisation monitoring:', error.message);
   }
 
+  // === DROPS AUTOMATIQUES (XP / ARGENT) ===
+  try {
+    const { startAutoDrops } = require('./handlers/autoDrops');
+    startAutoDrops(readyClient);
+    console.log('[Bot] ✅ Drops automatiques démarrés');
+  } catch (error) {
+    console.error('[Bot] ❌ Erreur drops automatiques:', error.message);
+  }
+
   // === NETTOYAGE AUTOMATIQUE DES UTILISATEURS PARTIS ===
   // Nettoyer tous les jours à 3h du matin
   const scheduleDailyCleanup = () => {

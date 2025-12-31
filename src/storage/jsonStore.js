@@ -1710,6 +1710,31 @@ function ensureDisboardShape(g) {
   if (typeof d.reminded !== 'boolean') d.reminded = false;
 }
 
+function ensureDropsShape(g) {
+  if (!g.drops || typeof g.drops !== 'object') g.drops = {};
+  const d = g.drops;
+  if (typeof d.enabled !== 'boolean') d.enabled = false;
+  if (typeof d.channelId !== 'string') d.channelId = '';
+  if (typeof d.intervalValue !== 'number' || !Number.isFinite(d.intervalValue) || d.intervalValue <= 0) d.intervalValue = 1;
+  if (typeof d.intervalUnit !== 'string') d.intervalUnit = 'hours'; // hours|days
+  if (d.intervalUnit !== 'hours' && d.intervalUnit !== 'days') d.intervalUnit = 'hours';
+  if (typeof d.lastRunAt !== 'number' || !Number.isFinite(d.lastRunAt)) d.lastRunAt = 0;
+  if (!d.types || typeof d.types !== 'object') d.types = {};
+  if (!d.types.xp || typeof d.types.xp !== 'object') d.types.xp = {};
+  if (!d.types.money || typeof d.types.money !== 'object') d.types.money = {};
+
+  const fixRange = (obj, defMin, defMax) => {
+    if (typeof obj.enabled !== 'boolean') obj.enabled = false;
+    if (typeof obj.min !== 'number' || !Number.isFinite(obj.min)) obj.min = defMin;
+    if (typeof obj.max !== 'number' || !Number.isFinite(obj.max)) obj.max = defMax;
+    if (obj.min < 0) obj.min = 0;
+    if (obj.max < obj.min) obj.max = obj.min;
+  };
+
+  fixRange(d.types.xp, 5, 25);
+  fixRange(d.types.money, 10, 100);
+}
+
 function ensureTribunalShape(g) {
   if (!g.tribunal || typeof g.tribunal !== 'object') g.tribunal = {};
   const t = g.tribunal;
@@ -1844,6 +1869,22 @@ async function getTribunalConfig(guildId) {
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   ensureTribunalShape(cfg.guilds[guildId]);
   return cfg.guilds[guildId].tribunal;
+}
+
+async function getDropsConfig(guildId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureDropsShape(cfg.guilds[guildId]);
+  return cfg.guilds[guildId].drops;
+}
+
+async function updateDropsConfig(guildId, partial) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureDropsShape(cfg.guilds[guildId]);
+  cfg.guilds[guildId].drops = { ...cfg.guilds[guildId].drops, ...partial };
+  await writeConfig(cfg, "drops");
+  return cfg.guilds[guildId].drops;
 }
 
 async function updateTribunalConfig(guildId, partial) {
@@ -2132,6 +2173,9 @@ module.exports = {
   setCountingState,
   getDisboardConfig,
   updateDisboardConfig,
+  // Drops
+  getDropsConfig,
+  updateDropsConfig,
   // Tribunal
   getTribunalConfig,
   updateTribunalConfig,
