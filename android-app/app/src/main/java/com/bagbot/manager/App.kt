@@ -1869,6 +1869,13 @@ fun BotControlScreen(
     LaunchedEffect(Unit) {
         loadConnectedUsers()
     }
+
+    // Si l'utilisateur est chargé après le premier rendu, recharger la liste.
+    LaunchedEffect(currentUserId, isFounder) {
+        if (currentUserId.isNotBlank()) {
+            loadConnectedUsers()
+        }
+    }
     
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),

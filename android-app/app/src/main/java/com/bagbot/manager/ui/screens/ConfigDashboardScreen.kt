@@ -2948,16 +2948,32 @@ private fun ActionsConfigTab(
 ) {
     val eco = configData?.obj("economy")
     val actions = eco?.obj("actions")
+    val settings = eco?.obj("settings")
     
-    val actionsList = remember(actions) {
-        actions?.obj("list")?.mapValues { (key, value) ->
-            val obj = value.jsonObject
-            key to (obj["label"]?.jsonPrimitive?.contentOrNull ?: key)
-        }?.values?.toList() ?: emptyList()
+    // Construire une liste complète d'actions à partir de toutes les sources possibles.
+    val actionsList = remember(actions, settings) {
+        val keys = linkedSetOf<String>()
+        actions?.arr("enabled")?.safeStringList()?.forEach { if (it.isNotBlank()) keys.add(it) }
+        actions?.obj("config")?.jsonObject?.keys?.forEach { keys.add(it) }
+        actions?.obj("gifs")?.jsonObject?.keys?.forEach { keys.add(it) }
+        actions?.obj("messages")?.jsonObject?.keys?.forEach { keys.add(it) }
+        actions?.obj("list")?.jsonObject?.keys?.forEach { keys.add(it) }
+        settings?.obj("cooldowns")?.jsonObject?.keys?.forEach { keys.add(it) }
+
+        val listObj = actions?.obj("list")
+        keys.toList().sorted().map { k ->
+            k to (listObj?.obj(k)?.str("label") ?: k)
+        }
     }
     
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedActionKey by remember { mutableStateOf(actionsList.firstOrNull()?.first ?: "") }
+
+    LaunchedEffect(actionsList) {
+        if (selectedActionKey.isBlank() || actionsList.none { it.first == selectedActionKey }) {
+            selectedActionKey = actionsList.firstOrNull()?.first.orEmpty()
+        }
+    }
     
     Column(Modifier.fillMaxSize()) {
         // Header
@@ -3041,39 +3057,13 @@ private fun ActionGifsTab(
                 Column(Modifier.padding(16.dp)) {
                     Text("Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
-                    
-                    androidx.compose.material3.DropdownMenu(
-                        expanded = false,
-                        onDismissRequest = {}
-                    ) {}
-                    
-                    // Custom dropdown
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(
-                            onClick = { expanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val selected = actionsList.find { it.first == selectedActionKey }
-                            Text(selected?.second ?: "Sélectionner...", modifier = Modifier.weight(1f))
-                            Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            actionsList.forEach { (key, label) ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        onActionSelect(key)
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
+
+                    SearchableKeySelector(
+                        items = actionsList,
+                        selectedKey = selectedActionKey.takeIf { it.isNotBlank() },
+                        onSelected = { onActionSelect(it) },
+                        label = "Sélectionner..."
+                    )
                 }
             }
         }
@@ -3396,33 +3386,13 @@ private fun ActionMessagesTab(
                 Column(Modifier.padding(16.dp)) {
                     Text("Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
-                    
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(
-                            onClick = { expanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val selected = actionsList.find { it.first == selectedActionKey }
-                            Text(selected?.second ?: "Sélectionner...", modifier = Modifier.weight(1f))
-                            Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            actionsList.forEach { (key, label) ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        onActionSelect(key)
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
+
+                    SearchableKeySelector(
+                        items = actionsList,
+                        selectedKey = selectedActionKey.takeIf { it.isNotBlank() },
+                        onSelected = { onActionSelect(it) },
+                        label = "Sélectionner..."
+                    )
                 }
             }
         }
