@@ -1249,6 +1249,13 @@ private fun EconomyConfigTab(
                 var shopItems by remember(shopData) {
                     mutableStateOf(shopData?.arr("items")?.mapNotNull { it.jsonObject }?.toMutableList() ?: mutableListOf())
                 }
+
+                // Achat de rôles (permanent/temporaire) via l'API boutique
+                var shopCurrency by remember { mutableStateOf("BAG$") }
+                var shopBalance by remember { mutableStateOf(0) }
+                var shopRoles by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+                var shopLoadingCatalog by remember { mutableStateOf(false) }
+                var shopBuying by remember { mutableStateOf(false) }
                 
                 var showAddDialog by remember { mutableStateOf(false) }
                 var editingIndex by remember { mutableStateOf<Int?>(null) }
@@ -1257,6 +1264,32 @@ private fun EconomyConfigTab(
                 var newItemPrice by remember { mutableStateOf("") }
                 var newItemEmoji by remember { mutableStateOf("") }
                 var savingShop by remember { mutableStateOf(false) }
+
+                fun loadShopCatalog() {
+                    scope.launch {
+                        shopLoadingCatalog = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val resp = api.getJson("/api/shop/catalog")
+                                val obj = json.parseToJsonElement(resp).jsonObject
+                                val currency = obj["currency"]?.jsonPrimitive?.contentOrNull ?: "BAG$"
+                                val balance = obj["balance"]?.jsonPrimitive?.intOrNull ?: 0
+                                val roles = obj["roles"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                                withContext(Dispatchers.Main) {
+                                    shopCurrency = currency
+                                    shopBalance = balance
+                                    shopRoles = roles
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Boutique: ${e.message}") }
+                            } finally {
+                                withContext(Dispatchers.Main) { shopLoadingCatalog = false }
+                            }
+                        }
+                    }
+                }
+
+                LaunchedEffect(Unit) { loadShopCatalog() }
                 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -1292,6 +1325,114 @@ private fun EconomyConfigTab(
                                 Icon(Icons.Default.Add, null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Ajouter")
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            "🎭 Achat de rôles",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            "Solde: $shopBalance $shopCurrency",
+                                            color = Color(0xFF57F287),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    IconButton(onClick = { loadShopCatalog() }, enabled = !shopLoadingCatalog && !shopBuying) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
+                                    }
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                if (shopLoadingCatalog) {
+                                    Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator()
+                                    }
+                                } else if (shopRoles.isEmpty()) {
+                                    Text("Aucun rôle en boutique.", color = Color.Gray)
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        shopRoles.forEach { r ->
+                                            val roleName = r["roleName"]?.jsonPrimitive?.contentOrNull
+                                                ?: r["roleId"]?.jsonPrimitive?.contentOrNull
+                                                ?: "Rôle"
+                                            val roleId = r["roleId"]?.jsonPrimitive?.contentOrNull ?: ""
+                                            val durationDays = r["durationDays"]?.jsonPrimitive?.intOrNull ?: 0
+                                            val basePrice = r["basePrice"]?.jsonPrimitive?.intOrNull ?: 0
+                                            val finalPrice = r["finalPrice"]?.jsonPrimitive?.intOrNull ?: basePrice
+                                            val durationLabel = if (durationDays > 0) "⏱️ ${durationDays}j" else "♾️ Permanent"
+
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                                            ) {
+                                                Row(
+                                                    Modifier.fillMaxWidth().padding(14.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(roleName, color = Color.White, fontWeight = FontWeight.Bold)
+                                                        Text(durationLabel, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                        Text(
+                                                            "Prix: $finalPrice $shopCurrency",
+                                                            color = Color(0xFF57F287),
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                    Button(
+                                                        enabled = !shopBuying && roleId.isNotBlank() && shopBalance >= finalPrice,
+                                                        onClick = {
+                                                            scope.launch {
+                                                                shopBuying = true
+                                                                withContext(Dispatchers.IO) {
+                                                                    try {
+                                                                        val body = buildJsonObject {
+                                                                            put("type", "role")
+                                                                            put("roleId", roleId)
+                                                                            put("durationDays", durationDays)
+                                                                        }
+                                                                        api.postJson("/api/shop/buy", body.toString())
+                                                                        withContext(Dispatchers.Main) {
+                                                                            snackbar.showSnackbar("✅ Rôle acheté: $roleName")
+                                                                        }
+                                                                        withContext(Dispatchers.Main) { loadShopCatalog() }
+                                                                    } catch (e: Exception) {
+                                                                        withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Achat: ${e.message}") }
+                                                                    } finally {
+                                                                        withContext(Dispatchers.Main) { shopBuying = false }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    ) {
+                                                        if (shopBuying) {
+                                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                                        } else {
+                                                            Text("Acheter")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
