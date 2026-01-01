@@ -538,6 +538,16 @@ app.get('/api/configs', async (req, res) => {
   try {
     const config = await readConfig();
     const guildConfig = config.guilds[GUILD] || {};
+
+    // IMPORTANT (fix "Actions = seulement work"):
+    // /api/configs lisait le JSON brut, sans appliquer ensureEconomyShape().
+    // Or c'est ensureEconomyShape() qui injecte la liste complète e.actions.enabled.
+    // On reconstruit donc une économie "shape" (sans l'écrire sur disque).
+    try {
+      guildConfig.economy = await getEconomyConfig(GUILD);
+    } catch (e) {
+      console.warn('[API] getEconomyConfig failed (fallback to raw):', e?.message || e);
+    }
     
     // Filtrer pour ne garder que les membres actuels du serveur
     // IMPORTANT: ne pas faire de guild.members.fetch() ici (trop lourd, peut provoquer des crashs/timeout).

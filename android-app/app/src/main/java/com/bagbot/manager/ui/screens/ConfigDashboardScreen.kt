@@ -55,6 +55,7 @@ private const val TAG = "BAG_CONFIG"
 private enum class DashTab(val label: String) {
     Dashboard("🏠 Dashboard"),
     Economy("💰 Économie"),
+    Drops("🎁 Drops"),
     Levels("📈 Niveaux"),
     Booster("🚀 Booster"),
     Counting("🔢 Comptage"),
@@ -221,6 +222,7 @@ fun ConfigDashboardScreen(
             when (selectedTab) {
                 DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
                 DashTab.Economy -> EconomyConfigTab(configData, members, channels, api, json, scope, snackbar)
+                DashTab.Drops -> DropsConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Levels -> LevelsConfigTab(configData, roles, members, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
@@ -258,6 +260,7 @@ private fun CategoryCard(
     val icon = when (label) {
         "🏠 Dashboard" -> Icons.Default.Dashboard
         "💰 Économie" -> Icons.Default.MonetizationOn
+        "🎁 Drops" -> Icons.Default.CardGiftcard
         "📊 Niveaux" -> Icons.Default.TrendingUp
         "🚀 Booster" -> Icons.Default.Rocket
         "🔢 Comptage" -> Icons.Default.Calculate
@@ -277,6 +280,7 @@ private fun CategoryCard(
     val accent = when (label) {
         "🏠 Dashboard" -> Color(0xFF5865F2)
         "💰 Économie" -> Color(0xFF57F287)
+        "🎁 Drops" -> Color(0xFFFFC107)
         "📊 Niveaux" -> Color(0xFF9B59B6)
         "🚀 Booster" -> Color(0xFFFF9800)
         "🔢 Comptage" -> Color(0xFF00D4FF)
@@ -793,7 +797,7 @@ private fun EconomyConfigTab(
     snackbar: SnackbarHostState
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    val subTabs = listOf("Settings", "Actions", "Users", "Boutique", "Karma", "Suites", "Drops")
+    val subTabs = listOf("Settings", "Actions", "Users", "Boutique", "Karma", "Suites")
     
     val eco = configData?.obj("economy")
     val settings = eco?.obj("settings")
@@ -2229,207 +2233,217 @@ private fun EconomyConfigTab(
                     }
                 }
             }
-            6 -> {
-                val drops = configData?.obj("drops")
-                var enabled by remember { mutableStateOf(drops?.bool("enabled") ?: false) }
-                var channelId by remember { mutableStateOf(drops?.str("channelId") ?: "") }
-                var intervalValue by remember { mutableStateOf((drops?.int("intervalValue") ?: 1).toString()) }
-                var intervalUnit by remember { mutableStateOf(drops?.str("intervalUnit") ?: "hours") } // hours|days
+        }
+    }
+}
 
-                val types = drops?.obj("types")
-                val xp = types?.obj("xp")
-                val money = types?.obj("money")
+// Onglet séparé (hors Économie) pour les drops automatiques
+@Composable
+private fun DropsConfigTab(
+    configData: JsonObject?,
+    channels: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    val drops = configData?.obj("drops")
+    var enabled by remember { mutableStateOf(drops?.bool("enabled") ?: false) }
+    var channelId by remember { mutableStateOf(drops?.str("channelId") ?: "") }
+    var intervalValue by remember { mutableStateOf((drops?.int("intervalValue") ?: 1).toString()) }
+    var intervalUnit by remember { mutableStateOf(drops?.str("intervalUnit") ?: "hours") } // hours|days
 
-                var xpEnabled by remember { mutableStateOf(xp?.bool("enabled") ?: false) }
-                var xpMin by remember { mutableStateOf((xp?.int("min") ?: 5).toString()) }
-                var xpMax by remember { mutableStateOf((xp?.int("max") ?: 25).toString()) }
+    val types = drops?.obj("types")
+    val xp = types?.obj("xp")
+    val money = types?.obj("money")
 
-                var moneyEnabled by remember { mutableStateOf(money?.bool("enabled") ?: false) }
-                var moneyMin by remember { mutableStateOf((money?.int("min") ?: 10).toString()) }
-                var moneyMax by remember { mutableStateOf((money?.int("max") ?: 100).toString()) }
+    var xpEnabled by remember { mutableStateOf(xp?.bool("enabled") ?: false) }
+    var xpMin by remember { mutableStateOf((xp?.int("min") ?: 5).toString()) }
+    var xpMax by remember { mutableStateOf((xp?.int("max") ?: 25).toString()) }
 
-                var savingDrops by remember { mutableStateOf(false) }
+    var moneyEnabled by remember { mutableStateOf(money?.bool("enabled") ?: false) }
+    var moneyMin by remember { mutableStateOf((money?.int("min") ?: 10).toString()) }
+    var moneyMax by remember { mutableStateOf((money?.int("max") ?: 100).toString()) }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+    var savingDrops by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                "🎁 Drops Automatiques",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "Drops XP / Argent automatiques dans un salon",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+        }
+
+        item {
+            SectionCard(title = "⚙️ Configuration") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    item {
-                        Text(
-                            "🎁 Drops Automatiques",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "Drops XP / Argent automatiques dans un salon",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                    }
+                    Text("Activé", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+                Spacer(Modifier.height(10.dp))
 
-                    item {
-                        SectionCard(title = "⚙️ Configuration") {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Activé", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                Switch(checked = enabled, onCheckedChange = { enabled = it })
-                            }
-                            Spacer(Modifier.height(10.dp))
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = channelId.takeIf { it.isNotBlank() },
+                    onChannelSelected = { channelId = it },
+                    label = "Sélectionner le salon des drops"
+                )
+                Spacer(Modifier.height(10.dp))
 
-                            ChannelSelector(
-                                channels = channels,
-                                selectedChannelId = channelId.takeIf { it.isNotBlank() },
-                                onChannelSelected = { channelId = it },
-                                label = "Sélectionner le salon des drops"
-                            )
-                            Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = intervalValue,
+                        onValueChange = { intervalValue = it },
+                        label = { Text("Délai") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
 
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = intervalValue,
-                                    onValueChange = { intervalValue = it },
-                                    label = { Text("Délai") },
-                                    modifier = Modifier.weight(1f),
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-
-                                Box(Modifier.weight(1f)) {
-                                    var unitMenuExpanded by remember { mutableStateOf(false) }
-                                    OutlinedButton(
-                                        onClick = { unitMenuExpanded = true },
-                                        modifier = Modifier.fillMaxWidth().height(56.dp)
-                                    ) {
-                                        Text(if (intervalUnit == "days") "Jours" else "Heures", modifier = Modifier.weight(1f))
-                                        Icon(Icons.Default.ArrowDropDown, null)
-                                    }
-                                    DropdownMenu(
-                                        expanded = unitMenuExpanded,
-                                        onDismissRequest = { unitMenuExpanded = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Heures") },
-                                            onClick = { intervalUnit = "hours"; unitMenuExpanded = false }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Jours") },
-                                            onClick = { intervalUnit = "days"; unitMenuExpanded = false }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        SectionCard(title = "✨ Drop XP") {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Activé", color = Color.White)
-                                Switch(checked = xpEnabled, onCheckedChange = { xpEnabled = it })
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = xpMin,
-                                    onValueChange = { xpMin = it },
-                                    label = { Text("Min") },
-                                    modifier = Modifier.weight(1f),
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-                                OutlinedTextField(
-                                    value = xpMax,
-                                    onValueChange = { xpMax = it },
-                                    label = { Text("Max") },
-                                    modifier = Modifier.weight(1f),
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-                            }
-                        }
-                    }
-
-                    item {
-                        SectionCard(title = "💰 Drop Argent") {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Activé", color = Color.White)
-                                Switch(checked = moneyEnabled, onCheckedChange = { moneyEnabled = it })
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = moneyMin,
-                                    onValueChange = { moneyMin = it },
-                                    label = { Text("Min") },
-                                    modifier = Modifier.weight(1f),
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-                                OutlinedTextField(
-                                    value = moneyMax,
-                                    onValueChange = { moneyMax = it },
-                                    label = { Text("Max") },
-                                    modifier = Modifier.weight(1f),
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                                )
-                            }
-                        }
-                    }
-
-                    item {
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    savingDrops = true
-                                    withContext(Dispatchers.IO) {
-                                        try {
-                                            val body = buildJsonObject {
-                                                put("enabled", enabled)
-                                                put("channelId", channelId)
-                                                put("intervalValue", intervalValue.toIntOrNull() ?: 1)
-                                                put("intervalUnit", intervalUnit)
-                                                put("types", buildJsonObject {
-                                                    put("xp", buildJsonObject {
-                                                        put("enabled", xpEnabled)
-                                                        put("min", xpMin.toIntOrNull() ?: 5)
-                                                        put("max", xpMax.toIntOrNull() ?: (xpMin.toIntOrNull() ?: 5))
-                                                    })
-                                                    put("money", buildJsonObject {
-                                                        put("enabled", moneyEnabled)
-                                                        put("min", moneyMin.toIntOrNull() ?: 10)
-                                                        put("max", moneyMax.toIntOrNull() ?: (moneyMin.toIntOrNull() ?: 10))
-                                                    })
-                                                })
-                                            }
-                                            api.putJson("/api/configs/drops", json.encodeToString(JsonObject.serializer(), body))
-                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Drops sauvegardés") }
-                                        } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
-                                        } finally {
-                                            withContext(Dispatchers.Main) { savingDrops = false }
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            enabled = !savingDrops
+                    Box(Modifier.weight(1f)) {
+                        var unitMenuExpanded by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { unitMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
-                            if (savingDrops) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
-                            else {
-                                Icon(Icons.Default.Save, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Sauvegarder Drops")
+                            Text(if (intervalUnit == "days") "Jours" else "Heures", modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ArrowDropDown, null)
+                        }
+                        DropdownMenu(
+                            expanded = unitMenuExpanded,
+                            onDismissRequest = { unitMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Heures") },
+                                onClick = { intervalUnit = "hours"; unitMenuExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Jours") },
+                                onClick = { intervalUnit = "days"; unitMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "✨ Drop XP") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Activé", color = Color.White)
+                    Switch(checked = xpEnabled, onCheckedChange = { xpEnabled = it })
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = xpMin,
+                        onValueChange = { xpMin = it },
+                        label = { Text("Min") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = xpMax,
+                        onValueChange = { xpMax = it },
+                        label = { Text("Max") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "💰 Drop Argent") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Activé", color = Color.White)
+                    Switch(checked = moneyEnabled, onCheckedChange = { moneyEnabled = it })
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = moneyMin,
+                        onValueChange = { moneyMin = it },
+                        label = { Text("Min") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = moneyMax,
+                        onValueChange = { moneyMax = it },
+                        label = { Text("Max") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    scope.launch {
+                        savingDrops = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val body = buildJsonObject {
+                                    put("enabled", enabled)
+                                    put("channelId", channelId)
+                                    put("intervalValue", intervalValue.toIntOrNull() ?: 1)
+                                    put("intervalUnit", intervalUnit)
+                                    put("types", buildJsonObject {
+                                        put("xp", buildJsonObject {
+                                            put("enabled", xpEnabled)
+                                            put("min", xpMin.toIntOrNull() ?: 5)
+                                            put("max", xpMax.toIntOrNull() ?: (xpMin.toIntOrNull() ?: 5))
+                                        })
+                                        put("money", buildJsonObject {
+                                            put("enabled", moneyEnabled)
+                                            put("min", moneyMin.toIntOrNull() ?: 10)
+                                            put("max", moneyMax.toIntOrNull() ?: (moneyMin.toIntOrNull() ?: 10))
+                                        })
+                                    })
+                                }
+                                api.putJson("/api/configs/drops", json.encodeToString(JsonObject.serializer(), body))
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Drops sauvegardés") }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                            } finally {
+                                withContext(Dispatchers.Main) { savingDrops = false }
                             }
                         }
                     }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !savingDrops
+            ) {
+                if (savingDrops) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                else {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder Drops")
                 }
             }
         }
