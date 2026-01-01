@@ -940,6 +940,22 @@ private fun EconomyConfigTab(
                     actionsGifsObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsMessagesObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     balancesCooldownKeys.forEach { if (it.isNotBlank()) keys.add(it) }
+                    // Fallback ultime: si le serveur renvoie une config incomplète, proposer au moins les actions "connues"
+                    // (ça évite le cas où seul "work" apparaît).
+                    if (keys.size <= 1) {
+                        listOf(
+                            "work","fish","give","steal","daily",
+                            "kiss","flirt","seduce","caress","comfort","massage","dance",
+                            "lick","suck","nibble","tickle",
+                            "fuck","sodo","orgasme","orgie",
+                            "touche","reveiller","cuisiner","douche",
+                            "bed","undress","wet","shower",
+                            "crime","caught","oops","tromper",
+                            "rose","wine","pillowfight",
+                            "collar","leash","kneel","order","punish",
+                            "branler","doigter","revive"
+                        ).forEach { keys.add(it) }
+                    }
                     keys.toList().sorted()
                 }
 
@@ -1292,7 +1308,9 @@ private fun EconomyConfigTab(
                 var editingRoleIndex by remember { mutableStateOf<Int?>(null) }
                 var roleIdSelected by remember { mutableStateOf<String?>(null) }
                 var rolePrice by remember { mutableStateOf("") }
-                var roleDurationDays by remember { mutableStateOf("") } // 0/permanent
+                var roleIsTemporary by remember { mutableStateOf(false) }
+                var roleDurationValue by remember { mutableStateOf("") } // duration number if temporary
+                var roleDurationUnit by remember { mutableStateOf("days") } // hours|days
                 var savingRoles by remember { mutableStateOf(false) }
 
                 LazyColumn(
@@ -1322,13 +1340,15 @@ private fun EconomyConfigTab(
                                 OutlinedButton(onClick = {
                                     roleIdSelected = null
                                     rolePrice = ""
-                                    roleDurationDays = "0"
+                                    roleIsTemporary = false
+                                    roleDurationUnit = "days"
+                                    roleDurationValue = ""
                                     editingRoleIndex = null
                                     showRoleDialog = true
                                 }) {
                                     Icon(Icons.Default.Badge, null)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Ajouter rôle")
+                                    Text("Ajout de rôle")
                                 }
                                 Button(onClick = {
                                     newItemId = ""
@@ -1364,9 +1384,17 @@ private fun EconomyConfigTab(
                                         shopRoleEntries.forEachIndexed { idx, r ->
                                             val roleId = r["roleId"]?.jsonPrimitive?.contentOrNull ?: ""
                                             val price = r["price"]?.jsonPrimitive?.intOrNull ?: 0
-                                            val duration = r["durationDays"]?.jsonPrimitive?.intOrNull ?: 0
+                                            val durationValue = r["durationValue"]?.jsonPrimitive?.intOrNull
+                                            val durationUnit = r["durationUnit"]?.jsonPrimitive?.contentOrNull
+                                            val durationDaysRaw = r["durationDays"]?.jsonPrimitive?.doubleOrNull ?: 0.0
                                             val roleName = roles[roleId] ?: roleId.ifBlank { "Rôle" }
-                                            val durationLabel = if (duration > 0) "⏱️ ${duration}j" else "♾️ Permanent"
+                                            val durationLabel = when {
+                                                durationUnit == "hours" && durationValue != null && durationValue > 0 -> "⏱️ ${durationValue}h"
+                                                durationUnit == "days" && durationValue != null && durationValue > 0 -> "⏱️ ${durationValue}j"
+                                                durationUnit == "permanent" -> "♾️ Permanent"
+                                                durationDaysRaw > 0.0 -> "⏱️ ${durationDaysRaw}j"
+                                                else -> "♾️ Permanent"
+                                            }
 
                                             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
                                                 Row(
@@ -1385,7 +1413,33 @@ private fun EconomyConfigTab(
                                                             editingRoleIndex = idx
                                                             roleIdSelected = roleId.takeIf { it.isNotBlank() }
                                                             rolePrice = price.toString()
-                                                            roleDurationDays = duration.toString()
+                                                            // Back-compat: si durationValue/unit existe, l'utiliser; sinon dériver depuis durationDays
+                                                            if (durationUnit == "hours" && durationValue != null) {
+                                                                roleIsTemporary = durationValue > 0
+                                                                roleDurationUnit = "hours"
+                                                                roleDurationValue = durationValue.toString()
+                                                            } else if (durationUnit == "days" && durationValue != null) {
+                                                                roleIsTemporary = durationValue > 0
+                                                                roleDurationUnit = "days"
+                                                                roleDurationValue = durationValue.toString()
+                                                            } else if (durationDaysRaw > 0.0) {
+                                                                // si c'est un nombre entier -> jours, sinon -> heures arrondies
+                                                                val asInt = durationDaysRaw.toInt()
+                                                                if (kotlin.math.abs(durationDaysRaw - asInt.toDouble()) < 1e-9) {
+                                                                    roleIsTemporary = true
+                                                                    roleDurationUnit = "days"
+                                                                    roleDurationValue = asInt.toString()
+                                                                } else {
+                                                                    val hours = kotlin.math.max(1, kotlin.math.round(durationDaysRaw * 24.0).toInt())
+                                                                    roleIsTemporary = true
+                                                                    roleDurationUnit = "hours"
+                                                                    roleDurationValue = hours.toString()
+                                                                }
+                                                            } else {
+                                                                roleIsTemporary = false
+                                                                roleDurationUnit = "days"
+                                                                roleDurationValue = ""
+                                                            }
                                                             showRoleDialog = true
                                                         }) {
                                                             Icon(Icons.Default.Edit, null, tint = Color(0xFF5865F2))
@@ -1414,7 +1468,12 @@ private fun EconomyConfigTab(
                                                                 buildJsonObject {
                                                                     put("roleId", rr["roleId"]?.jsonPrimitive?.contentOrNull ?: "")
                                                                     put("price", rr["price"]?.jsonPrimitive?.intOrNull ?: 0)
-                                                                    put("durationDays", rr["durationDays"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                                    // Back-compat: on conserve durationDays (utilisé par le bot),
+                                                                    // et on stocke aussi durationUnit/value pour l'UI.
+                                                                    rr["durationDays"]?.jsonPrimitive?.doubleOrNull?.let { put("durationDays", it) }
+                                                                        ?: put("durationDays", 0.0)
+                                                                    put("durationUnit", rr["durationUnit"]?.jsonPrimitive?.contentOrNull ?: "permanent")
+                                                                    put("durationValue", rr["durationValue"]?.jsonPrimitive?.intOrNull ?: 0)
                                                                 }
                                                             }))
                                                         })
@@ -1779,13 +1838,49 @@ private fun EconomyConfigTab(
                                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
                                     )
                                     Spacer(Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = roleDurationDays,
-                                        onValueChange = { input -> roleDurationDays = input.filter { it.isDigit() }.take(4) },
-                                        label = { Text("Durée (jours) • 0 = permanent") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                                    )
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Temporaire", color = Color.White)
+                                        Switch(checked = roleIsTemporary, onCheckedChange = { roleIsTemporary = it })
+                                    }
+                                    if (roleIsTemporary) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = roleDurationValue,
+                                                onValueChange = { input -> roleDurationValue = input.filter { it.isDigit() }.take(4) },
+                                                label = { Text("Durée") },
+                                                modifier = Modifier.weight(1f),
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                            )
+                                            Box(Modifier.weight(1f)) {
+                                                var expanded by remember { mutableStateOf(false) }
+                                                OutlinedButton(
+                                                    onClick = { expanded = true },
+                                                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                                                ) {
+                                                    Text(if (roleDurationUnit == "hours") "Heures" else "Jours", modifier = Modifier.weight(1f))
+                                                    Icon(Icons.Default.ArrowDropDown, null)
+                                                }
+                                                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Heures") },
+                                                        onClick = { roleDurationUnit = "hours"; expanded = false }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("Jours") },
+                                                        onClick = { roleDurationUnit = "days"; expanded = false }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Spacer(Modifier.height(6.dp))
+                                        Text("Durée: Permanent", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             },
                             confirmButton = {
@@ -1793,11 +1888,19 @@ private fun EconomyConfigTab(
                                     onClick = {
                                         val rid = roleIdSelected.orEmpty().trim()
                                         val price = (rolePrice.trim().toLongOrNull() ?: 0L).coerceIn(0L, 9_999_999L).toInt()
-                                        val dur = (roleDurationDays.trim().toIntOrNull() ?: 0).coerceAtLeast(0)
+                                        val durValue = if (roleIsTemporary) (roleDurationValue.trim().toIntOrNull() ?: 0).coerceAtLeast(0) else 0
+                                        val unit = if (roleIsTemporary) roleDurationUnit else "permanent"
+                                        val durationDays = when {
+                                            !roleIsTemporary || durValue <= 0 -> 0.0
+                                            unit == "hours" -> durValue.toDouble() / 24.0
+                                            else -> durValue.toDouble()
+                                        }
                                         val obj = buildJsonObject {
                                             put("roleId", rid)
                                             put("price", price)
-                                            put("durationDays", dur)
+                                            put("durationDays", durationDays)
+                                            put("durationUnit", unit)
+                                            put("durationValue", durValue)
                                         }
                                         val idx = editingRoleIndex
                                         if (idx != null && idx in shopRoleEntries.indices) shopRoleEntries[idx] = obj else shopRoleEntries.add(obj)
