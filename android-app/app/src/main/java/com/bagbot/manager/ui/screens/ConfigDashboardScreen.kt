@@ -1609,7 +1609,13 @@ private fun EconomyConfigTab(
                                 OutlinedTextField(newItemName, { newItemName = it }, label = { Text("Nom") }, modifier = Modifier.fillMaxWidth())
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(
-                                    newItemPrice, { newItemPrice = it }, label = { Text("Prix") },
+                                    newItemPrice,
+                                    { input ->
+                                        // N'accepte que des chiffres et limite à 7 chiffres (<= 9_999_999)
+                                        val digits = input.filter { it.isDigit() }
+                                        newItemPrice = digits.take(7)
+                                    },
+                                    label = { Text("Prix (0 à 9 999 999)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
@@ -1636,10 +1642,11 @@ private fun EconomyConfigTab(
                         },
                         confirmButton = {
                             Button(onClick = {
+                                val price = (newItemPrice.trim().toLongOrNull() ?: 0L).coerceIn(0L, 9_999_999L).toInt()
                                 val newItem = buildJsonObject {
                                     put("id", newItemId)
                                     put("name", newItemName)
-                                    put("price", newItemPrice.toIntOrNull() ?: 0)
+                                    put("price", price)
                                     put("emoji", newItemEmoji)
                                 }
                                 if (editingIndex != null) {
