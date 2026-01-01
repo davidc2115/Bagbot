@@ -221,7 +221,7 @@ fun ConfigDashboardScreen(
             // Show selected category content
             when (selectedTab) {
                 DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
-                DashTab.Economy -> EconomyConfigTab(configData, members, channels, api, json, scope, snackbar)
+                DashTab.Economy -> EconomyConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
                 DashTab.Drops -> DropsConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Levels -> LevelsConfigTab(configData, roles, members, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
@@ -791,6 +791,7 @@ private fun EconomyConfigTab(
     configData: JsonObject?,
     members: Map<String, String>,
     channels: Map<String, String>,
+    roles: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -912,13 +913,33 @@ private fun EconomyConfigTab(
                 val actionsGifsObj = eco?.obj("actions")?.obj("gifs")
                 val actionsMessagesObj = eco?.obj("actions")?.obj("messages")
 
-                val actionsKeys = remember(actionsListObj, actionsConfigObj, actionsEnabled, actionsGifsObj, actionsMessagesObj) {
+                // Fallback "profond": récupérer aussi les actions depuis les cooldowns des utilisateurs (economy.balances.*.cooldowns)
+                val balancesCooldownKeys = remember(eco) {
+                    val keys = mutableSetOf<String>()
+                    val balances = eco?.obj("balances")?.jsonObject
+                    balances?.values?.asSequence()?.take(200)?.forEach { v ->
+                        val u = v.jsonObject
+                        val cds = u["cooldowns"]?.jsonObject
+                        cds?.keys?.forEach { k -> if (k.isNotBlank()) keys.add(k) }
+                    }
+                    keys.toList()
+                }
+
+                val actionsKeys = remember(
+                    actionsListObj,
+                    actionsConfigObj,
+                    actionsEnabled,
+                    actionsGifsObj,
+                    actionsMessagesObj,
+                    balancesCooldownKeys
+                ) {
                     val keys = mutableSetOf<String>()
                     actionsEnabled.forEach { if (it.isNotBlank()) keys.add(it) }
                     actionsListObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsConfigObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsGifsObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsMessagesObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    balancesCooldownKeys.forEach { if (it.isNotBlank()) keys.add(it) }
                     keys.toList().sorted()
                 }
 
@@ -1248,20 +1269,16 @@ private fun EconomyConfigTab(
                 }
             }
             3 -> {
-                // Boutique - Ajout/Modif/Suppression d'objets
+                // Boutique - Ajout/Modif/Suppression d'objets + gestion des rôles boutique
                 val shopData = eco?.obj("shop")
                 var shopItems by remember(shopData) {
                     mutableStateOf(shopData?.arr("items")?.mapNotNull { it.jsonObject }?.toMutableList() ?: mutableListOf())
                 }
+                var shopRoleEntries by remember(shopData) {
+                    mutableStateOf(shopData?.arr("roles")?.mapNotNull { it.jsonObject }?.toMutableList() ?: mutableListOf())
+                }
 
-                // Achat de rôles (permanent/temporaire) via l'API boutique
-                var shopCurrency by remember { mutableStateOf("BAG$") }
-                var shopBalance by remember { mutableStateOf(0) }
-                var shopRoles by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
-                var shopLoadingCatalog by remember { mutableStateOf(false) }
-                var shopBuying by remember { mutableStateOf(false) }
-                var shopApiAvailable by remember { mutableStateOf(true) }
-                
+                // Dialog item
                 var showAddDialog by remember { mutableStateOf(false) }
                 var editingIndex by remember { mutableStateOf<Int?>(null) }
                 var newItemId by remember { mutableStateOf("") }
@@ -1270,39 +1287,14 @@ private fun EconomyConfigTab(
                 var newItemEmoji by remember { mutableStateOf("") }
                 var savingShop by remember { mutableStateOf(false) }
 
-                fun loadShopCatalog() {
-                    scope.launch {
-                        shopLoadingCatalog = true
-                        withContext(Dispatchers.IO) {
-                            try {
-                                val resp = api.getJson("/api/shop/catalog")
-                                val obj = json.parseToJsonElement(resp).jsonObject
-                                val currency = obj["currency"]?.jsonPrimitive?.contentOrNull ?: "BAG$"
-                                val balance = obj["balance"]?.jsonPrimitive?.intOrNull ?: 0
-                                val roles = obj["roles"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
-                                withContext(Dispatchers.Main) {
-                                    shopCurrency = currency
-                                    shopBalance = balance
-                                    shopRoles = roles
-                                    shopApiAvailable = true
-                                }
-                            } catch (e: Exception) {
-                                val msg = e.message.orEmpty()
-                                // Si l'API n'a pas encore été déployée côté serveur, éviter un spam d'erreurs.
-                                if (msg.startsWith("HTTP 404")) {
-                                    withContext(Dispatchers.Main) { shopApiAvailable = false }
-                                } else {
-                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Boutique: ${e.message}") }
-                                }
-                            } finally {
-                                withContext(Dispatchers.Main) { shopLoadingCatalog = false }
-                            }
-                        }
-                    }
-                }
+                // Dialog role
+                var showRoleDialog by remember { mutableStateOf(false) }
+                var editingRoleIndex by remember { mutableStateOf<Int?>(null) }
+                var roleIdSelected by remember { mutableStateOf<String?>(null) }
+                var rolePrice by remember { mutableStateOf("") }
+                var roleDurationDays by remember { mutableStateOf("") } // 0/permanent
+                var savingRoles by remember { mutableStateOf(false) }
 
-                LaunchedEffect(Unit) { loadShopCatalog() }
-                
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1321,90 +1313,62 @@ private fun EconomyConfigTab(
                                     color = Color.White
                                 )
                                 Text(
-                                    "${shopItems.size} objet(s)",
+                                    "${shopItems.size} objet(s) • ${shopRoleEntries.size} rôle(s)",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Color.Gray
                                 )
                             }
-                            Button(onClick = {
-                                newItemId = ""
-                                newItemName = ""
-                                newItemPrice = ""
-                                newItemEmoji = ""
-                                editingIndex = null
-                                showAddDialog = true
-                            }) {
-                                Icon(Icons.Default.Add, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Ajouter")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = {
+                                    roleIdSelected = null
+                                    rolePrice = ""
+                                    roleDurationDays = "0"
+                                    editingRoleIndex = null
+                                    showRoleDialog = true
+                                }) {
+                                    Icon(Icons.Default.Badge, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Ajouter rôle")
+                                }
+                                Button(onClick = {
+                                    newItemId = ""
+                                    newItemName = ""
+                                    newItemPrice = ""
+                                    newItemEmoji = ""
+                                    editingIndex = null
+                                    showAddDialog = true
+                                }) {
+                                    Icon(Icons.Default.Add, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Ajouter objet")
+                                }
                             }
                         }
                     }
 
+                    // Rôles boutique (config)
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
                         ) {
                             Column(Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            "🎭 Achat de rôles",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            "Solde: $shopBalance $shopCurrency",
-                                            color = Color(0xFF57F287),
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                    IconButton(onClick = { loadShopCatalog() }, enabled = !shopLoadingCatalog && !shopBuying) {
-                                        Icon(Icons.Default.Refresh, contentDescription = "Recharger", tint = Color.White)
-                                    }
-                                }
-
+                                Text("🎭 Rôles Boutique", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Permanent (0j) ou temporaire (X jours)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(10.dp))
 
-                                if (!shopApiAvailable) {
-                                    Text(
-                                        "⚠️ Fonction indisponible (API boutique non trouvée sur le serveur).",
-                                        color = Color(0xFFFF9800),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                    Text(
-                                        "Mets à jour le bot / serveur API pour activer l’achat de rôles depuis l’app.",
-                                        color = Color.Gray,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                } else if (shopLoadingCatalog) {
-                                    Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator()
-                                    }
-                                } else if (shopRoles.isEmpty()) {
-                                    Text("Aucun rôle en boutique.", color = Color.Gray)
+                                if (shopRoleEntries.isEmpty()) {
+                                    Text("Aucun rôle configuré.", color = Color.Gray)
                                 } else {
                                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        shopRoles.forEach { r ->
-                                            val roleName = r["roleName"]?.jsonPrimitive?.contentOrNull
-                                                ?: r["roleId"]?.jsonPrimitive?.contentOrNull
-                                                ?: "Rôle"
+                                        shopRoleEntries.forEachIndexed { idx, r ->
                                             val roleId = r["roleId"]?.jsonPrimitive?.contentOrNull ?: ""
-                                            val durationDays = r["durationDays"]?.jsonPrimitive?.intOrNull ?: 0
-                                            val basePrice = r["basePrice"]?.jsonPrimitive?.intOrNull ?: 0
-                                            val finalPrice = r["finalPrice"]?.jsonPrimitive?.intOrNull ?: basePrice
-                                            val durationLabel = if (durationDays > 0) "⏱️ ${durationDays}j" else "♾️ Permanent"
+                                            val price = r["price"]?.jsonPrimitive?.intOrNull ?: 0
+                                            val duration = r["durationDays"]?.jsonPrimitive?.intOrNull ?: 0
+                                            val roleName = roles[roleId] ?: roleId.ifBlank { "Rôle" }
+                                            val durationLabel = if (duration > 0) "⏱️ ${duration}j" else "♾️ Permanent"
 
-                                            Card(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
-                                            ) {
+                                            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
                                                 Row(
                                                     Modifier.fillMaxWidth().padding(14.dp),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1412,43 +1376,22 @@ private fun EconomyConfigTab(
                                                 ) {
                                                     Column(Modifier.weight(1f)) {
                                                         Text(roleName, color = Color.White, fontWeight = FontWeight.Bold)
+                                                        Text("ID: $roleId", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                                                         Text(durationLabel, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                                                        Text(
-                                                            "Prix: $finalPrice $shopCurrency",
-                                                            color = Color(0xFF57F287),
-                                                            fontWeight = FontWeight.SemiBold
-                                                        )
+                                                        Text("Prix: $price $currencyName", color = Color(0xFF57F287), fontWeight = FontWeight.SemiBold)
                                                     }
-                                                    Button(
-                                                        enabled = !shopBuying && roleId.isNotBlank() && shopBalance >= finalPrice,
-                                                        onClick = {
-                                                            scope.launch {
-                                                                shopBuying = true
-                                                                withContext(Dispatchers.IO) {
-                                                                    try {
-                                                                        val body = buildJsonObject {
-                                                                            put("type", "role")
-                                                                            put("roleId", roleId)
-                                                                            put("durationDays", durationDays)
-                                                                        }
-                                                                        api.postJson("/api/shop/buy", body.toString())
-                                                                        withContext(Dispatchers.Main) {
-                                                                            snackbar.showSnackbar("✅ Rôle acheté: $roleName")
-                                                                        }
-                                                                        withContext(Dispatchers.Main) { loadShopCatalog() }
-                                                                    } catch (e: Exception) {
-                                                                        withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Achat: ${e.message}") }
-                                                                    } finally {
-                                                                        withContext(Dispatchers.Main) { shopBuying = false }
-                                                                    }
-                                                                }
-                                                            }
+                                                    Row {
+                                                        IconButton(onClick = {
+                                                            editingRoleIndex = idx
+                                                            roleIdSelected = roleId.takeIf { it.isNotBlank() }
+                                                            rolePrice = price.toString()
+                                                            roleDurationDays = duration.toString()
+                                                            showRoleDialog = true
+                                                        }) {
+                                                            Icon(Icons.Default.Edit, null, tint = Color(0xFF5865F2))
                                                         }
-                                                    ) {
-                                                        if (shopBuying) {
-                                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                                                        } else {
-                                                            Text("Acheter")
+                                                        IconButton(onClick = { shopRoleEntries.removeAt(idx) }) {
+                                                            Icon(Icons.Default.Delete, null, tint = Color(0xFFED4245))
                                                         }
                                                     }
                                                 }
@@ -1456,10 +1399,50 @@ private fun EconomyConfigTab(
                                         }
                                     }
                                 }
+
+                                Spacer(Modifier.height(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            savingRoles = true
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    val body = buildJsonObject {
+                                                        put("shop", buildJsonObject {
+                                                            put("roles", JsonArray(shopRoleEntries.map { rr ->
+                                                                buildJsonObject {
+                                                                    put("roleId", rr["roleId"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                                    put("price", rr["price"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                                    put("durationDays", rr["durationDays"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                                }
+                                                            }))
+                                                        })
+                                                    }
+                                                    api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
+                                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Rôles boutique sauvegardés") }
+                                                } catch (e: Exception) {
+                                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                                } finally {
+                                                    withContext(Dispatchers.Main) { savingRoles = false }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    enabled = !savingRoles
+                                ) {
+                                    if (savingRoles) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                                    else {
+                                        Icon(Icons.Default.Save, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Sauvegarder rôles")
+                                    }
+                                }
                             }
                         }
                     }
-                    
+
                     if (shopItems.isNotEmpty()) {
                         itemsIndexed(shopItems) { index, item ->
                             val emoji = item["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
@@ -1771,6 +1754,59 @@ private fun EconomyConfigTab(
                             confirmButton = {
                                 TextButton(onClick = { showEmojiPicker = false }) { Text("Fermer") }
                             }
+                        )
+                    }
+
+                    // Dialog Add/Edit Role
+                    if (showRoleDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showRoleDialog = false },
+                            title = { Text(if (editingRoleIndex != null) "Modifier un rôle" else "Ajouter un rôle") },
+                            text = {
+                                Column {
+                                    RoleSelector(
+                                        roles = roles,
+                                        selectedRoleId = roleIdSelected,
+                                        onRoleSelected = { roleIdSelected = it },
+                                        label = "Sélectionner un rôle"
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = rolePrice,
+                                        onValueChange = { input -> rolePrice = input.filter { it.isDigit() }.take(7) },
+                                        label = { Text("Prix (0 à 9 999 999)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = roleDurationDays,
+                                        onValueChange = { input -> roleDurationDays = input.filter { it.isDigit() }.take(4) },
+                                        label = { Text("Durée (jours) • 0 = permanent") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val rid = roleIdSelected.orEmpty().trim()
+                                        val price = (rolePrice.trim().toLongOrNull() ?: 0L).coerceIn(0L, 9_999_999L).toInt()
+                                        val dur = (roleDurationDays.trim().toIntOrNull() ?: 0).coerceAtLeast(0)
+                                        val obj = buildJsonObject {
+                                            put("roleId", rid)
+                                            put("price", price)
+                                            put("durationDays", dur)
+                                        }
+                                        val idx = editingRoleIndex
+                                        if (idx != null && idx in shopRoleEntries.indices) shopRoleEntries[idx] = obj else shopRoleEntries.add(obj)
+                                        showRoleDialog = false
+                                    },
+                                    enabled = !roleIdSelected.isNullOrBlank()
+                                ) { Text(if (editingRoleIndex != null) "Modifier" else "Ajouter") }
+                            },
+                            dismissButton = { TextButton(onClick = { showRoleDialog = false }) { Text("Annuler") } }
                         )
                     }
                 }
@@ -3151,6 +3187,11 @@ private fun ActionsConfigTab(
         actions?.obj("messages")?.jsonObject?.keys?.forEach { keys.add(it) }
         actions?.obj("list")?.jsonObject?.keys?.forEach { keys.add(it) }
         settings?.obj("cooldowns")?.jsonObject?.keys?.forEach { keys.add(it) }
+        // fallback: récupérer aussi les actions depuis les cooldowns des utilisateurs
+        eco?.obj("balances")?.jsonObject?.values?.asSequence()?.take(200)?.forEach { v ->
+            val cds = v.jsonObject["cooldowns"]?.jsonObject
+            cds?.keys?.forEach { k -> if (k.isNotBlank()) keys.add(k) }
+        }
 
         val listObj = actions?.obj("list")
         keys.toList().sorted().map { k ->
