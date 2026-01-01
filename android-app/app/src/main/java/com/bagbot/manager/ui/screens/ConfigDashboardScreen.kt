@@ -1260,6 +1260,7 @@ private fun EconomyConfigTab(
                 var shopRoles by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
                 var shopLoadingCatalog by remember { mutableStateOf(false) }
                 var shopBuying by remember { mutableStateOf(false) }
+                var shopApiAvailable by remember { mutableStateOf(true) }
                 
                 var showAddDialog by remember { mutableStateOf(false) }
                 var editingIndex by remember { mutableStateOf<Int?>(null) }
@@ -1283,9 +1284,16 @@ private fun EconomyConfigTab(
                                     shopCurrency = currency
                                     shopBalance = balance
                                     shopRoles = roles
+                                    shopApiAvailable = true
                                 }
                             } catch (e: Exception) {
-                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Boutique: ${e.message}") }
+                                val msg = e.message.orEmpty()
+                                // Si l'API n'a pas encore été déployée côté serveur, éviter un spam d'erreurs.
+                                if (msg.startsWith("HTTP 404")) {
+                                    withContext(Dispatchers.Main) { shopApiAvailable = false }
+                                } else {
+                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Boutique: ${e.message}") }
+                                }
                             } finally {
                                 withContext(Dispatchers.Main) { shopLoadingCatalog = false }
                             }
@@ -1364,7 +1372,18 @@ private fun EconomyConfigTab(
 
                                 Spacer(Modifier.height(10.dp))
 
-                                if (shopLoadingCatalog) {
+                                if (!shopApiAvailable) {
+                                    Text(
+                                        "⚠️ Fonction indisponible (API boutique non trouvée sur le serveur).",
+                                        color = Color(0xFFFF9800),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    Text(
+                                        "Mets à jour le bot / serveur API pour activer l’achat de rôles depuis l’app.",
+                                        color = Color.Gray,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                } else if (shopLoadingCatalog) {
                                     Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
                                         CircularProgressIndicator()
                                     }
