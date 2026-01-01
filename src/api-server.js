@@ -17,6 +17,8 @@ const {
   getLevelsConfig,
   updateLevelsConfig,
   getEconomyConfig,
+  getEconomyUser,
+  setEconomyUser,
   updateEconomyConfig,
   getTruthDareConfig,
   updateTruthDareConfig
@@ -1566,11 +1568,193 @@ app.post('/api/economy', requireAuth, requireDiscordAdmin, express.json(), async
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
-    config.guilds[GUILD].economy = { ...config.guilds[GUILD].economy, ...req.body };
+    const prevEco = config.guilds[GUILD].economy || {};
+    const patch = (req.body && typeof req.body === 'object') ? req.body : {};
+    const nextEco = { ...prevEco, ...patch };
+
+    // Important: ne pas écraser entièrement la boutique quand l'app envoie un patch partiel
+    // (sinon `roles`/`grants` peuvent disparaître).
+    if (patch.shop && typeof patch.shop === 'object' && !Array.isArray(patch.shop)) {
+      nextEco.shop = { ...(prevEco.shop || {}), ...(patch.shop || {}) };
+    }
+
+    config.guilds[GUILD].economy = nextEco;
     await writeConfig(config);
     res.json({ success: true, config: config.guilds[GUILD].economy });
   } catch (error) {
     console.error('[BOT-API] Error in /api/economy:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== BOUTIQUE (ACHAT VIA APP ANDROID) ==========
+
+function parseOptionEmoji(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const m = s.match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/);
+  if (m) {
+    return { id: m[2], name: m[1], animated: s.startsWith('<a:') };
+  }
+  // unicode emoji or short string
+  if (s.length <= 4) return s;
+  return null;
+}
+
+async function calculateShopPriceForUser(guild, userId, basePrice) {
+  const eco = await getEconomyConfig(guild.id);
+  const userEco = await getEconomyUser(guild.id, userId);
+
+  let totalDeltaPercent = 0;
+
+  // Booster discount
+  try {
+    const b = eco.booster || {};
+    const member = await guild.members.fetch(userId).catch(() => null);
+    const isNitroBooster = Boolean(member?.premiumSince || member?.premiumSinceTimestamp);
+    const boosterRoleIds = Array.isArray(b.roles) ? b.roles.map(String) : [];
+    const hasBoosterRole = member ? boosterRoleIds.some((rid) => member.roles?.cache?.has(rid)) : false;
+    const isBooster = isNitroBooster || hasBoosterRole;
+    if (b.enabled && isBooster && Number(b.shopPriceMult) > 0) {
+      const boosterMult = Number(b.shopPriceMult);
+      const boosterDeltaPercent = -((1 - boosterMult) * 100);
+      totalDeltaPercent += boosterDeltaPercent;
+    }
+  } catch (_) {}
+
+  // Karma discount (same logic as bot.js for shop prices)
+  const karmaModifiers = eco.karmaModifiers?.shop;
+  const userCharm = Number(userEco.charm || 0);
+  const userPerversion = Number(userEco.perversion || 0);
+  let karmaPercent = 0;
+  if (Array.isArray(karmaModifiers)) {
+    karmaPercent = karmaModifiers.reduce((acc, rule) => {
+      try {
+        const expr = String(rule.condition || '')
+          .toLowerCase()
+          .replace(/charm/g, String(userCharm))
+          .replace(/perversion/g, String(userPerversion));
+        if (!/^[0-9+\-*/%<>=!&|().\s]+$/.test(expr)) return acc;
+        // eslint-disable-next-line no-eval
+        const ok = !!eval(expr);
+        return ok ? acc + Number(rule.percent || 0) : acc;
+      } catch (_) {
+        return acc;
+      }
+    }, 0);
+  }
+  totalDeltaPercent += karmaPercent;
+
+  const finalMultiplier = Math.max(0, 1 + totalDeltaPercent / 100);
+  return Math.max(0, Math.floor(Number(basePrice || 0) * finalMultiplier));
+}
+
+// GET /api/shop/catalog - Catalogue boutique + solde utilisateur
+app.get('/api/shop/catalog', requireAuth, async (req, res) => {
+  try {
+    const client = req.app.locals.client;
+    if (!client || !client.isReady?.()) return res.status(503).json({ error: 'Discord client unavailable' });
+    const guild = client.guilds.cache.get(GUILD);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const userId = String(req.userData?.userId || '').trim();
+    if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
+
+    const eco = await getEconomyConfig(guild.id);
+    const u = await getEconomyUser(guild.id, userId);
+    const currency = eco.currency?.name || 'BAG$';
+
+    const roles = [];
+    for (const r of (eco.shop?.roles || [])) {
+      const roleId = String(r.roleId || '').trim();
+      if (!roleId) continue;
+      const durationDays = Number(r.durationDays || 0);
+      const basePrice = Number(r.price || 0);
+      const finalPrice = await calculateShopPriceForUser(guild, userId, basePrice);
+      const roleName = guild.roles.cache.get(roleId)?.name || r.name || roleId;
+      roles.push({ roleId, roleName, durationDays, basePrice, finalPrice });
+    }
+
+    const items = [];
+    for (const it of (eco.shop?.items || [])) {
+      const id = String(it.id || '').trim();
+      if (!id) continue;
+      const name = String(it.name || id);
+      const emoji = String(it.emoji || '🎁');
+      const basePrice = Number(it.price || 0);
+      const finalPrice = await calculateShopPriceForUser(guild, userId, basePrice);
+      items.push({ id, name, emoji, emojiParsed: parseOptionEmoji(emoji), basePrice, finalPrice });
+    }
+
+    res.json({
+      currency,
+      balance: Number(u.amount || 0),
+      roles,
+      items,
+      me: { userId, charm: Number(u.charm || 0), perversion: Number(u.perversion || 0) }
+    });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/shop/catalog:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/shop/buy - Acheter un rôle (permanent ou temporaire) via l'app
+app.post('/api/shop/buy', requireAuth, express.json(), async (req, res) => {
+  try {
+    const client = req.app.locals.client;
+    if (!client || !client.isReady?.()) return res.status(503).json({ error: 'Discord client unavailable' });
+    const guild = client.guilds.cache.get(GUILD);
+    if (!guild) return res.status(404).json({ error: 'Guild not found' });
+
+    const userId = String(req.userData?.userId || '').trim();
+    if (!userId) return res.status(401).json({ error: 'NOT_AUTHENTICATED' });
+
+    const type = String(req.body?.type || '').trim();
+    if (type !== 'role') return res.status(400).json({ error: 'type must be role' });
+
+    const roleId = String(req.body?.roleId || '').trim();
+    const durationDays = Math.max(0, Number(req.body?.durationDays || 0));
+    if (!roleId) return res.status(400).json({ error: 'roleId required' });
+
+    const eco = await getEconomyConfig(guild.id);
+    const entry = (eco.shop?.roles || []).find(r => String(r.roleId) === String(roleId) && Number(r.durationDays || 0) === durationDays);
+    if (!entry) return res.status(404).json({ error: 'ROLE_UNAVAILABLE' });
+
+    const basePrice = Number(entry.price || 0);
+    const finalPrice = await calculateShopPriceForUser(guild, userId, basePrice);
+
+    const u = await getEconomyUser(guild.id, userId);
+    const balance = Number(u.amount || 0);
+    if (balance < finalPrice) return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', balance, price: finalPrice });
+
+    u.amount = balance - finalPrice;
+    await setEconomyUser(guild.id, userId, u);
+
+    // Grant role
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (member) {
+      await member.roles.add(roleId).catch(() => null);
+    }
+
+    // Track temporary grants in config (same format as bot.js)
+    if (durationDays > 0) {
+      const eco2 = await getEconomyConfig(guild.id);
+      const grants = { ...(eco2.shop?.grants || {}) };
+      grants[`${userId}:${roleId}`] = { userId, roleId, expiresAt: Date.now() + durationDays * 24 * 60 * 60 * 1000 };
+      eco2.shop = { ...(eco2.shop || {}), grants };
+      await updateEconomyConfig(guild.id, eco2);
+    }
+
+    res.json({
+      success: true,
+      balance: Number(u.amount || 0),
+      price: finalPrice,
+      roleId,
+      durationDays
+    });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/shop/buy:', error);
     res.status(500).json({ error: error.message });
   }
 });

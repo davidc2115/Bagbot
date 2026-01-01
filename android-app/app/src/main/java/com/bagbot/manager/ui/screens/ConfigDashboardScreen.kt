@@ -1386,16 +1386,27 @@ private fun EconomyConfigTab(
                                     savingShop = true
                                     withContext(Dispatchers.IO) {
                                         try {
+                                            fun slugifyId(raw: String, name: String): String {
+                                                val base = raw.trim().ifBlank { name.trim() }
+                                                return base
+                                                    .lowercase()
+                                                    .replace(":", "-")
+                                                    .replace(Regex("[^a-z0-9]+"), "-")
+                                                    .replace(Regex("^-+|-+$"), "")
+                                                    .ifBlank { "item" }
+                                            }
+
                                             val body = buildJsonObject {
+                                                // Patch partiel: ne pas écraser shop.roles / shop.grants
                                                 put("shop", buildJsonObject {
                                                     put("items", JsonArray(shopItems.map { buildJsonObject {
-                                                        put("id", it["id"]?.jsonPrimitive?.contentOrNull ?: "")
-                                                        put("name", it["name"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                        val name = it["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                        val idRaw = it["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                        put("id", slugifyId(idRaw, name))
+                                                        put("name", name)
                                                         put("price", it["price"]?.jsonPrimitive?.intOrNull ?: 0)
                                                         put("emoji", it["emoji"]?.jsonPrimitive?.contentOrNull ?: "")
                                                     }}))
-                                                    put("roles", JsonArray(emptyList()))
-                                                    put("grants", buildJsonObject {})
                                                 })
                                             }
                                             api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
