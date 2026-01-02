@@ -228,7 +228,7 @@ fun ConfigDashboardScreen(
                 DashTab.MotCache -> MotCacheConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Actions -> ActionsConfigTab(configData, api, json, scope, snackbar)
                 DashTab.Drops -> DropsConfigTab(configData, channels, api, json, scope, snackbar)
-                DashTab.Tribunal -> TribunalConfigTab(configData, channels, roles, api, json, scope, snackbar)
+                DashTab.Tribunal -> TribunalConfigTab(configData, channels, roles, members, api, json, scope, snackbar)
                 DashTab.Tickets -> TicketsConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 DashTab.Logs -> LogsConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
                 DashTab.Confess -> ConfessConfigTab(configData, channels, api, json, scope, snackbar)
@@ -3178,12 +3178,16 @@ private fun DropsConfigTab(
                         }
                         
                         if (showChannelPicker) {
+                            val availableChannels = remember(autoDropsChannelIds) {
+                                channels.entries.filter { it.key !in autoDropsChannelIds }.toList()
+                            }
                             AlertDialog(
                                 onDismissRequest = { showChannelPicker = false },
                                 title = { Text("Sélectionner un channel") },
                                 text = {
                                     LazyColumn {
-                                        items(channels.entries.filter { it.key !in autoDropsChannelIds }.toList()) { (id, name) ->
+                                        itemsIndexed(availableChannels) { _, entry ->
+                                            val (id, name) = entry
                                             Card(
                                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
                                                     autoDropsChannelIds = autoDropsChannelIds + id
@@ -7534,6 +7538,7 @@ private fun TribunalConfigTab(
     configData: JsonObject?,
     channels: Map<String, String>,
     roles: Map<String, String>,
+    members: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
