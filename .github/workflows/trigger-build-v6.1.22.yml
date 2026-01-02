@@ -1,0 +1,23 @@
+name: Build v6.1.22
+on:
+  push:
+    tags:
+      - 'v6.1.22'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Build APK
+        working-directory: android-app
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+      - uses: actions/upload-artifact@v3
+        with:
+          name: apk
+          path: android-app/app/build/outputs/apk/release/*.apk
