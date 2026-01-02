@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.bagbot.manager.ApiClient
@@ -2890,7 +2892,7 @@ private fun ActionsConfigTab(
 @Composable
 private fun DropsConfigTab(
     configData: JsonObject?,
-    channels: Map<String, String>, // Gardé pour compatibilité mais non utilisé
+    channels: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -2900,8 +2902,13 @@ private fun DropsConfigTab(
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     
-    // Seulement l'activation des drops automatiques
+    // Configuration complète des drops automatiques
     var autoDropsEnabled by remember { mutableStateOf(false) }
+    var dropType by remember { mutableStateOf("money") } // "money" ou "xp"
+    var minAmount by remember { mutableStateOf("100") }
+    var maxAmount by remember { mutableStateOf("1000") }
+    var interval by remember { mutableStateOf("60") } // en minutes
+    var selectedChannels by remember { mutableStateOf<List<String>>(emptyList()) }
     
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -2910,7 +2917,12 @@ private fun DropsConfigTab(
                 val cfg = json.parseToJsonElement(resp).jsonObject
                 withContext(Dispatchers.Main) {
                     dropsConfig = cfg
-                    autoDropsEnabled = cfg["autoDropsEnabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    autoDropsEnabled = cfg["enabled"]?.jsonPrimitive?.booleanOrNull ?: false
+                    dropType = cfg["type"]?.jsonPrimitive?.contentOrNull ?: "money"
+                    minAmount = cfg["minAmount"]?.jsonPrimitive?.intOrNull?.toString() ?: "100"
+                    maxAmount = cfg["maxAmount"]?.jsonPrimitive?.intOrNull?.toString() ?: "1000"
+                    interval = (cfg["interval"]?.jsonPrimitive?.longOrNull?.div(60000))?.toString() ?: "60"
+                    selectedChannels = cfg["channels"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
                     isLoading = false
                 }
             } catch (e: Exception) {
@@ -2928,7 +2940,14 @@ private fun DropsConfigTab(
             withContext(Dispatchers.IO) {
                 try {
                     val payload = buildJsonObject {
-                        put("autoDropsEnabled", autoDropsEnabled)
+                        put("enabled", autoDropsEnabled)
+                        put("type", dropType)
+                        put("minAmount", minAmount.toIntOrNull() ?: 100)
+                        put("maxAmount", maxAmount.toIntOrNull() ?: 1000)
+                        put("interval", (interval.toLongOrNull() ?: 60L) * 60000L) // minutes -> ms
+                        putJsonArray("channels") {
+                            selectedChannels.forEach { add(it) }
+                        }
                     }
                     api.postJson("/api/drops", json.encodeToString(JsonObject.serializer(), payload))
                     withContext(Dispatchers.Main) {
@@ -2992,8 +3011,9 @@ private fun DropsConfigTab(
             item {
                 SectionCard(
                     title = "🤖 Drops Automatiques",
-                    subtitle = "Le bot envoie automatiquement des drops d'argent"
+                    subtitle = "Configuration complète des drops automatiques"
                 ) {
+                    // Activation ON/OFF
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -3001,24 +3021,196 @@ private fun DropsConfigTab(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Activer les drops automatiques", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Le bot enverra automatiquement des drops d'argent dans des channels aléatoires", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Text("Le bot enverra automatiquement des drops", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(checked = autoDropsEnabled, onCheckedChange = { autoDropsEnabled = it })
                     }
                     
+                    if (autoDropsEnabled) {
+                        Spacer(Modifier.height(20.dp))
+                        Divider(color = Color.Gray.copy(alpha = 0.3f))
+                        Spacer(Modifier.height(20.dp))
+                        
+                        // Type de drop
+                        Text("🎁 Type de Drop", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { dropType = "money" },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (dropType == "money") Color(0xFFFFD700).copy(alpha = 0.2f) else Color.Transparent
+                                ),
+                                border = BorderStroke(2.dp, if (dropType == "money") Color(0xFFFFD700) else Color.Gray)
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                                    Text("💰", fontSize = 32.sp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("Argent", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = { dropType = "xp" },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (dropType == "xp") Color(0xFF9B59B6).copy(alpha = 0.2f) else Color.Transparent
+                                ),
+                                border = BorderStroke(2.dp, if (dropType == "xp") Color(0xFF9B59B6) else Color.Gray)
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                                    Text("✨", fontSize = 32.sp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("XP", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        
+                        Spacer(Modifier.height(20.dp))
+                        
+                        // Montant min/max
+                        Text("💵 Montant (${if (dropType == "money") "argent" else "XP"})", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = minAmount,
+                                onValueChange = { minAmount = it },
+                                label = { Text("Minimum") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    focusedBorderColor = Color(0xFF5865F2),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+                            OutlinedTextField(
+                                value = maxAmount,
+                                onValueChange = { maxAmount = it },
+                                label = { Text("Maximum") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                    focusedBorderColor = Color(0xFF5865F2),
+                                    unfocusedBorderColor = Color.Gray
+                                )
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(20.dp))
+                        
+                        // Intervalle
+                        Text("⏱️ Intervalle", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = interval,
+                            onValueChange = { interval = it },
+                            label = { Text("Minutes entre chaque drop") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                focusedBorderColor = Color(0xFF5865F2),
+                                unfocusedBorderColor = Color.Gray
+                            ),
+                            supportingText = { Text("Le bot enverra un drop toutes les $interval minutes", color = Color.Gray) }
+                        )
+                        
+                        Spacer(Modifier.height(20.dp))
+                        
+                        // Sélection de channels
+                        Text("📺 Channels", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Sélectionnez les channels où les drops apparaîtront (aléatoire)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
+                        
+                        // Liste des channels sélectionnés
+                        if (selectedChannels.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                selectedChannels.forEach { channelId ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                channels[channelId] ?: channelId,
+                                                color = Color.White,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            IconButton(
+                                                onClick = {
+                                                    selectedChannels = selectedChannels - channelId
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.Close, "Retirer", tint = Color.Red)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        
+                        // Bouton ajouter channel
+                        var showChannelPicker by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { showChannelPicker = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ajouter un channel")
+                        }
+                        
+                        if (showChannelPicker) {
+                            val availableChannels = remember(selectedChannels) {
+                                channels.entries.filter { it.key !in selectedChannels }.toList()
+                            }
+                            AlertDialog(
+                                onDismissRequest = { showChannelPicker = false },
+                                title = { Text("Sélectionner un channel") },
+                                text = {
+                                    LazyColumn {
+                                        itemsIndexed(availableChannels) { _, entry ->
+                                            val (id, name) = entry
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                                                    selectedChannels = selectedChannels + id
+                                                    showChannelPicker = false
+                                                },
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
+                                            ) {
+                                                Text(name, modifier = Modifier.padding(16.dp), color = Color.White)
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showChannelPicker = false }) {
+                                        Text("Annuler")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    
                     Spacer(Modifier.height(20.dp))
                     
+                    // Bouton sauvegarder
                     Button(
                         onClick = { saveDrops() },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        enabled = !isSaving
+                        enabled = !isSaving,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2))
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
                         } else {
                             Icon(Icons.Default.Save, null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Sauvegarder")
+                            Text("Sauvegarder Configuration")
                         }
                     }
                 }
@@ -3033,21 +3225,22 @@ private fun DropsConfigTab(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Info, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("ℹ️ Commandes Disponibles", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("ℹ️ Informations", fontWeight = FontWeight.Bold, color = Color.White)
                         }
                         Spacer(Modifier.height(12.dp))
                         
                         Text("🤖 Drops Automatiques", fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
                         Spacer(Modifier.height(8.dp))
-                        Text("Lorsque activé, le bot envoie automatiquement des drops d'argent dans des channels aléatoires du serveur.", color = Color.Gray)
+                        Text("Le bot enverra automatiquement des drops dans les channels sélectionnés selon l'intervalle configuré.", color = Color.Gray)
                         Spacer(Modifier.height(8.dp))
                         
-                        Text("📋 Paramètres (configurés côté bot):", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Text("✨ Fonctionnalités:", fontWeight = FontWeight.SemiBold, color = Color.White)
                         Spacer(Modifier.height(8.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("• Intervalle: configurable dans le code du bot", color = Color.Gray)
-                            Text("• Montant: défini dans le code du bot", color = Color.Gray)
-                            Text("• Channels: sélection aléatoire automatique", color = Color.Gray)
+                            Text("• Type configurable: Argent 💰 ou XP ✨", color = Color.Gray)
+                            Text("• Montant aléatoire entre min et max", color = Color.Gray)
+                            Text("• Envoi dans un channel aléatoire parmi ceux sélectionnés", color = Color.Gray)
+                            Text("• Premier arrivé, premier servi", color = Color.Gray)
                         }
                         
                         Spacer(Modifier.height(12.dp))

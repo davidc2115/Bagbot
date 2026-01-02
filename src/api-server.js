@@ -1628,7 +1628,12 @@ app.get('/api/drops', async (req, res) => {
   try {
     const config = await readConfig();
     const drops = config.guilds?.[GUILD]?.drops || {
-      enabled: true,
+      enabled: false,
+      type: 'money', // 'money' ou 'xp'
+      minAmount: 100,
+      maxAmount: 1000,
+      interval: 3600000, // 60 minutes en ms
+      channels: [],
       duration: 60,
       emoji: '🎁',
       allowCreatorClaim: false
@@ -1645,7 +1650,35 @@ app.post('/api/drops', requireAuth, express.json(), async (req, res) => {
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
-    config.guilds[GUILD].drops = { ...config.guilds[GUILD].drops, ...req.body };
+    
+    // Deep merge pour éviter la perte de données
+    const deepMerge = (target, source) => {
+      for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          if (!target[key]) target[key] = {};
+          deepMerge(target[key], source[key]);
+        } else {
+          target[key] = source[key];
+        }
+      }
+      return target;
+    };
+    
+    if (!config.guilds[GUILD].drops) {
+      config.guilds[GUILD].drops = {
+        enabled: false,
+        type: 'money',
+        minAmount: 100,
+        maxAmount: 1000,
+        interval: 3600000,
+        channels: [],
+        duration: 60,
+        emoji: '🎁',
+        allowCreatorClaim: false
+      };
+    }
+    
+    config.guilds[GUILD].drops = deepMerge(config.guilds[GUILD].drops, req.body);
     await writeConfig(config);
     res.json({ success: true, drops: config.guilds[GUILD].drops });
   } catch (error) {
