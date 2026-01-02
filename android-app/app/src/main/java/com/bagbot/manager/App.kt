@@ -1230,7 +1230,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
 
         // Notifications staff (en arrière-plan via WorkManager)
         try {
-            StaffChatNotificationWorker.schedule(context)
+            NotificationScheduler.scheduleNotifications(context)
         } catch (e: Exception) {
             Log.w(TAG, "Could not schedule staff notifications: ${e.message}")
         }

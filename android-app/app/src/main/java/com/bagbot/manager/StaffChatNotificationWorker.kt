@@ -39,9 +39,10 @@ class StaffChatNotificationWorker(
                 // Créer le canal de notification
                 createNotificationChannel()
                 
-                // Récupérer le token
-                val prefs = context.getSharedPreferences("bagbot_prefs", Context.MODE_PRIVATE)
-                val token = prefs.getString("auth_token", null)
+                // Initialiser SettingsStore et vérifier le token
+                SettingsStore.init(context)
+                val settingsStore = SettingsStore
+                val token = settingsStore.getToken()
                 
                 if (token == null) {
                     Log.d(TAG, "No auth token, skipping notification check")
@@ -49,7 +50,7 @@ class StaffChatNotificationWorker(
                 }
                 
                 // Récupérer les messages
-                val api = ApiClient(token)
+                val api = ApiClient(settingsStore)
                 val response = api.getJson("/api/staff-chat/messages")
                 val json = Json { ignoreUnknownKeys = true }
                 val data = json.parseToJsonElement(response).jsonObject
