@@ -44,6 +44,7 @@ import com.bagbot.manager.safeString
 import com.bagbot.manager.safeInt
 import com.bagbot.manager.safeLong
 import com.bagbot.manager.safeBoolean
+import com.bagbot.manager.safeDouble
 import com.bagbot.manager.safeStringOrEmpty
 import com.bagbot.manager.safeIntOrZero
 import com.bagbot.manager.safeBooleanOrFalse
@@ -408,9 +409,10 @@ private fun CategoryCard(
 private fun JsonObject.obj(key: String): JsonObject? = this[key]?.jsonObject
 private fun JsonObject.arr(key: String): JsonArray? = this[key]?.jsonArray
 private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
-private fun JsonObject.bool(key: String): Boolean? = this[key]?.jsonPrimitive?.booleanOrNull
-private fun JsonObject.int(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
-private fun JsonObject.double(key: String): Double? = this[key]?.jsonPrimitive?.doubleOrNull
+// IMPORTANT: certaines configs peuvent stocker des nombres en string ("40") au lieu de number (40)
+private fun JsonObject.bool(key: String): Boolean? = this[key].safeBoolean()
+private fun JsonObject.int(key: String): Int? = this[key].safeInt()
+private fun JsonObject.double(key: String): Double? = this[key].safeDouble()
 
 // Helper pour extraire une chaîne qui peut être soit un primitif, soit un objet avec un champ "id"
 private fun JsonObject.strOrId(key: String): String? {
