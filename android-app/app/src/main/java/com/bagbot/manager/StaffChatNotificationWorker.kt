@@ -41,7 +41,7 @@ class StaffChatNotificationWorker(
                 
                 // Initialiser SettingsStore et vérifier le token
                 SettingsStore.init(context)
-                val settingsStore = SettingsStore
+                val settingsStore = SettingsStore.getInstance(context)
                 val token = settingsStore.getToken()
                 
                 if (token == null) {
