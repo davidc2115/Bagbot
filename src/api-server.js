@@ -1548,7 +1548,23 @@ app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
-    config.guilds[GUILD].economy = { ...config.guilds[GUILD].economy, ...req.body };
+    
+    // Deep merge pour éviter d'écraser les données existantes
+    const deepMerge = (target, source) => {
+      for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          if (!target[key]) target[key] = {};
+          deepMerge(target[key], source[key]);
+        } else {
+          target[key] = source[key];
+        }
+      }
+      return target;
+    };
+    
+    if (!config.guilds[GUILD].economy) config.guilds[GUILD].economy = {};
+    config.guilds[GUILD].economy = deepMerge(config.guilds[GUILD].economy, req.body);
+    
     await writeConfig(config);
     res.json({ success: true, config: config.guilds[GUILD].economy });
   } catch (error) {
