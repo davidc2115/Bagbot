@@ -369,6 +369,25 @@ app.get('/api/debug/tokens', (req, res) => {
   res.json({ count: 0, tokens: [] });
 });
 
+// DEBUG: Vérifier actions.list dans economy
+app.get('/api/debug/actions', async (req, res) => {
+  try {
+    const { getEconomyConfig } = require('./storage/jsonStore');
+    const eco = await getEconomyConfig(GUILD);
+    const actionsList = eco?.actions?.list || {};
+    const actionsKeys = Object.keys(actionsList);
+    res.json({ 
+      count: actionsKeys.length,
+      keys: actionsKeys,
+      list: actionsList,
+      enabled: eco?.actions?.enabled || [],
+      sample: actionsKeys.slice(0, 5).map(k => ({ key: k, ...actionsList[k] }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
 // Login endpoint (temporaire - nécessite Discord OAuth pour production)
 app.post('/auth/login', async (req, res) => {
   const { userId, username } = req.body;
