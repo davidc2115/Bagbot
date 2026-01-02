@@ -1,0 +1,84 @@
+name: Trigger Build v6.1.27
+on:
+  push:
+    branches:
+      - cursor/bac-bot-manager-ui-adjustments-a36e
+    tags:
+      - v6.1.27
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-app/gradlew
+      
+      - name: Build APK
+        run: |
+          cd android-app
+          ./gradlew assembleRelease --no-daemon
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BagBot-Manager-v6.1.27-android
+          path: android-app/app/build/outputs/apk/release/*.apk
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android-app/app/build/outputs/apk/release/*.apk
+          tag_name: v6.1.27
+          name: BagBot Manager v6.1.27
+          body: |
+            ## v6.1.27 - Tous les Utilisateurs + Notifications Staff
+            
+            ### 📱 Section Accueil Améliorée
+            - **Tous les utilisateurs de l'app** au lieu de seulement les connectés
+            - Liste persistante de tous les membres ayant utilisé l'application
+            - Tri par dernière connexion (plus récents en premier)
+            - Affichage du nombre total d'utilisateurs
+            - Rafraîchissement manuel possible
+            
+            ### 🔔 Notifications Push pour Messages Staff
+            - **Notifications même app fermée** !
+            - Vérification automatique toutes les 15 minutes
+            - Notifications Android natives avec son et vibration
+            - Cliquer ouvre directement le chat staff
+            - Système WorkManager fiable
+            
+            ### 🔧 Améliorations Backend
+            - Nouvel endpoint `/api/admin/app-users`
+            - Enregistrement automatique des utilisateurs à la connexion
+            - Stockage persistant dans `config.json`
+            - Tracking des rôles et dernière connexion
+            
+            ### 🎯 Fonctionnalités
+            - **Accueil** : "Utilisateurs de l'App" avec liste complète
+            - **Notifications** : Ne manquez plus jamais un message staff
+            - **Permissions** : Demande automatique de permission notifications Android 13+
+            - **Tracking** : Historique de tous les utilisateurs de l'app
+            
+            ### 📋 Notes Techniques
+            - WorkManager pour notifications en arrière-plan
+            - Permission POST_NOTIFICATIONS pour Android 13+
+            - Stockage local du dernier message ID
+            - Canal de notification dédié "Messages Staff"
+            
+            ---
+            **Téléchargement** : BagBot-Manager-v6.1.27-android.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
