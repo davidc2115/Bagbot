@@ -2789,10 +2789,23 @@ private fun ActionsConfigTab(
     val actions = eco?.obj("actions")
     
     val actionsList = remember(actions) {
-        actions?.obj("list")?.mapValues { (key, value) ->
-            val obj = value.jsonObject
-            key to (obj["label"]?.jsonPrimitive?.contentOrNull ?: key)
-        }?.values?.toList() ?: emptyList()
+        val listObj = actions?.obj("list")
+        val configObj = actions?.obj("config")
+        val enabled = actions?.arr("enabled").safeStringList()
+        
+        val keys = mutableSetOf<String>()
+        // Ajouter toutes les clés des actions activées
+        enabled.forEach { if (it.isNotBlank()) keys.add(it) }
+        // Ajouter toutes les clés de la liste des actions
+        listObj?.jsonObject?.keys?.forEach { keys.add(it) }
+        // Ajouter toutes les clés de la config des actions
+        configObj?.jsonObject?.keys?.forEach { keys.add(it) }
+        
+        // Créer la liste avec les labels
+        keys.sorted().mapNotNull { key ->
+            val label = listObj?.obj(key)?.str("label") ?: key
+            key to label
+        }
     }
     
     var selectedTab by remember { mutableIntStateOf(0) }
