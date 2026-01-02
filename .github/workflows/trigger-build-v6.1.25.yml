@@ -1,0 +1,71 @@
+name: Trigger Build v6.1.25
+on:
+  push:
+    branches:
+      - cursor/bac-bot-manager-ui-adjustments-a36e
+    tags:
+      - v6.1.25
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-app/gradlew
+      
+      - name: Build APK
+        run: |
+          cd android-app
+          ./gradlew assembleRelease --no-daemon
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BagBot-Manager-v6.1.25-android
+          path: android-app/app/build/outputs/apk/release/*.apk
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android-app/app/build/outputs/apk/release/*.apk
+          tag_name: v6.1.25
+          name: BagBot Manager v6.1.25
+          body: |
+            ## v6.1.25 - Configuration Complète Drops Automatiques
+            
+            ### ✨ Nouveautés Majeures
+            - **Configuration complète depuis l'app** : plus besoin de passer par le bot !
+            - **Type de drop configurable** : Choisir entre Argent 💰 ou XP ✨
+            - **Montants personnalisables** : Définir min et max
+            - **Intervalle configurable** : En minutes
+            - **Sélection de channels** : Choisir où les drops apparaîtront
+            
+            ### 🎯 Fonctionnalités
+            - Activation/désactivation simple
+            - Interface visuelle intuitive
+            - Boutons de sélection type (Argent/XP)
+            - Gestion multi-channels
+            - Configuration sauvegardée en temps réel
+            
+            ### ⚙️ Détails Techniques
+            - API backend adaptée pour nouvelle structure
+            - Support complet : type, minAmount, maxAmount, interval, channels
+            - Deep merge pour éviter la perte de données
+            
+            ---
+            **Téléchargement** : BagBot-Manager-v6.1.25-android.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
