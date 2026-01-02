@@ -1,0 +1,58 @@
+name: Trigger Build v6.1.24
+on:
+  push:
+    branches:
+      - cursor/bac-bot-manager-ui-adjustments-a36e
+    tags:
+      - v6.1.24
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-app/gradlew
+      
+      - name: Build APK
+        run: |
+          cd android-app
+          ./gradlew assembleRelease --no-daemon
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BagBot-Manager-v6.1.24-android
+          path: android-app/app/build/outputs/apk/release/*.apk
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android-app/app/build/outputs/apk/release/*.apk
+          tag_name: v6.1.24
+          name: BagBot Manager v6.1.24
+          body: |
+            ## v6.1.24 - Simplification Drops
+            
+            ### ✨ Nouveautés
+            - Interface drops ultra-simplifiée: uniquement activation ON/OFF
+            - Suppression des paramètres détaillés (automatisés côté bot)
+            - Configuration tribunal complète
+            
+            ### 🔧 Améliorations
+            - Interface plus claire et intuitive
+            - Moins de configuration manuelle nécessaire
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
