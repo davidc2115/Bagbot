@@ -375,13 +375,25 @@ app.get('/api/debug/actions', async (req, res) => {
     const { getEconomyConfig } = require('./storage/jsonStore');
     const eco = await getEconomyConfig(GUILD);
     const actionsList = eco?.actions?.list || {};
+    const actionsGifs = eco?.actions?.gifs || {};
+    const actionsMessages = eco?.actions?.messages || {};
+    const actionsConfig = eco?.actions?.config || {};
     const actionsKeys = Object.keys(actionsList);
+    
     res.json({ 
       count: actionsKeys.length,
       keys: actionsKeys,
       list: actionsList,
       enabled: eco?.actions?.enabled || [],
-      sample: actionsKeys.slice(0, 5).map(k => ({ key: k, ...actionsList[k] }))
+      sample: actionsKeys.slice(0, 5).map(k => ({ key: k, ...actionsList[k] })),
+      structure: {
+        hasGifs: Object.keys(actionsGifs).length,
+        hasMessages: Object.keys(actionsMessages).length,
+        hasConfig: Object.keys(actionsConfig).length,
+        gifsKeys: Object.keys(actionsGifs),
+        messagesKeys: Object.keys(actionsMessages),
+        configKeys: Object.keys(actionsConfig)
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message, stack: error.stack });
