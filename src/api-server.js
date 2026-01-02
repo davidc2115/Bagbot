@@ -380,6 +380,21 @@ app.get('/api/debug/actions', async (req, res) => {
     const actionsConfig = eco?.actions?.config || {};
     const actionsKeys = Object.keys(actionsList);
     
+    // Trouver des exemples d'actions avec des vraies données
+    const actionsWithData = [];
+    Object.keys(actionsGifs).forEach(key => {
+      const hasSuccess = actionsGifs[key]?.success?.length > 0;
+      const hasFail = actionsGifs[key]?.fail?.length > 0;
+      if (hasSuccess || hasFail) {
+        actionsWithData.push({
+          key,
+          successGifs: actionsGifs[key]?.success?.length || 0,
+          failGifs: actionsGifs[key]?.fail?.length || 0,
+          sampleSuccessGif: actionsGifs[key]?.success?.[0] || null
+        });
+      }
+    });
+    
     res.json({ 
       count: actionsKeys.length,
       keys: actionsKeys,
@@ -393,6 +408,12 @@ app.get('/api/debug/actions', async (req, res) => {
         gifsKeys: Object.keys(actionsGifs),
         messagesKeys: Object.keys(actionsMessages),
         configKeys: Object.keys(actionsConfig)
+      },
+      actionsWithRealData: actionsWithData,
+      exampleWork: {
+        gifs: actionsGifs.work,
+        messages: actionsMessages.work,
+        config: actionsConfig.work
       }
     });
   } catch (error) {
