@@ -2937,7 +2937,7 @@ private fun DropsConfigTab(
                         put("emoji", emoji)
                         put("allowCreatorClaim", allowCreatorClaim)
                     }
-                    api.postJson("/api/drops", payload)
+                    api.postJson("/api/drops", json.encodeToString(JsonObject.serializer(), payload))
                     withContext(Dispatchers.Main) {
                         snackbar.showSnackbar("✅ Configuration drops sauvegardée!")
                         isSaving = false
