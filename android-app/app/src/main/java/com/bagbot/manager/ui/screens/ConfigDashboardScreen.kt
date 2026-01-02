@@ -2890,7 +2890,7 @@ private fun ActionsConfigTab(
 @Composable
 private fun DropsConfigTab(
     configData: JsonObject?,
-    channels: Map<String, String>,
+    channels: Map<String, String>, // Gardé pour compatibilité mais non utilisé
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -2900,17 +2900,8 @@ private fun DropsConfigTab(
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     
-    var enabled by remember { mutableStateOf(true) }
-    var duration by remember { mutableStateOf("60") }
-    var emoji by remember { mutableStateOf("🎁") }
-    var allowCreatorClaim by remember { mutableStateOf(false) }
-    
-    // Auto drops
+    // Seulement l'activation des drops automatiques
     var autoDropsEnabled by remember { mutableStateOf(false) }
-    var autoDropsInterval by remember { mutableStateOf("60") }
-    var autoDropsChannelIds by remember { mutableStateOf<List<String>>(emptyList()) }
-    var autoDropsMinAmount by remember { mutableStateOf("100") }
-    var autoDropsMaxAmount by remember { mutableStateOf("1000") }
     
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -2919,19 +2910,7 @@ private fun DropsConfigTab(
                 val cfg = json.parseToJsonElement(resp).jsonObject
                 withContext(Dispatchers.Main) {
                     dropsConfig = cfg
-                    enabled = cfg["enabled"]?.jsonPrimitive?.booleanOrNull ?: true
-                    duration = cfg["duration"]?.jsonPrimitive?.intOrNull?.toString() ?: "60"
-                    emoji = cfg["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
-                    allowCreatorClaim = cfg["allowCreatorClaim"]?.jsonPrimitive?.booleanOrNull ?: false
-                    
-                    // Auto drops
-                    val autoDrops = cfg["autoDrops"]?.jsonObject
-                    autoDropsEnabled = autoDrops?.get("enabled")?.jsonPrimitive?.booleanOrNull ?: false
-                    autoDropsInterval = (autoDrops?.get("interval")?.jsonPrimitive?.longOrNull?.div(60000))?.toString() ?: "60"
-                    autoDropsChannelIds = autoDrops?.get("channelIds")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
-                    autoDropsMinAmount = autoDrops?.get("minAmount")?.jsonPrimitive?.intOrNull?.toString() ?: "100"
-                    autoDropsMaxAmount = autoDrops?.get("maxAmount")?.jsonPrimitive?.intOrNull?.toString() ?: "1000"
-                    
+                    autoDropsEnabled = cfg["autoDropsEnabled"]?.jsonPrimitive?.booleanOrNull ?: false
                     isLoading = false
                 }
             } catch (e: Exception) {
@@ -2949,21 +2928,7 @@ private fun DropsConfigTab(
             withContext(Dispatchers.IO) {
                 try {
                     val payload = buildJsonObject {
-                        put("enabled", enabled)
-                        put("duration", duration.toIntOrNull() ?: 60)
-                        put("emoji", emoji)
-                        put("allowCreatorClaim", allowCreatorClaim)
-                        
-                        // Auto drops
-                        putJsonObject("autoDrops") {
-                            put("enabled", autoDropsEnabled)
-                            put("interval", (autoDropsInterval.toLongOrNull() ?: 60L) * 60000L) // minutes -> ms
-                            putJsonArray("channelIds") {
-                                autoDropsChannelIds.forEach { add(it) }
-                            }
-                            put("minAmount", autoDropsMinAmount.toIntOrNull() ?: 100)
-                            put("maxAmount", autoDropsMaxAmount.toIntOrNull() ?: 1000)
-                        }
+                        put("autoDropsEnabled", autoDropsEnabled)
                     }
                     api.postJson("/api/drops", json.encodeToString(JsonObject.serializer(), payload))
                     withContext(Dispatchers.Main) {
@@ -3036,7 +3001,7 @@ private fun DropsConfigTab(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Activer les drops automatiques", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Le bot enverra des drops d'argent régulièrement dans des channels aléatoires", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Text("Le bot enverra automatiquement des drops d'argent dans des channels aléatoires", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(checked = autoDropsEnabled, onCheckedChange = { autoDropsEnabled = it })
                     }
@@ -3056,124 +3021,6 @@ private fun DropsConfigTab(
                             Text("Sauvegarder")
                         }
                     }
-                    
-                    if (autoDropsEnabled) {
-                        Spacer(Modifier.height(16.dp))
-                        Divider(color = Color.Gray.copy(alpha = 0.3f))
-                        Spacer(Modifier.height(16.dp))
-                        
-                        Text("⏱️ Intervalle (minutes)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = autoDropsInterval,
-                            onValueChange = { autoDropsInterval = it },
-                            label = { Text("Intervalle en minutes") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                        )
-                        
-                        Spacer(Modifier.height(16.dp))
-                        
-                        Text("📺 Channels (aléatoires)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Les drops seront envoyés dans un channel aléatoire parmi ceux sélectionnés", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.height(8.dp))
-                        
-                        // Liste des channels sélectionnés
-                        if (autoDropsChannelIds.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                autoDropsChannelIds.forEach { channelId ->
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                channels[channelId] ?: channelId,
-                                                color = Color.White,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            IconButton(
-                                                onClick = {
-                                                    autoDropsChannelIds = autoDropsChannelIds - channelId
-                                                }
-                                            ) {
-                                                Icon(Icons.Default.Close, "Retirer", tint = Color.Red)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        
-                        // Bouton ajouter channel
-                        var showChannelPicker by remember { mutableStateOf(false) }
-                        OutlinedButton(
-                            onClick = { showChannelPicker = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Add, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Ajouter un channel")
-                        }
-                        
-                        if (showChannelPicker) {
-                            val availableChannels = remember(autoDropsChannelIds) {
-                                channels.entries.filter { it.key !in autoDropsChannelIds }.toList()
-                            }
-                            AlertDialog(
-                                onDismissRequest = { showChannelPicker = false },
-                                title = { Text("Sélectionner un channel") },
-                                text = {
-                                    LazyColumn {
-                                        itemsIndexed(availableChannels) { _, entry ->
-                                            val (id, name) = entry
-                                            Card(
-                                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
-                                                    autoDropsChannelIds = autoDropsChannelIds + id
-                                                    showChannelPicker = false
-                                                },
-                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
-                                            ) {
-                                                Text(name, modifier = Modifier.padding(16.dp), color = Color.White)
-                                            }
-                                        }
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = { showChannelPicker = false }) {
-                                        Text("Annuler")
-                                    }
-                                }
-                            )
-                        }
-                        
-                        Spacer(Modifier.height(16.dp))
-                        
-                        Text("💰 Montant (argent)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = autoDropsMinAmount,
-                                onValueChange = { autoDropsMinAmount = it },
-                                label = { Text("Min") },
-                                modifier = Modifier.weight(1f),
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                            )
-                            OutlinedTextField(
-                                value = autoDropsMaxAmount,
-                                onValueChange = { autoDropsMaxAmount = it },
-                                label = { Text("Max") },
-                                modifier = Modifier.weight(1f),
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                            )
-                        }
-                    }
                 }
             }
             
@@ -3190,25 +3037,27 @@ private fun DropsConfigTab(
                         }
                         Spacer(Modifier.height(12.dp))
                         
-                        Text("💰 /dropargent [montant] [message]", fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
-                        Text("Créer un drop d'argent", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        
+                        Text("🤖 Drops Automatiques", fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
+                        Spacer(Modifier.height(8.dp))
+                        Text("Lorsque activé, le bot envoie automatiquement des drops d'argent dans des channels aléatoires du serveur.", color = Color.Gray)
                         Spacer(Modifier.height(8.dp))
                         
-                        Text("✨ /dropxp [quantité] [message]", fontWeight = FontWeight.Bold, color = Color(0xFF9B59B6))
-                        Text("Créer un drop d'XP", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        Text("📋 Paramètres (configurés côté bot):", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("• Intervalle: configurable dans le code du bot", color = Color.Gray)
+                            Text("• Montant: défini dans le code du bot", color = Color.Gray)
+                            Text("• Channels: sélection aléatoire automatique", color = Color.Gray)
+                        }
                         
                         Spacer(Modifier.height(12.dp))
                         Divider(color = Color.Gray.copy(alpha = 0.3f))
                         Spacer(Modifier.height(12.dp))
                         
-                        Text("🎯 Fonctionnalités:", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Text("💡 Commandes manuelles:", fontWeight = FontWeight.SemiBold, color = Color.White)
                         Spacer(Modifier.height(8.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("• Un seul utilisateur peut réclamer le drop", color = Color.Gray)
-                            Text("• Les drops sont instantanés (premier arrivé, premier servi)", color = Color.Gray)
-                            Text("• Le drop expire après la durée configurée", color = Color.Gray)
-                        }
+                        Text("• /dropargent [montant] - Drop d'argent manuel", color = Color.Gray)
+                        Text("• /dropxp [quantité] - Drop d'XP manuel", color = Color.Gray)
                     }
                 }
             }
