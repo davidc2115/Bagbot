@@ -1776,74 +1776,52 @@ fun BotControlScreen(
     isFounder: Boolean,
     isAdmin: Boolean = false
 ) {
-    // Charger les membres connectés
-    var connectedUsers by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // userId, username, role
-    var isLoadingConnected by remember { mutableStateOf(false) }
-    var staffRoleIds by remember { mutableStateOf<List<String>>(emptyList()) }
-    val founderId = "943487722738311219"
+    // Charger tous les utilisateurs de l'app
+    var appUsers by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // userId, username, role
+    var isLoadingUsers by remember { mutableStateOf(false) }
     
-    fun loadConnectedUsers() {
+    fun loadAppUsers() {
         scope.launch {
-            isLoadingConnected = true
+            isLoadingUsers = true
             withContext(Dispatchers.IO) {
                 try {
-                    // Charger d'abord la config pour les rôles staff
-                    try {
-                        val configResp = api.getJson("/api/configs")
-                        val config = json.parseToJsonElement(configResp).jsonObject
-                        val staffRoles = config["staffRoleIds"]?.jsonArray.safeStringList()
-                        staffRoleIds = staffRoles
-                    } catch (e: Exception) {
-                        Log.e("BotControl", "Erreur chargement staffRoleIds: ${e.message}")
-                    }
-                    
-                    // Charger les sessions
-                    val resp = api.getJson("/api/admin/sessions")
-                    Log.d("BotControl", "Sessions response: ${resp.take(300)}")
+                    // Charger tous les utilisateurs de l'app
+                    val resp = api.getJson("/api/admin/app-users")
+                    Log.d("BotControl", "App users response: ${resp.take(300)}")
                     val obj = json.parseToJsonElement(resp).jsonObject
-                    val sessionsArray = obj["sessions"]?.jsonArray
-                    Log.d("BotControl", "Sessions count: ${sessionsArray?.size ?: 0}")
+                    val usersArray = obj["users"]?.jsonArray
+                    Log.d("BotControl", "App users count: ${usersArray?.size ?: 0}")
                     
-                    val sessions = sessionsArray?.mapNotNull {
-                        val session = it.jsonObject
-                        val userId = session["userId"]?.jsonPrimitive?.contentOrNull
-                        val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                    val users = usersArray?.mapNotNull {
+                        val user = it.jsonObject
+                        val userId = user["userId"]?.jsonPrimitive?.contentOrNull
+                        val username = user["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                        val role = user["role"]?.jsonPrimitive?.contentOrNull ?: "👤 Membre"
                         
-                        // Calculer le rôle côté client
-                        val userRoles = session["roles"]?.jsonArray.safeStringList()
-                        
-                        Log.d("BotControl", "User $username ($userId) has ${userRoles.size} roles, staffRoles: ${staffRoleIds.size}")
-                        
-                        val role = when {
-                            userId == founderId -> "👑 Fondateur"
-                            userRoles.any { it in staffRoleIds } -> "⚡ Admin"
-                            else -> "👤 Membre"
-                        }
-                        
-                        Log.d("BotControl", "User $username assigned role: $role")
+                        Log.d("BotControl", "User $username ($userId) - role: $role")
                         
                         if (userId != null) Triple(userId, username, role) else null
                     } ?: emptyList()
                     
-                    Log.d("BotControl", "Final sessions list: ${sessions.size} members")
+                    Log.d("BotControl", "Final app users list: ${users.size} members")
                     
                     withContext(Dispatchers.Main) {
-                        connectedUsers = sessions
+                        appUsers = users
                     }
                 } catch (e: Exception) {
-                    Log.e("BotControl", "Erreur chargement sessions: ${e.message}")
+                    Log.e("BotControl", "Erreur chargement app users: ${e.message}")
                     withContext(Dispatchers.Main) {
-                        connectedUsers = emptyList()
+                        appUsers = emptyList()
                     }
                 } finally {
-                    withContext(Dispatchers.Main) { isLoadingConnected = false }
+                    withContext(Dispatchers.Main) { isLoadingUsers = false }
                 }
             }
         }
     }
     
     LaunchedEffect(Unit) {
-        loadConnectedUsers()
+        loadAppUsers()
     }
     
     LazyColumn(
@@ -1931,7 +1909,7 @@ fun BotControlScreen(
             }
         }
         
-        // Membres connectés
+        // Utilisateurs de l'app
         item {
             Card(
                 Modifier.fillMaxWidth(),
@@ -1951,14 +1929,21 @@ fun BotControlScreen(
                                 modifier = Modifier.size(28.dp)
                             )
                             Spacer(Modifier.width(12.dp))
-                            Text(
-                                "👥 Membres Connectés",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            Column {
+                                Text(
+                                    "📱 Utilisateurs de l'App",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "${appUsers.size} membre(s)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
                         }
-                        IconButton(onClick = { loadConnectedUsers() }) {
+                        IconButton(onClick = { loadAppUsers() }) {
                             Icon(
                                 Icons.Default.Refresh,
                                 "Rafraîchir",
@@ -1969,21 +1954,21 @@ fun BotControlScreen(
                     
                     Spacer(Modifier.height(16.dp))
                     
-                    if (isLoadingConnected) {
+                    if (isLoadingUsers) {
                         Box(
                             Modifier.fillMaxWidth().height(100.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(color = Color(0xFF9C27B0))
                         }
-                    } else if (connectedUsers.isEmpty()) {
+                    } else if (appUsers.isEmpty()) {
                         Text(
-                            "Aucun membre connecté",
+                            "Aucun utilisateur",
                             color = Color.Gray,
                             modifier = Modifier.padding(vertical = 16.dp)
                         )
                     } else {
-                        connectedUsers.forEach { (userId, username, role) ->
+                        appUsers.forEach { (userId, username, role) ->
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -2025,7 +2010,7 @@ fun BotControlScreen(
                                 }
                                 }
                             }
-                            if (connectedUsers.last() != Triple(userId, username, role)) {
+                            if (appUsers.last() != Triple(userId, username, role)) {
                                 Divider(color = Color(0xFF2E2E2E), modifier = Modifier.padding(vertical = 4.dp))
                             }
                         }

@@ -339,6 +339,25 @@ app.get('/auth/mobile/callback', async (req, res) => {
       avatar: userData.avatar,
     });
     
+    // Enregistrer l'utilisateur dans la liste des utilisateurs de l'app
+    try {
+      const config = await readConfig();
+      if (!config.appUsers) config.appUsers = {};
+      config.appUsers[userData.id] = {
+        userId: userData.id,
+        username: userData.username,
+        discriminator: userData.discriminator,
+        avatar: userData.avatar,
+        firstLogin: config.appUsers[userData.id]?.firstLogin || new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        isAdmin: permissions.isAdmin,
+        isFounder: permissions.isFounder
+      };
+      await writeConfig(config);
+    } catch (e) {
+      console.error('[BOT-API] Failed to register app user:', e.message);
+    }
+    
     console.log(`[BOT-API] User authenticated: ${userData.username} (${userData.id})`);
     
     // Rediriger vers l'app
@@ -1163,6 +1182,64 @@ app.get('/api/admin/sessions', requireAuth, async (req, res) => {
     res.json({ sessions, count: sessions.length });
   } catch (error) {
     console.error('[BOT-API] Error in /api/admin/sessions:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/app-users - Liste de TOUS les utilisateurs qui ont utilisé l'app
+app.get('/api/admin/app-users', requireAuth, async (req, res) => {
+  try {
+    const config = await readConfig();
+    const client = req.app.locals.client;
+    const guild = client?.guilds.cache.get(GUILD);
+    
+    const appUsersData = config.appUsers || {};
+    const staffRoleIds = config.staffRoleIds || [];
+    const founderId = "943487722738311219";
+    
+    const users = [];
+    for (const [userId, userData] of Object.entries(appUsersData)) {
+      // Récupérer les rôles Discord actuels de l'utilisateur
+      let roles = [];
+      try {
+        if (guild) {
+          const member = await guild.members.fetch(userId).catch(() => null);
+          if (member) {
+            roles = member.roles.cache.map(r => r.id).filter(id => id !== guild.id);
+          }
+        }
+      } catch (e) {
+        console.warn(`[BOT-API] Could not fetch roles for ${userId}:`, e.message);
+      }
+      
+      // Déterminer le rôle
+      const role = userId === founderId 
+        ? "👑 Fondateur" 
+        : roles.some(r => staffRoleIds.includes(r))
+          ? "⚡ Admin"
+          : "👤 Membre";
+      
+      users.push({
+        userId: userData.userId,
+        username: userData.username,
+        discriminator: userData.discriminator || '0',
+        avatar: userData.avatar,
+        role: role,
+        roles: roles,
+        firstLogin: userData.firstLogin,
+        lastLogin: userData.lastLogin,
+        isAdmin: userData.isAdmin || false,
+        isFounder: userData.isFounder || false
+      });
+    }
+    
+    // Trier par dernière connexion (plus récent en premier)
+    users.sort((a, b) => new Date(b.lastLogin) - new Date(a.lastLogin));
+    
+    console.log(`[BOT-API] Returning ${users.length} app users`);
+    res.json({ users, count: users.length });
+  } catch (error) {
+    console.error('[BOT-API] Error in /api/admin/app-users:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

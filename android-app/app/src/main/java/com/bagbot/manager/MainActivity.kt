@@ -41,6 +41,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         
+        // Activer les notifications pour le chat staff
+        NotificationScheduler.scheduleNotifications(this)
+        
         // Gérer le deep link
         handleIntent(intent)
         
