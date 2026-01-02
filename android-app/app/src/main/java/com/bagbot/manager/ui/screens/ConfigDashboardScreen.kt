@@ -227,7 +227,7 @@ fun ConfigDashboardScreen(
                 DashTab.TruthDare -> TruthDareConfigTab(channels, api, json, scope, snackbar)
                 DashTab.MotCache -> MotCacheConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Actions -> ActionsConfigTab(configData, api, json, scope, snackbar)
-                DashTab.Drops -> DropsConfigTab(configData, api, json, scope, snackbar)
+                DashTab.Drops -> DropsConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Tribunal -> TribunalConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 DashTab.Tickets -> TicketsConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 DashTab.Logs -> LogsConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
@@ -2890,6 +2890,7 @@ private fun ActionsConfigTab(
 @Composable
 private fun DropsConfigTab(
     configData: JsonObject?,
+    channels: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -2904,6 +2905,13 @@ private fun DropsConfigTab(
     var emoji by remember { mutableStateOf("🎁") }
     var allowCreatorClaim by remember { mutableStateOf(false) }
     
+    // Auto drops
+    var autoDropsEnabled by remember { mutableStateOf(false) }
+    var autoDropsInterval by remember { mutableStateOf("60") }
+    var autoDropsChannelIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var autoDropsMinAmount by remember { mutableStateOf("100") }
+    var autoDropsMaxAmount by remember { mutableStateOf("1000") }
+    
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
@@ -2915,6 +2923,15 @@ private fun DropsConfigTab(
                     duration = cfg["duration"]?.jsonPrimitive?.intOrNull?.toString() ?: "60"
                     emoji = cfg["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
                     allowCreatorClaim = cfg["allowCreatorClaim"]?.jsonPrimitive?.booleanOrNull ?: false
+                    
+                    // Auto drops
+                    val autoDrops = cfg["autoDrops"]?.jsonObject
+                    autoDropsEnabled = autoDrops?.get("enabled")?.jsonPrimitive?.booleanOrNull ?: false
+                    autoDropsInterval = (autoDrops?.get("interval")?.jsonPrimitive?.longOrNull?.div(60000))?.toString() ?: "60"
+                    autoDropsChannelIds = autoDrops?.get("channelIds")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+                    autoDropsMinAmount = autoDrops?.get("minAmount")?.jsonPrimitive?.intOrNull?.toString() ?: "100"
+                    autoDropsMaxAmount = autoDrops?.get("maxAmount")?.jsonPrimitive?.intOrNull?.toString() ?: "1000"
+                    
                     isLoading = false
                 }
             } catch (e: Exception) {
@@ -2936,6 +2953,17 @@ private fun DropsConfigTab(
                         put("duration", duration.toIntOrNull() ?: 60)
                         put("emoji", emoji)
                         put("allowCreatorClaim", allowCreatorClaim)
+                        
+                        // Auto drops
+                        putJsonObject("autoDrops") {
+                            put("enabled", autoDropsEnabled)
+                            put("interval", (autoDropsInterval.toLongOrNull() ?: 60L) * 60000L) // minutes -> ms
+                            putJsonArray("channelIds") {
+                                autoDropsChannelIds.forEach { add(it) }
+                            }
+                            put("minAmount", autoDropsMinAmount.toIntOrNull() ?: 100)
+                            put("maxAmount", autoDropsMaxAmount.toIntOrNull() ?: 1000)
+                        }
                     }
                     api.postJson("/api/drops", json.encodeToString(JsonObject.serializer(), payload))
                     withContext(Dispatchers.Main) {
@@ -3062,6 +3090,139 @@ private fun DropsConfigTab(
                             Icon(Icons.Default.Save, null)
                             Spacer(Modifier.width(8.dp))
                             Text("Sauvegarder")
+                        }
+                    }
+                }
+            }
+            
+            item {
+                SectionCard(
+                    title = "🤖 Drops Automatiques",
+                    subtitle = "Système de drops programmés"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Drops automatiques activés", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Envoyer des drops régulièrement", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked = autoDropsEnabled, onCheckedChange = { autoDropsEnabled = it })
+                    }
+                    
+                    if (autoDropsEnabled) {
+                        Spacer(Modifier.height(16.dp))
+                        Divider(color = Color.Gray.copy(alpha = 0.3f))
+                        Spacer(Modifier.height(16.dp))
+                        
+                        Text("⏱️ Intervalle (minutes)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = autoDropsInterval,
+                            onValueChange = { autoDropsInterval = it },
+                            label = { Text("Intervalle en minutes") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        
+                        Spacer(Modifier.height(16.dp))
+                        
+                        Text("📺 Channels (aléatoires)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Les drops seront envoyés dans un channel aléatoire parmi ceux sélectionnés", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
+                        
+                        // Liste des channels sélectionnés
+                        if (autoDropsChannelIds.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                autoDropsChannelIds.forEach { channelId ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                channels[channelId] ?: channelId,
+                                                color = Color.White,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            IconButton(
+                                                onClick = {
+                                                    autoDropsChannelIds = autoDropsChannelIds - channelId
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.Close, "Retirer", tint = Color.Red)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        
+                        // Bouton ajouter channel
+                        var showChannelPicker by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { showChannelPicker = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ajouter un channel")
+                        }
+                        
+                        if (showChannelPicker) {
+                            AlertDialog(
+                                onDismissRequest = { showChannelPicker = false },
+                                title = { Text("Sélectionner un channel") },
+                                text = {
+                                    LazyColumn {
+                                        items(channels.entries.filter { it.key !in autoDropsChannelIds }.toList()) { (id, name) ->
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                                                    autoDropsChannelIds = autoDropsChannelIds + id
+                                                    showChannelPicker = false
+                                                },
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
+                                            ) {
+                                                Text(name, modifier = Modifier.padding(16.dp), color = Color.White)
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showChannelPicker = false }) {
+                                        Text("Annuler")
+                                    }
+                                }
+                            )
+                        }
+                        
+                        Spacer(Modifier.height(16.dp))
+                        
+                        Text("💰 Montant (argent)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = autoDropsMinAmount,
+                                onValueChange = { autoDropsMinAmount = it },
+                                label = { Text("Min") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                            OutlinedTextField(
+                                value = autoDropsMaxAmount,
+                                onValueChange = { autoDropsMaxAmount = it },
+                                label = { Text("Max") },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
                         }
                     }
                 }
@@ -7387,6 +7548,54 @@ private fun TribunalConfigTab(
     var judgeRoleId by remember { mutableStateOf<String?>(null) }
     var casesCount by remember { mutableStateOf(0) }
     
+    // Liste des cas ouverts
+    var openCases by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+    var isLoadingCases by remember { mutableStateOf(false) }
+    var isClosingCase by remember { mutableStateOf<String?>(null) }
+    
+    fun loadOpenCases() {
+        scope.launch {
+            isLoadingCases = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val resp = api.getJson("/api/tribunal/cases")
+                    val data = json.parseToJsonElement(resp).jsonObject
+                    val casesList = data["cases"]?.jsonArray?.mapNotNull { it.jsonObject } ?: emptyList()
+                    withContext(Dispatchers.Main) {
+                        openCases = casesList
+                        isLoadingCases = false
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur chargement cas: ${e.message}")
+                        isLoadingCases = false
+                    }
+                }
+            }
+        }
+    }
+    
+    fun closeCase(caseId: String) {
+        scope.launch {
+            isClosingCase = caseId
+            withContext(Dispatchers.IO) {
+                try {
+                    api.postJson("/api/tribunal/cases/$caseId/close", "{}")
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("✅ Tribunal fermé")
+                        isClosingCase = null
+                        loadOpenCases() // Recharger la liste
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                        isClosingCase = null
+                    }
+                }
+            }
+        }
+    }
+    
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
@@ -7399,6 +7608,7 @@ private fun TribunalConfigTab(
                     judgeRoleId = cfg["judgeRoleId"]?.jsonPrimitive?.contentOrNull
                     casesCount = cfg["cases"]?.jsonObject?.size ?: 0
                     isLoading = false
+                    loadOpenCases() // Charger les cas ouverts
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -7534,6 +7744,85 @@ private fun TribunalConfigTab(
                             Icon(Icons.Default.Save, null)
                             Spacer(Modifier.width(8.dp))
                             Text("Sauvegarder")
+                        }
+                    }
+                }
+            }
+            
+            item {
+                SectionCard(
+                    title = "📋 Tribunaux Ouverts",
+                    subtitle = "${openCases.size} dossier(s) en cours"
+                ) {
+                    if (isLoadingCases) {
+                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                        }
+                    } else if (openCases.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Check, "Aucun", tint = Color.Gray, modifier = Modifier.size(32.dp))
+                                Spacer(Modifier.height(8.dp))
+                                Text("Aucun tribunal ouvert", color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            openCases.forEach { case ->
+                                val caseId = case["id"]?.jsonPrimitive?.contentOrNull ?: "?"
+                                val accusedId = case["accusedId"]?.jsonPrimitive?.contentOrNull
+                                val plaintiffId = case["plaintiffId"]?.jsonPrimitive?.contentOrNull
+                                val charge = case["charge"]?.jsonPrimitive?.contentOrNull ?: "Non spécifié"
+                                val status = case["status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
+                                val createdAt = case["createdAt"]?.jsonPrimitive?.longOrNull
+                                
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2F33))
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("📁 Dossier #$caseId", fontWeight = FontWeight.Bold, color = Color.White)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text("Accusé: ${members[accusedId] ?: accusedId ?: "?"}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                Text("Plaignant: ${members[plaintiffId] ?: plaintiffId ?: "?"}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text("💬 $charge", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text("Statut: $status", color = Color(0xFFFFD700), style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                if (isClosingCase == caseId) {
+                                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                                                } else {
+                                                    IconButton(
+                                                        onClick = { closeCase(caseId) }
+                                                    ) {
+                                                        Icon(Icons.Default.Close, "Fermer", tint = Color.Red)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        OutlinedButton(
+                            onClick = { loadOpenCases() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Refresh, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Actualiser")
                         }
                     }
                 }
