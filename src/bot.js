@@ -13920,11 +13920,35 @@ async function buildBoutiqueEmbed(guild, user, offset = 0, limit = 25) {
 async function buildBoutiqueRows(guild) {
   const eco = await getEconomyConfig(guild.id);
   const options = [];
+  
+  // Helper pour parser les emojis personnalisés Discord
+  function parseEmoji(emojiStr) {
+    if (!emojiStr) return null;
+    // Format emoji personnalisé: <:name:id> ou <a:name:id>
+    const customMatch = emojiStr.match(/^<(a)?:([^:]+):(\d+)>$/);
+    if (customMatch) {
+      return {
+        id: customMatch[3],
+        name: customMatch[2],
+        animated: !!customMatch[1]
+      };
+    }
+    // Emoji unicode standard
+    const emojiRegex = /\p{Emoji}/u;
+    if (emojiRegex.test(emojiStr)) {
+      return emojiStr;
+    }
+    return null;
+  }
+  
   // Items
   for (const it of (eco.shop?.items || [])) {
-    const emoji = it.emoji || '🎁';
-    const label = emoji + ' ' + (it.name || it.id) + ' — ' + (it.price||0);
-    options.push({ label, value: 'item:' + it.id });
+    const emojiStr = it.emoji || '🎁';
+    const parsedEmoji = parseEmoji(emojiStr);
+    const label = (it.name || it.id) + ' — ' + (it.price||0);
+    const option = { label, value: 'item:' + it.id };
+    if (parsedEmoji) option.emoji = parsedEmoji;
+    options.push(option);
   }
   // Roles
   for (const r of (eco.shop?.roles || [])) {
@@ -13943,8 +13967,12 @@ async function buildBoutiqueRows(guild) {
     ];
     for (const l of labels) {
       const price = Number(prices[l.key]||0);
-      const label = (eco.suites.emoji || '💞') + ' ' + l.name + ' — ' + price;
-      options.push({ label, value: 'suite:' + l.key });
+      const emojiStr = eco.suites.emoji || '💞';
+      const parsedEmoji = parseEmoji(emojiStr);
+      const label = l.name + ' — ' + price;
+      const option = { label, value: 'suite:' + l.key };
+      if (parsedEmoji) option.emoji = parsedEmoji;
+      options.push(option);
     }
   }
   const select = new StringSelectMenuBuilder().setCustomId('boutique_select').setPlaceholder('Choisir un article…').setMinValues(1).setMaxValues(1);

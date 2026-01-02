@@ -7531,16 +7531,7 @@ private fun TribunalConfigTab(
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
-    var tribunalConfig by remember { mutableStateOf<JsonObject?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var isSaving by remember { mutableStateOf(false) }
-    
-    var enabled by remember { mutableStateOf(true) }
-    var categoryId by remember { mutableStateOf<String?>(null) }
-    var judgeRoleId by remember { mutableStateOf<String?>(null) }
-    var casesCount by remember { mutableStateOf(0) }
-    
-    // Liste des cas ouverts
+    // Uniquement la liste des cas ouverts et la fermeture
     var openCases by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
     var isLoadingCases by remember { mutableStateOf(false) }
     var isClosingCase by remember { mutableStateOf<String?>(null) }
@@ -7589,54 +7580,10 @@ private fun TribunalConfigTab(
     }
     
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            try {
-                val resp = api.getJson("/api/tribunal")
-                val cfg = json.parseToJsonElement(resp).jsonObject
-                withContext(Dispatchers.Main) {
-                    tribunalConfig = cfg
-                    enabled = cfg["enabled"]?.jsonPrimitive?.booleanOrNull ?: true
-                    categoryId = cfg["categoryId"]?.jsonPrimitive?.contentOrNull
-                    judgeRoleId = cfg["judgeRoleId"]?.jsonPrimitive?.contentOrNull
-                    casesCount = cfg["cases"]?.jsonObject?.size ?: 0
-                    isLoading = false
-                    loadOpenCases() // Charger les cas ouverts
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    snackbar.showSnackbar("❌ Erreur chargement tribunal: ${e.message}")
-                    isLoading = false
-                }
-            }
-        }
+        loadOpenCases() // Charger directement les cas ouverts au démarrage
     }
     
-    fun saveTribunal() {
-        scope.launch {
-            isSaving = true
-            withContext(Dispatchers.IO) {
-                try {
-                    val payload = buildJsonObject {
-                        put("enabled", enabled)
-                        categoryId?.let { put("categoryId", it) }
-                        judgeRoleId?.let { put("judgeRoleId", it) }
-                    }
-                    api.postJson("/api/tribunal", json.encodeToString(JsonObject.serializer(), payload))
-                    withContext(Dispatchers.Main) {
-                        snackbar.showSnackbar("✅ Configuration tribunal sauvegardée!")
-                        isSaving = false
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
-                        isSaving = false
-                    }
-                }
-            }
-        }
-    }
-    
-    if (isLoading) {
+    if (isLoadingCases && openCases.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
@@ -7674,69 +7621,6 @@ private fun TribunalConfigTab(
                             color = Color.Gray,
                             textAlign = TextAlign.Center
                         )
-                    }
-                }
-            }
-            
-            item {
-                SectionCard(
-                    title = "⚙️ Configuration",
-                    subtitle = "Paramètres du système tribunal"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Système activé", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Activer/désactiver le système tribunal", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Switch(checked = enabled, onCheckedChange = { enabled = it })
-                    }
-                    
-                    Spacer(Modifier.height(16.dp))
-                    Divider(color = Color.Gray.copy(alpha = 0.3f))
-                    Spacer(Modifier.height(16.dp))
-                    
-                    Text("📁 Catégorie des tribunaux", fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Catégorie où les salons de tribunal seront créés", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(8.dp))
-                    ChannelSelector(
-                        channels = channels,
-                        selectedChannelId = categoryId,
-                        onChannelSelected = { categoryId = it },
-                        label = "Catégorie"
-                    )
-                    
-                    Spacer(Modifier.height(16.dp))
-                    
-                    Text("👨‍⚖️ Rôle des juges", fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Rôle qui peut prendre en charge les dossiers", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(8.dp))
-                    RoleSelector(
-                        roles = roles,
-                        selectedRoleId = judgeRoleId,
-                        onRoleSelected = { judgeRoleId = it },
-                        label = "Rôle juge"
-                    )
-                    
-                    Spacer(Modifier.height(20.dp))
-                    
-                    Button(
-                        onClick = { saveTribunal() },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        enabled = !isSaving
-                    ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
-                        } else {
-                            Icon(Icons.Default.Save, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sauvegarder")
-                        }
                     }
                 }
             }
