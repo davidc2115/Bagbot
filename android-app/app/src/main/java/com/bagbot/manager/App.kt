@@ -59,6 +59,7 @@ import com.bagbot.manager.ui.theme.BagBotTheme
 import com.bagbot.manager.ui.screens.SplashScreen
 import com.bagbot.manager.ui.screens.AdminScreen
 import com.bagbot.manager.ui.screens.ConfigDashboardScreen
+import com.bagbot.manager.ui.screens.DropsScreen
 import com.bagbot.manager.ui.screens.MotCacheScreen
 import com.bagbot.manager.ui.components.MemberSelector
 import com.bagbot.manager.safeString
@@ -1535,6 +1536,12 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 icon = { Icon(Icons.Default.MusicNote, "Musique") },
                                 label = { Text("Musique") }
                             )
+                            NavigationBarItem(
+                                selected = tab == 5,
+                                onClick = { tab = 5 },
+                                icon = { Icon(Icons.Default.CardGiftcard, "Drops") },
+                                label = { Text("Drops") }
+                            )
                             }
                         }
                     }
@@ -1666,6 +1673,16 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 scope = scope,
                                 snackbar = snackbar,
                                 baseUrl = baseUrl
+                            )
+                        }
+                        tab == 5 -> {
+                            DropsScreen(
+                                configData = configData,
+                                channels = channels,
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbar
                             )
                         }
                         // Accès Admin : Fondateur OU Admin (avec rôle staff)
@@ -3399,7 +3416,7 @@ fun AppConfigScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("Version: 6.2.3", color = Color.Gray)
+                    Text("Version: 6.2.4", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)

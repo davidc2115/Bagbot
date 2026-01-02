@@ -55,7 +55,6 @@ private const val TAG = "BAG_CONFIG"
 private enum class DashTab(val label: String) {
     Dashboard("🏠 Dashboard"),
     Economy("💰 Économie"),
-    Drops("🎁 Drops"),
     Levels("📈 Niveaux"),
     Booster("🚀 Booster"),
     Counting("🔢 Comptage"),
@@ -222,7 +221,6 @@ fun ConfigDashboardScreen(
             when (selectedTab) {
                 DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
                 DashTab.Economy -> EconomyConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
-                DashTab.Drops -> DropsConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Levels -> LevelsConfigTab(configData, roles, members, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
@@ -1350,7 +1348,7 @@ private fun EconomyConfigTab(
                                     Spacer(Modifier.width(8.dp))
                                     Text("Ajout de rôle")
                                 }
-                                Button(onClick = {
+                                OutlinedButton(onClick = {
                                     newItemId = ""
                                     newItemName = ""
                                     newItemPrice = ""
@@ -1358,9 +1356,9 @@ private fun EconomyConfigTab(
                                     editingIndex = null
                                     showAddDialog = true
                                 }) {
-                                    Icon(Icons.Default.Add, null)
+                                    Icon(Icons.Default.AddShoppingCart, null)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Ajouter objet")
+                                    Text("Ajout d'objet")
                                 }
                             }
                         }
@@ -1669,8 +1667,6 @@ private fun EconomyConfigTab(
                         title = { Text(if (editingIndex != null) "Modifier l'objet" else "Ajouter un objet") },
                         text = {
                             Column {
-                                OutlinedTextField(newItemId, { newItemId = it }, label = { Text("ID (ex: item-1)") }, modifier = Modifier.fillMaxWidth())
-                                Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(newItemName, { newItemName = it }, label = { Text("Nom") }, modifier = Modifier.fillMaxWidth())
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(
@@ -1708,8 +1704,31 @@ private fun EconomyConfigTab(
                         confirmButton = {
                             Button(onClick = {
                                 val price = (newItemPrice.trim().toLongOrNull() ?: 0L).coerceIn(0L, 9_999_999L).toInt()
+                                fun slugify(raw: String): String {
+                                    return raw.trim()
+                                        .lowercase()
+                                        .replace(":", "-")
+                                        .replace(Regex("[^a-z0-9]+"), "-")
+                                        .replace(Regex("^-+|-+$"), "")
+                                        .ifBlank { "item" }
+                                }
+                                fun uniqueId(base: String, existing: Set<String>): String {
+                                    if (!existing.contains(base)) return base
+                                    var i = 2
+                                    while (true) {
+                                        val cand = "$base-$i"
+                                        if (!existing.contains(cand)) return cand
+                                        i++
+                                    }
+                                }
+                                val existingIds = shopItems.mapNotNull { it["id"]?.jsonPrimitive?.contentOrNull }.toSet()
+                                val computedId = if (editingIndex != null && newItemId.isNotBlank()) {
+                                    newItemId
+                                } else {
+                                    uniqueId(slugify(newItemName), existingIds)
+                                }
                                 val newItem = buildJsonObject {
-                                    put("id", newItemId)
+                                    put("id", computedId)
                                     put("name", newItemName)
                                     put("price", price)
                                     put("emoji", newItemEmoji)
@@ -1720,7 +1739,7 @@ private fun EconomyConfigTab(
                                     shopItems.add(newItem)
                                 }
                                 showAddDialog = false
-                            }, enabled = newItemId.isNotBlank() && newItemName.isNotBlank()) {
+                            }, enabled = newItemName.isNotBlank()) {
                                 Text(if (editingIndex != null) "Modifier" else "Ajouter")
                             }
                         },
