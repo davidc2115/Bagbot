@@ -3023,10 +3023,11 @@ private fun DropsConfigTab(
                 }
             }
             
+            
             item {
                 SectionCard(
-                    title = "⚙️ Paramètres Généraux",
-                    subtitle = "Configuration des drops"
+                    title = "🤖 Drops Automatiques",
+                    subtitle = "Le bot envoie automatiquement des drops d'argent"
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3034,47 +3035,10 @@ private fun DropsConfigTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Système activé", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Activer/désactiver les drops", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Text("Activer les drops automatiques", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Le bot enverra des drops d'argent régulièrement dans des channels aléatoires", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                         }
-                        Switch(checked = enabled, onCheckedChange = { enabled = it })
-                    }
-                    
-                    Spacer(Modifier.height(16.dp))
-                    
-                    Text("⏱️ Durée (secondes)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = duration,
-                        onValueChange = { duration = it },
-                        label = { Text("Durée") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                    
-                    Spacer(Modifier.height(16.dp))
-                    
-                    Text("😀 Emoji", fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = emoji,
-                        onValueChange = { emoji = it },
-                        label = { Text("Emoji") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
-                    Spacer(Modifier.height(16.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Créateur peut réclamer", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Le créateur du drop peut le réclamer", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Switch(checked = allowCreatorClaim, onCheckedChange = { allowCreatorClaim = it })
+                        Switch(checked = autoDropsEnabled, onCheckedChange = { autoDropsEnabled = it })
                     }
                     
                     Spacer(Modifier.height(20.dp))
@@ -3091,25 +3055,6 @@ private fun DropsConfigTab(
                             Spacer(Modifier.width(8.dp))
                             Text("Sauvegarder")
                         }
-                    }
-                }
-            }
-            
-            item {
-                SectionCard(
-                    title = "🤖 Drops Automatiques",
-                    subtitle = "Système de drops programmés"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Drops automatiques activés", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Envoyer des drops régulièrement", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Switch(checked = autoDropsEnabled, onCheckedChange = { autoDropsEnabled = it })
                     }
                     
                     if (autoDropsEnabled) {
