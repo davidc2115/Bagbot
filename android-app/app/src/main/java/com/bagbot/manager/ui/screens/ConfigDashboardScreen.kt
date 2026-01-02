@@ -60,6 +60,7 @@ private enum class DashTab(val label: String) {
     TruthDare("🎲 A/V"),
     Actions("🎬 Actions"),
     Drops("🎁 Drops"),
+    Tribunal("⚖️ Tribunal"),
     Tickets("🎫 Tickets"),
     Logs("📝 Logs"),
     Confess("💬 Confess"),
@@ -226,7 +227,8 @@ fun ConfigDashboardScreen(
                 DashTab.TruthDare -> TruthDareConfigTab(channels, api, json, scope, snackbar)
                 DashTab.MotCache -> MotCacheConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Actions -> ActionsConfigTab(configData, api, json, scope, snackbar)
-                DashTab.Drops -> DropsConfigTab(api, json, scope, snackbar)
+                DashTab.Drops -> DropsConfigTab(configData, api, json, scope, snackbar)
+                DashTab.Tribunal -> TribunalConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 DashTab.Tickets -> TicketsConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 DashTab.Logs -> LogsConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
                 DashTab.Confess -> ConfessConfigTab(configData, channels, api, json, scope, snackbar)
@@ -2887,150 +2889,216 @@ private fun ActionsConfigTab(
 
 @Composable
 private fun DropsConfigTab(
+    configData: JsonObject?,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFD700).copy(alpha = 0.2f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+    var dropsConfig by remember { mutableStateOf<JsonObject?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isSaving by remember { mutableStateOf(false) }
+    
+    var enabled by remember { mutableStateOf(true) }
+    var duration by remember { mutableStateOf("60") }
+    var emoji by remember { mutableStateOf("🎁") }
+    var allowCreatorClaim by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val resp = api.getJson("/api/drops")
+                val cfg = json.parseToJsonElement(resp).jsonObject
+                withContext(Dispatchers.Main) {
+                    dropsConfig = cfg
+                    enabled = cfg["enabled"]?.jsonPrimitive?.booleanOrNull ?: true
+                    duration = cfg["duration"]?.jsonPrimitive?.intOrNull?.toString() ?: "60"
+                    emoji = cfg["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
+                    allowCreatorClaim = cfg["allowCreatorClaim"]?.jsonPrimitive?.booleanOrNull ?: false
+                    isLoading = false
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    snackbar.showSnackbar("❌ Erreur chargement drops: ${e.message}")
+                    isLoading = false
+                }
+            }
+        }
+    }
+    
+    fun saveDrops() {
+        scope.launch {
+            isSaving = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val payload = buildJsonObject {
+                        put("enabled", enabled)
+                        put("duration", duration.toIntOrNull() ?: 60)
+                        put("emoji", emoji)
+                        put("allowCreatorClaim", allowCreatorClaim)
+                    }
+                    api.postJson("/api/drops", payload)
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("✅ Configuration drops sauvegardée!")
+                        isSaving = false
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                        isSaving = false
+                    }
+                }
+            }
+        }
+    }
+    
+    if (isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFD700).copy(alpha = 0.2f))
                 ) {
-                    Icon(
-                        Icons.Default.CardGiftcard,
-                        contentDescription = null,
-                        tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(64.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.CardGiftcard,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "🎁 Configuration Drops",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Système de récompenses pour les membres les plus rapides",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            
+            item {
+                SectionCard(
+                    title = "⚙️ Paramètres Généraux",
+                    subtitle = "Configuration des drops"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Système activé", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Activer/désactiver les drops", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    }
+                    
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        "🎁 Drops XP & Argent",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = TextAlign.Center
-                    )
+                    
+                    Text("⏱️ Durée (secondes)", fontWeight = FontWeight.SemiBold, color = Color.White)
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Système de récompenses pour les membres les plus rapides",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
+                    OutlinedTextField(
+                        value = duration,
+                        onValueChange = { duration = it },
+                        label = { Text("Durée") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
-                }
-            }
-        }
-
-        item {
-            SectionCard(
-                title = "💰 Drop Argent",
-                subtitle = "Commande: /dropargent"
-            ) {
-                Text(
-                    "Créez un drop d'argent pour récompenser le premier membre qui réagit.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White
-                )
-                Spacer(Modifier.height(12.dp))
-                
-                Text("📋 Paramètres:", fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
-                Spacer(Modifier.height(8.dp))
-                
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text("• ", color = Color.Gray)
-                        Column {
-                            Text("Montant (requis)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Quantité d'argent à distribuer", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text("• ", color = Color.Gray)
-                        Column {
-                            Text("Message (optionnel)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Message personnalisé pour le drop", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-                
-                Spacer(Modifier.height(12.dp))
-                Text("⏱️ Durée: 60 secondes", color = Color(0xFFFFD700), style = MaterialTheme.typography.bodySmall)
-                Text("🔒 Permission requise: Gérer le serveur", color = Color(0xFFED4245), style = MaterialTheme.typography.bodySmall)
-            }
-        }
-
-        item {
-            SectionCard(
-                title = "✨ Drop XP",
-                subtitle = "Commande: /dropxp"
-            ) {
-                Text(
-                    "Créez un drop d'XP pour récompenser le premier membre qui réagit.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White
-                )
-                Spacer(Modifier.height(12.dp))
-                
-                Text("📋 Paramètres:", fontWeight = FontWeight.Bold, color = Color(0xFF9B59B6))
-                Spacer(Modifier.height(8.dp))
-                
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text("• ", color = Color.Gray)
-                        Column {
-                            Text("Quantité (requis)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Quantité d'XP à distribuer", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text("• ", color = Color.Gray)
-                        Column {
-                            Text("Message (optionnel)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("Message personnalisé pour le drop", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-                
-                Spacer(Modifier.height(12.dp))
-                Text("⏱️ Durée: 60 secondes", color = Color(0xFF9B59B6), style = MaterialTheme.typography.bodySmall)
-                Text("🔒 Permission requise: Gérer le serveur", color = Color(0xFFED4245), style = MaterialTheme.typography.bodySmall)
-            }
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("ℹ️ Informations", fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Les commandes de drop sont gérées directement par le bot Discord. Utilisez ces commandes dans n'importe quel salon où le bot a les permissions nécessaires.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text("🎯 Fonctionnalités:", fontWeight = FontWeight.SemiBold, color = Color.White)
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Text("😀 Emoji", fontWeight = FontWeight.SemiBold, color = Color.White)
                     Spacer(Modifier.height(8.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("• Le créateur du drop ne peut pas le réclamer", color = Color.Gray)
-                        Text("• Un seul utilisateur peut réclamer le drop", color = Color.Gray)
-                        Text("• Le drop expire après 60 secondes", color = Color.Gray)
-                        Text("• Les drops sont instantanés (premier arrivé, premier servi)", color = Color.Gray)
+                    OutlinedTextField(
+                        value = emoji,
+                        onValueChange = { emoji = it },
+                        label = { Text("Emoji") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Créateur peut réclamer", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Le créateur du drop peut le réclamer", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked = allowCreatorClaim, onCheckedChange = { allowCreatorClaim = it })
+                    }
+                    
+                    Spacer(Modifier.height(20.dp))
+                    
+                    Button(
+                        onClick = { saveDrops() },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        enabled = !isSaving
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                        } else {
+                            Icon(Icons.Default.Save, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sauvegarder")
+                        }
+                    }
+                }
+            }
+            
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("ℹ️ Commandes Disponibles", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Text("💰 /dropargent [montant] [message]", fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
+                        Text("Créer un drop d'argent", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        
+                        Spacer(Modifier.height(8.dp))
+                        
+                        Text("✨ /dropxp [quantité] [message]", fontWeight = FontWeight.Bold, color = Color(0xFF9B59B6))
+                        Text("Créer un drop d'XP", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        
+                        Spacer(Modifier.height(12.dp))
+                        Divider(color = Color.Gray.copy(alpha = 0.3f))
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Text("🎯 Fonctionnalités:", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("• Un seul utilisateur peut réclamer le drop", color = Color.Gray)
+                            Text("• Les drops sont instantanés (premier arrivé, premier servi)", color = Color.Gray)
+                            Text("• Le drop expire après la durée configurée", color = Color.Gray)
+                        }
                     }
                 }
             }
@@ -7293,6 +7361,220 @@ private fun GeoConfigTab(
                             },
                             modifier = Modifier.fillMaxSize()
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TribunalConfigTab(
+    configData: JsonObject?,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    var tribunalConfig by remember { mutableStateOf<JsonObject?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isSaving by remember { mutableStateOf(false) }
+    
+    var enabled by remember { mutableStateOf(true) }
+    var categoryId by remember { mutableStateOf<String?>(null) }
+    var judgeRoleId by remember { mutableStateOf<String?>(null) }
+    var casesCount by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val resp = api.getJson("/api/tribunal")
+                val cfg = json.parseToJsonElement(resp).jsonObject
+                withContext(Dispatchers.Main) {
+                    tribunalConfig = cfg
+                    enabled = cfg["enabled"]?.jsonPrimitive?.booleanOrNull ?: true
+                    categoryId = cfg["categoryId"]?.jsonPrimitive?.contentOrNull
+                    judgeRoleId = cfg["judgeRoleId"]?.jsonPrimitive?.contentOrNull
+                    casesCount = cfg["cases"]?.jsonObject?.size ?: 0
+                    isLoading = false
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    snackbar.showSnackbar("❌ Erreur chargement tribunal: ${e.message}")
+                    isLoading = false
+                }
+            }
+        }
+    }
+    
+    fun saveTribunal() {
+        scope.launch {
+            isSaving = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val payload = buildJsonObject {
+                        put("enabled", enabled)
+                        categoryId?.let { put("categoryId", it) }
+                        judgeRoleId?.let { put("judgeRoleId", it) }
+                    }
+                    api.postJson("/api/tribunal", payload)
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("✅ Configuration tribunal sauvegardée!")
+                        isSaving = false
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("❌ Erreur: ${e.message}")
+                        isSaving = false
+                    }
+                }
+            }
+        }
+    }
+    
+    if (isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF8B4513).copy(alpha = 0.3f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "⚖️",
+                            style = MaterialTheme.typography.displayMedium,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "⚖️ Système Tribunal",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Système de justice pour résoudre les conflits entre membres",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            
+            item {
+                SectionCard(
+                    title = "⚙️ Configuration",
+                    subtitle = "Paramètres du système tribunal"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Système activé", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Activer/désactiver le système tribunal", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+                    Divider(color = Color.Gray.copy(alpha = 0.3f))
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Text("📁 Catégorie des tribunaux", fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Catégorie où les salons de tribunal seront créés", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(8.dp))
+                    ChannelSelector(
+                        selected = categoryId,
+                        channels = channels,
+                        onSelect = { categoryId = it },
+                        label = "Catégorie",
+                        allowNull = true
+                    )
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Text("👨‍⚖️ Rôle des juges", fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Rôle qui peut prendre en charge les dossiers", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(8.dp))
+                    RoleSelector(
+                        selected = judgeRoleId,
+                        roles = roles,
+                        onSelect = { judgeRoleId = it },
+                        label = "Rôle juge",
+                        allowNull = true
+                    )
+                    
+                    Spacer(Modifier.height(20.dp))
+                    
+                    Button(
+                        onClick = { saveTribunal() },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        enabled = !isSaving
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                        } else {
+                            Icon(Icons.Default.Save, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sauvegarder")
+                        }
+                    }
+                }
+            }
+            
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("ℹ️ Informations", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Text("📊 Statistiques", fontWeight = FontWeight.SemiBold, color = Color(0xFF8B4513))
+                        Spacer(Modifier.height(8.dp))
+                        Text("• Dossiers enregistrés: $casesCount", color = Color.Gray)
+                        
+                        Spacer(Modifier.height(12.dp))
+                        Divider(color = Color.Gray.copy(alpha = 0.3f))
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Text("⚖️ Commande: /tribunal", fontWeight = FontWeight.Bold, color = Color(0xFF8B4513))
+                        Text("Ouvrir un nouveau dossier au tribunal", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Text("🎯 Fonctionnalités:", fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("• Accusé peut choisir un avocat de défense", color = Color.Gray)
+                            Text("• Création automatique d'un salon privé", color = Color.Gray)
+                            Text("• Système de rôles pour juges et avocats", color = Color.Gray)
+                            Text("• Archivage automatique des dossiers", color = Color.Gray)
+                        }
                     }
                 }
             }

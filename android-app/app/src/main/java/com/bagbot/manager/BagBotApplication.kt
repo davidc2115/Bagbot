@@ -15,34 +15,12 @@ import java.util.concurrent.TimeUnit
 
 class BagBotApplication : Application(), ImageLoaderFactory {
     override fun newImageLoader(): ImageLoader {
-        // Intercepteur pour ajouter les headers Discord
-        val discordHeadersInterceptor = Interceptor { chain ->
-            val originalRequest = chain.request()
-            val url = originalRequest.url.toString()
-            
-            // Ajouter headers seulement pour Discord CDN
-            val newRequest = if (url.contains("cdn.discord")) {
-                originalRequest.newBuilder()
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    .header("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-                    .header("Referer", "https://discord.com/")
-                    .header("Sec-Fetch-Dest", "image")
-                    .header("Sec-Fetch-Mode", "no-cors")
-                    .header("Sec-Fetch-Site", "cross-site")
-                    .build()
-            } else {
-                originalRequest
-            }
-            
-            chain.proceed(newRequest)
-        }
-        
-        // Client HTTP configuré pour Discord CDN
+        // Client HTTP avec timeout augmenté mais SANS intercepteur Discord
+        // (pour tester si l'intercepteur est le problème)
         val okHttpClient = OkHttpClient.Builder()
-            .addInterceptor(discordHeadersInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .build()
@@ -59,13 +37,13 @@ class BagBotApplication : Application(), ImageLoaderFactory {
             .okHttpClient(okHttpClient)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.25) // 25% de la RAM
+                    .maxSizePercent(0.30) // 30% de la RAM
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(50 * 1024 * 1024) // 50 MB
+                    .maxSizeBytes(100 * 1024 * 1024) // 100 MB
                     .build()
             }
             .crossfade(true)

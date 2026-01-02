@@ -1623,6 +1623,81 @@ app.post('/api/goodbye', requireAuth, express.json(), async (req, res) => {
   }
 });
 
+// GET /api/drops - Récupérer config drops
+app.get('/api/drops', async (req, res) => {
+  try {
+    const config = await readConfig();
+    const drops = config.guilds?.[GUILD]?.drops || {
+      enabled: true,
+      duration: 60,
+      emoji: '🎁',
+      allowCreatorClaim: false
+    };
+    res.json(drops);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/drops - Sauvegarder config drops
+app.post('/api/drops', requireAuth, express.json(), async (req, res) => {
+  try {
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+    config.guilds[GUILD].drops = { ...config.guilds[GUILD].drops, ...req.body };
+    await writeConfig(config);
+    res.json({ success: true, drops: config.guilds[GUILD].drops });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/tribunal - Récupérer config tribunal
+app.get('/api/tribunal', async (req, res) => {
+  try {
+    const config = await readConfig();
+    const tribunal = config.guilds?.[GUILD]?.tribunal || {
+      enabled: true,
+      categoryId: null,
+      judgeRoleId: null,
+      cases: {}
+    };
+    res.json(tribunal);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/tribunal - Sauvegarder config tribunal
+app.post('/api/tribunal', requireAuth, express.json(), async (req, res) => {
+  try {
+    const config = await readConfig();
+    if (!config.guilds) config.guilds = {};
+    if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
+    if (!config.guilds[GUILD].tribunal) config.guilds[GUILD].tribunal = {};
+    
+    // Deep merge pour tribunal
+    const deepMerge = (target, source) => {
+      for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          if (!target[key]) target[key] = {};
+          deepMerge(target[key], source[key]);
+        } else {
+          target[key] = source[key];
+        }
+      }
+      return target;
+    };
+    
+    config.guilds[GUILD].tribunal = deepMerge(config.guilds[GUILD].tribunal, req.body);
+    await writeConfig(config);
+    res.json({ success: true, tribunal: config.guilds[GUILD].tribunal });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/inactivity - Récupérer config inactivity (depuis autokick.inactivityKick)
 app.get('/api/inactivity', async (req, res) => {
   try {
