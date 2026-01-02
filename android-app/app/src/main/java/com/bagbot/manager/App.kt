@@ -59,6 +59,7 @@ import com.bagbot.manager.ui.theme.BagBotTheme
 import com.bagbot.manager.ui.screens.SplashScreen
 import com.bagbot.manager.ui.screens.AdminScreen
 import com.bagbot.manager.ui.screens.ConfigDashboardScreen
+import com.bagbot.manager.ui.screens.DropsScreen
 import com.bagbot.manager.ui.screens.MotCacheScreen
 import com.bagbot.manager.ui.components.MemberSelector
 import com.bagbot.manager.safeString
@@ -530,30 +531,18 @@ data class StaffMessage(
 
 // Fonction pour créer le canal de notification
 fun createNotificationChannel(context: Context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channelId = "staff_chat_channel"
-        val channelName = "Chat Staff"
-        val channelDescription = "Notifications pour les messages du chat staff"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        
-        val channel = NotificationChannel(channelId, channelName, importance).apply {
-            description = channelDescription
-        }
-        
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(channel)
-    }
+    StaffChatNotifications.createChannel(context)
 }
 
 // Fonction pour envoyer une notification
 fun sendStaffChatNotification(context: Context, senderName: String, message: String, isMention: Boolean = false) {
     try {
-        val notificationId = System.currentTimeMillis().toInt()
-        val channelId = "staff_chat_channel"
+        val notificationId = StaffChatNotifications.NOTIFICATION_ID
+        val channelId = StaffChatNotifications.CHANNEL_ID
         
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
-            .setContentTitle(if (isMention) "🔔 Mention - $senderName" else "💬 Chat Staff - $senderName")
+            .setContentTitle(if (isMention) "🔔 Chat Staff - $senderName" else "💬 Chat Staff - $senderName")
             .setContentText(message)
             .setPriority(if (isMention) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -582,7 +571,6 @@ fun StaffChatScreen(
 ) {
     val context = LocalContext.current
     var messages by remember { mutableStateOf<List<StaffMessage>>(emptyList()) }
-    var previousMessageCount by remember { mutableStateOf(0) }
     var newMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var isSending by remember { mutableStateOf(false) }
@@ -617,34 +605,14 @@ fun StaffChatScreen(
                                 room = msg["room"].safeString() ?: "global"
                             )
                         } ?: emptyList()
-                        
-                        // Vérifier s'il y a de nouveaux messages
-                        if (newMessages.size > previousMessageCount && previousMessageCount > 0) {
-                            // Nouveau message détecté, envoyer une notification
-                            val latestMessage = newMessages.lastOrNull()
-                            if (latestMessage != null) {
-                                val currentUserId = userInfo?.get("id").safeStringOrEmpty()
-                                // Ne pas notifier pour ses propres messages
-                                if (latestMessage.userId != currentUserId) {
-                                    val senderName = members[latestMessage.userId] ?: latestMessage.username
-                                    val isMention = run {
-                                        val msg = latestMessage.message.lowercase()
-                                        if (msg.contains("@everyone") || msg.contains("@here")) return@run true
-                                        val u = (userInfo?.get("username").safeString() ?: "").trim()
-                                        if (u.isBlank()) return@run false
-                                        msg.contains("@${u.lowercase()}")
-                                    }
-                                    sendStaffChatNotification(
-                                        context = context,
-                                        senderName = senderName,
-                                        message = latestMessage.message,
-                                        isMention = isMention
-                                    )
-                                }
-                            }
+
+                        // Marquer comme "lu" côté app (évite re-notif) + retirer la notif existante
+                        val maxId = newMessages.mapNotNull { it.id.toLongOrNull() }.maxOrNull()
+                        if (maxId != null) {
+                            StaffChatNotifications.markSeen(context, maxId)
+                            StaffChatNotifications.cancel(context)
                         }
-                        
-                        previousMessageCount = newMessages.size
+
                         messages = newMessages
                     }
                 } catch (e: Exception) {
@@ -1035,12 +1003,22 @@ fun StaffMainScreen(
     allMembers: Map<String, String>,
     userInfo: JsonObject?,
     isFounder: Boolean,
-    isAdmin: Boolean  // Vérification admin pour chat
+    isAdmin: Boolean,  // Vérification admin pour chat
+    isAuthorized: Boolean,
+    requestedTab: Int? = null,
+    onRequestedTabConsumed: () -> Unit = {}
 ) {
     var selectedStaffTab by remember { mutableStateOf(0) }
+
+    LaunchedEffect(requestedTab) {
+        if (requestedTab != null) {
+            selectedStaffTab = requestedTab
+            onRequestedTabConsumed()
+        }
+    }
     
-    // Vérifier si l'utilisateur est admin (pas juste founder)
-    if (!isAdmin && !isFounder) {
+    // Vérifier si l'utilisateur est autorisé (liste allowed-users) ou admin Discord
+    if (!isAuthorized && !isAdmin && !isFounder) {
         // Afficher message si pas admin
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
@@ -1075,41 +1053,28 @@ fun StaffMainScreen(
         }
         return
     }
-    
-    // Si admin simple (non-fondateur): afficher UNIQUEMENT le Chat Staff
-    if (isAdmin && !isFounder) {
-        Column(Modifier.fillMaxSize()) {
-            Card(
-                Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF5865F2))
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Chat, null, tint = Color.White, modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "💬 Chat Staff",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+    val isLimitedStaff = !isFounder
+
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
+            Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Chat Staff")
                 }
-            }
-            StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
-        }
-    } else if (isFounder) {
-        // Si fondateur: afficher tous les onglets
-        Column(Modifier.fillMaxSize()) {
-            TabRow(selectedTabIndex = selectedStaffTab, containerColor = Color(0xFF1E1E1E)) {
-                Tab(selected = selectedStaffTab == 0, onClick = { selectedStaffTab = 0 }, text = {
+            })
+            if (isLimitedStaff) {
+                // Admin Discord + membres autorisés: UNIQUEMENT Chat Staff + Système
+                Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Chat, null, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Chat Staff")
+                        Text("Système")
                     }
                 })
+            } else {
+                // Fondateur: accès complet (Admin + Logs)
                 Tab(selected = selectedStaffTab == 1, onClick = { selectedStaffTab = 1 }, text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.AdminPanelSettings, null, modifier = Modifier.size(20.dp))
@@ -1125,11 +1090,20 @@ fun StaffMainScreen(
                     }
                 })
             }
-            when (selectedStaffTab) {
-                0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
-                1 -> AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
-                2 -> LogsScreen(api, json, scope, snackbar)
+        }
+        when (selectedStaffTab) {
+            0 -> StaffChatScreen(api, json, scope, snackbar, chatMembers, userInfo)
+            1 -> {
+                if (isLimitedStaff) {
+                    // Réutilise l'onglet Système de l'écran Admin
+                    com.bagbot.manager.ui.screens.SystemTab(api, json, scope) { msg ->
+                        scope.launch { snackbar.showSnackbar(msg) }
+                    }
+                } else {
+                    AdminScreen(api, allMembers) { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+                }
             }
+            2 -> if (!isLimitedStaff) LogsScreen(api, json, scope, snackbar) else Unit
         }
     }
 }
@@ -1158,6 +1132,14 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
     var isAdmin by remember { mutableStateOf(false) }
     var isAuthorized by remember { mutableStateOf(false) }
     var allowedUserIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // Personnalisation (par utilisateur Discord, stockée localement)
+    var brandingVersion by remember { mutableIntStateOf(0) }
+    val appDisplayName = remember(userId, brandingVersion) { store.getCustomAppName(userId) }
+    val appLogoUrl = remember(userId, brandingVersion) { store.getCustomLogoUrl(userId) }
+
+    // Deep links internes (ex: ouvrir le chat staff depuis une notification)
+    var staffRequestedTab by remember { mutableStateOf<Int?>(null) }
     
     // Créer userInfo JsonObject pour StaffChat
     val userInfo = remember(userId, userName) {
@@ -1213,13 +1195,29 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         }
     }
 
-    // Gestion du deep link OAuth
+    // Gestion du deep link (OAuth + navigation interne)
     LaunchedEffect(deepLink) {
-        deepLink?.getQueryParameter("token")?.takeIf { it.isNotBlank() }?.let { t ->
+        if (deepLink == null) return@LaunchedEffect
+
+        // OAuth
+        deepLink.getQueryParameter("token")?.takeIf { it.isNotBlank() }?.let { t ->
             Log.d(TAG, "Token reçu via deep link")
             store.setToken(t.trim())
             token = t.trim()
             snackbar.showSnackbar("✅ Authentification réussie !")
+            onDeepLinkConsumed()
+            return@LaunchedEffect
+        }
+
+        // Navigation: bagbot://staffchat?room=global&seen=...
+        if (deepLink.scheme == "bagbot" && deepLink.host == "staffchat") {
+            val seen = deepLink.getQueryParameter("seen")?.toLongOrNull()
+            if (seen != null) {
+                StaffChatNotifications.markSeen(context, seen)
+                StaffChatNotifications.cancel(context)
+            }
+            tab = 3
+            staffRequestedTab = 0
             onDeepLinkConsumed()
         }
     }
@@ -1476,7 +1474,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                             title = { 
                                 Text(
                                     if (selectedConfigSection != null) "Configuration" 
-                                    else "💎 BAG Bot Manager", 
+                                    else (appDisplayName?.takeIf { it.isNotBlank() } ?: "💎 BAG Bot Manager"),
                                     fontWeight = FontWeight.Bold
                                 ) 
                             },
@@ -1485,6 +1483,15 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                     IconButton(onClick = { selectedConfigSection = null }) {
                                         Icon(Icons.Default.ArrowBack, "Retour", tint = Color.White)
                                     }
+                                } else if (!appLogoUrl.isNullOrBlank()) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(appLogoUrl),
+                                        contentDescription = "Logo",
+                                        modifier = Modifier
+                                            .padding(start = 12.dp)
+                                            .size(34.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                    )
                                 }
                             },
                             colors = TopAppBarDefaults.topAppBarColors(
@@ -1515,7 +1522,7 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 label = { Text("Config") }
                             )
                             // Accès Admin : Fondateur OU Admin (avec rôle staff)
-                            if (isFounder || isAdmin) {
+                            if (isAuthorized || isAdmin) {
                                 NavigationBarItem(
                                     selected = tab == 3,
                                     onClick = { tab = 3 },
@@ -1528,6 +1535,12 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 onClick = { tab = 4 },
                                 icon = { Icon(Icons.Default.MusicNote, "Musique") },
                                 label = { Text("Musique") }
+                            )
+                            NavigationBarItem(
+                                selected = tab == 5,
+                                onClick = { tab = 5 },
+                                icon = { Icon(Icons.Default.CardGiftcard, "Drops") },
+                                label = { Text("Drops") }
                             )
                             }
                         }
@@ -1590,7 +1603,9 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                     channels = channels,
                                     roles = roles,
                                     isFounder = isFounder,
-                                    isAdmin = isAdmin
+                                    isAdmin = isAdmin,
+                                    currentUserId = userId,
+                                    currentUserName = userName
                                 )
                             }
                         }
@@ -1599,9 +1614,11 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 baseUrl = baseUrl,
                                 token = token,
                                 userName = userName,
+                                userId = userId,
                                 store = store,
                                 scope = scope,
                                 snackbar = snackbar,
+                                onBrandingChanged = { brandingVersion += 1 },
                                 onDisconnect = {
                                     token = null
                                     userName = ""
@@ -1658,8 +1675,18 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 baseUrl = baseUrl
                             )
                         }
+                        tab == 5 -> {
+                            DropsScreen(
+                                configData = configData,
+                                channels = channels,
+                                api = api,
+                                json = json,
+                                scope = scope,
+                                snackbar = snackbar
+                            )
+                        }
                         // Accès Admin : Fondateur OU Admin (avec rôle staff)
-                        tab == 3 && (isFounder || isAdmin) -> {
+                        tab == 3 && (isAuthorized || isAdmin) -> {
                             StaffMainScreen(
                                 api = api,
                                 json = json,
@@ -1669,7 +1696,10 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                                 allMembers = members,
                                 userInfo = userInfo,
                                 isFounder = isFounder,
-                                isAdmin = isAdmin
+                                isAdmin = isAdmin,
+                                isAuthorized = isAuthorized,
+                                requestedTab = staffRequestedTab,
+                                onRequestedTabConsumed = { staffRequestedTab = null }
                             )
                         }
                     }
@@ -1759,7 +1789,9 @@ fun BotControlScreen(
     channels: Map<String, String>,
     roles: Map<String, String>,
     isFounder: Boolean,
-    isAdmin: Boolean = false
+    isAdmin: Boolean = false,
+    currentUserId: String = "",
+    currentUserName: String = ""
 ) {
     // Charger les membres connectés
     var connectedUsers by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // userId, username, role
@@ -1782,38 +1814,62 @@ fun BotControlScreen(
                         Log.e("BotControl", "Erreur chargement staffRoleIds: ${e.message}")
                     }
                     
-                    // Charger les sessions
-                    val resp = api.getJson("/api/admin/sessions")
-                    Log.d("BotControl", "Sessions response: ${resp.take(300)}")
-                    val obj = json.parseToJsonElement(resp).jsonObject
-                    val sessionsArray = obj["sessions"]?.jsonArray
-                    Log.d("BotControl", "Sessions count: ${sessionsArray?.size ?: 0}")
-                    
-                    val sessions = sessionsArray?.mapNotNull {
-                        val session = it.jsonObject
-                        val userId = session["userId"]?.jsonPrimitive?.contentOrNull
-                        val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
-                        
-                        // Calculer le rôle côté client
-                        val userRoles = session["roles"]?.jsonArray.safeStringList()
-                        
-                        Log.d("BotControl", "User $username ($userId) has ${userRoles.size} roles, staffRoles: ${staffRoleIds.size}")
-                        
-                        val role = when {
-                            userId == founderId -> "👑 Fondateur"
-                            userRoles.any { it in staffRoleIds } -> "⚡ Admin"
-                            else -> "👤 Membre"
-                        }
-                        
-                        Log.d("BotControl", "User $username assigned role: $role")
-                        
-                        if (userId != null) Triple(userId, username, role) else null
-                    } ?: emptyList()
-                    
-                    Log.d("BotControl", "Final sessions list: ${sessions.size} members")
+                    // Charger les sessions (fondateur) ou la liste "online" (admins + autorisés)
+                    val sessions: List<Triple<String, String, String>> = if (isFounder) {
+                        val resp = api.getJson("/api/admin/sessions")
+                        val obj = json.parseToJsonElement(resp).jsonObject
+                        val sessionsArray = obj["sessions"]?.jsonArray
+                        sessionsArray?.mapNotNull {
+                            val session = it.jsonObject
+                            val userId = session["userId"]?.jsonPrimitive?.contentOrNull
+                            val username = session["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                            val userRoles = session["roles"]?.jsonArray.safeStringList()
+                            val role = when {
+                                userId == founderId -> "👑 Fondateur"
+                                userRoles.any { it in staffRoleIds } -> "⚡ Admin"
+                                else -> "👤 Membre"
+                            }
+                            if (userId != null) Triple(userId, username, role) else null
+                        } ?: emptyList()
+                    } else {
+                        // /api/staff/online est accessible (admins + allowed)
+                        val resp = api.getJson("/api/staff/online")
+                        val obj = json.parseToJsonElement(resp).jsonObject
+                        val arr = obj["admins"]?.jsonArray
+                        arr?.mapNotNull {
+                            val o = it.jsonObject
+                            val userId = o["userId"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                            val username = o["username"]?.jsonPrimitive?.contentOrNull ?: members[userId] ?: "Inconnu"
+                            val isF = o["isFounder"].safeBoolean() ?: false
+                            val isA = o["isAdmin"].safeBoolean() ?: false
+                            val isAllowed = o["isAllowed"].safeBoolean() ?: false
+                            val role = when {
+                                isF || userId == founderId -> "👑 Fondateur"
+                                isA -> "⚡ Admin"
+                                isAllowed -> "✅ Autorisé"
+                                else -> "👤 Membre"
+                            }
+                            Triple(userId, username, role)
+                        } ?: emptyList()
+                    }
+
+                    // Fallback: au minimum afficher l'utilisateur courant
+                    val fallback = if (sessions.isEmpty() && currentUserId.isNotBlank()) {
+                        listOf(
+                            Triple(
+                                currentUserId,
+                                currentUserName.ifBlank { members[currentUserId] ?: "Vous" },
+                                when {
+                                    isFounder || currentUserId == founderId -> "👑 Fondateur"
+                                    isAdmin -> "⚡ Admin"
+                                    else -> "👤 Membre"
+                                }
+                            )
+                        )
+                    } else sessions
                     
                     withContext(Dispatchers.Main) {
-                        connectedUsers = sessions
+                        connectedUsers = fallback
                     }
                 } catch (e: Exception) {
                     Log.e("BotControl", "Erreur chargement sessions: ${e.message}")
@@ -1829,6 +1885,13 @@ fun BotControlScreen(
     
     LaunchedEffect(Unit) {
         loadConnectedUsers()
+    }
+
+    // Si l'utilisateur est chargé après le premier rendu, recharger la liste.
+    LaunchedEffect(currentUserId, isFounder) {
+        if (currentUserId.isNotBlank()) {
+            loadConnectedUsers()
+        }
     }
     
     LazyColumn(
@@ -3282,11 +3345,24 @@ fun AppConfigScreen(
     baseUrl: String,
     token: String?,
     userName: String,
+    userId: String,
     store: SettingsStore,
     scope: kotlinx.coroutines.CoroutineScope,
     snackbar: SnackbarHostState,
+    onBrandingChanged: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    var customAppName by remember { mutableStateOf("") }
+    var customLogoUrl by remember { mutableStateOf("") }
+    var customNotifTitle by remember { mutableStateOf("") }
+
+    LaunchedEffect(userId) {
+        if (userId.isBlank()) return@LaunchedEffect
+        customAppName = store.getCustomAppName(userId).orEmpty()
+        customLogoUrl = store.getCustomLogoUrl(userId).orEmpty()
+        customNotifTitle = store.getStaffChatNotificationTitle(userId).orEmpty()
+    }
+
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -3340,13 +3416,111 @@ fun AppConfigScreen(
                     }
                     
                     Spacer(Modifier.height(8.dp))
-                    Text("Version: 5.9.13", color = Color.Gray)
+                    Text("Version: 6.2.5", color = Color.Gray)
                     Text(
                         "Statut: ${if (token.isNullOrBlank()) "Non connecté" else "Connecté"}",
                         color = if (token.isNullOrBlank()) Color(0xFFE53935) else Color(0xFF4CAF50)
                     )
                     if (userName.isNotBlank()) {
                         Text("Utilisateur: $userName", color = Color.White)
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "🎨 Personnalisation",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "ℹ️ Le nom sous l’icône Android ne peut pas être modifié dynamiquement. " +
+                            "Utilise plutôt un raccourci sur l’accueil avec ton nom + logo.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = customAppName,
+                        onValueChange = { customAppName = it },
+                        label = { Text("Nom affiché de l'application") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = customLogoUrl,
+                        onValueChange = { customLogoUrl = it },
+                        label = { Text("Logo (URL image)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = customNotifTitle,
+                        onValueChange = { customNotifTitle = it },
+                        label = { Text("Nom affiché des notifications (Chat Staff)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                if (userId.isBlank()) {
+                                    snackbar.showSnackbar("❌ Impossible: utilisateur non chargé")
+                                    return@launch
+                                }
+                                store.setCustomAppName(userId, customAppName)
+                                store.setCustomLogoUrl(userId, customLogoUrl)
+                                store.setStaffChatNotificationTitle(userId, customNotifTitle)
+                                onBrandingChanged()
+                                snackbar.showSnackbar("✅ Personnalisation sauvegardée")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Save, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Sauvegarder")
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    val context = LocalContext.current
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val label = customAppName.trim().ifBlank { "💎 BAG Bot Manager" }
+                                val ok = ShortcutUtils.pinCustomShortcut(
+                                    context = context,
+                                    label = label,
+                                    logoUrl = customLogoUrl
+                                )
+                                snackbar.showSnackbar(
+                                    if (ok) "✅ Raccourci proposé (confirme sur Android pour l’ajouter)"
+                                    else "❌ Raccourci non supporté sur cet appareil"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("📌 Créer un raccourci sur l’accueil")
                     }
                 }
             }

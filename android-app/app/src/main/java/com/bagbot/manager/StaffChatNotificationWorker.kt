@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -35,8 +36,6 @@ class StaffChatNotificationWorker(
 ) : CoroutineWorker(context, params) {
     
     private val TAG = "StaffChatWorker"
-    private val CHANNEL_ID = "staff_chat_channel"
-    private val PREFS_NAME = "bagbot_staff_chat_notifications"
     
     companion object {
         private const val UNIQUE_PERIODIC_NAME = "staff_chat_notifications_periodic"
@@ -89,16 +88,16 @@ class StaffChatNotificationWorker(
             }
             
             // Récupérer les préférences worker (pour dédup)
-            val prefs = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val lastSeenId = prefs.getLong("last_seen_message_id", 0L)
+            val prefs = applicationContext.getSharedPreferences(StaffChatNotifications.PREFS_NAME, Context.MODE_PRIVATE)
+            val lastSeenId = prefs.getLong(StaffChatNotifications.KEY_LAST_SEEN_MESSAGE_ID, 0L)
             
             // Créer le canal de notification
-            createNotificationChannel()
+            StaffChatNotifications.createChannel(applicationContext)
             
             // Qui suis-je ? (pour filtrer ses propres messages + détecter ping)
             val meJson = api.getJson("/api/me")
             val meObj = json.parseToJsonElement(meJson).jsonObject
-            val myUserId = meObj["userId"]?.safeStringOrEmpty()
+            val myUserId = meObj["userId"].safeStringOrEmpty()
             val myUsername = (meObj["username"]?.safeString() ?: "").trim()
             
             // Charger les messages globaux
@@ -109,6 +108,10 @@ class StaffChatNotificationWorker(
             // Filtrer les nouveaux messages (id = Date.now().toString() côté backend)
             var maxId = lastSeenId
             var any = false
+            var anyMention = false
+            var lastSender = ""
+            var lastMessage = ""
+            var newCount = 0
             
             for (m in msgs) {
                 val obj = m.jsonObject
@@ -131,19 +134,28 @@ class StaffChatNotificationWorker(
                     if (myUsername.isBlank()) return@run false
                     m.contains("@${myUsername.lowercase()}")
                 }
-                
-                sendNotification(
-                    senderName = username,
-                    message = message,
-                    isMention = mention
-                )
-                
+
                 any = true
+                newCount += 1
+                anyMention = anyMention || mention
+                lastSender = username
+                lastMessage = message
                 if (idLong > maxId) maxId = idLong
             }
             
             if (maxId > lastSeenId) {
-                prefs.edit().putLong("last_seen_message_id", maxId).apply()
+                prefs.edit().putLong(StaffChatNotifications.KEY_LAST_SEEN_MESSAGE_ID, maxId).apply()
+            }
+
+            if (any) {
+                sendNotification(
+                    myUserId = myUserId,
+                    room = "global",
+                    maxId = maxId,
+                    senderName = lastSender,
+                    message = if (newCount >= 2) "📩 $newCount nouveaux messages • $lastMessage" else lastMessage,
+                    isMention = anyMention
+                )
             }
             
             Log.d(TAG, "Worker completed successfully (new=$any, lastSeenId=$maxId)")
@@ -153,7 +165,7 @@ class StaffChatNotificationWorker(
             // Si le serveur révoque le token (plus admin / token invalide),
             // on déconnecte et on stoppe le worker.
             val msg = e.message ?: ""
-            if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || msg.contains("NOT_ADMIN")) {
+            if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || msg.contains("NOT_ADMIN") || msg.contains("NOT_AUTHORIZED")) {
                 try {
                     SettingsStore.init(applicationContext)
                     val store = SettingsStore.getInstance()
@@ -173,25 +185,17 @@ class StaffChatNotificationWorker(
         }
     }
     
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Chat Staff"
-            val descriptionText = "Notifications pour les nouveaux messages du chat staff"
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-                enableVibration(true)
-                enableLights(true)
-            }
-            
-            val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-    
-    private fun sendNotification(senderName: String, message: String, isMention: Boolean) {
+    private fun sendNotification(
+        myUserId: String,
+        room: String,
+        maxId: Long,
+        senderName: String,
+        message: String,
+        isMention: Boolean
+    ) {
         try {
-            val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            val deepLink: Uri = StaffChatNotifications.buildDeepLink(room = room, maxId = maxId)
+            val intent = Intent(Intent.ACTION_VIEW, deepLink, applicationContext, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
             
@@ -201,20 +205,28 @@ class StaffChatNotificationWorker(
                 intent,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
-            
-            val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_email)
-                .setContentTitle(if (isMention) "🔔 Mention - $senderName" else "💬 Chat Staff - $senderName")
-                .setContentText(message)
-                .setPriority(if (isMention) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .setContentIntent(pendingIntent)
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
+
+            // Personalisation du titre (par utilisateur)
+            SettingsStore.init(applicationContext)
+            val store = SettingsStore.getInstance()
+            val title = StaffChatNotifications.buildContentTitle(
+                store = store,
+                userId = myUserId,
+                senderName = senderName,
+                isMention = isMention
+            )
+
+            val notification = StaffChatNotifications.buildNotification(
+                context = applicationContext,
+                title = title,
+                text = message,
+                isMention = isMention,
+                pendingIntent = pendingIntent
+            )
             
             val notificationManager = NotificationManagerCompat.from(applicationContext)
             try {
-                notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+                notificationManager.notify(StaffChatNotifications.NOTIFICATION_ID, notification)
                 Log.d(TAG, "Notification sent successfully")
             } catch (e: SecurityException) {
                 Log.e(TAG, "Permission notification refusée: ${e.message}")

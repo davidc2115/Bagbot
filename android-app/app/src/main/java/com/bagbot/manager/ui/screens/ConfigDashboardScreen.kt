@@ -34,6 +34,7 @@ import com.bagbot.manager.ApiClient
 import com.bagbot.manager.ui.components.ChannelSelector
 import com.bagbot.manager.ui.components.MemberSelector
 import com.bagbot.manager.ui.components.RoleSelector
+import com.bagbot.manager.ui.components.SearchableKeySelector
 import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,6 +44,7 @@ import com.bagbot.manager.safeString
 import com.bagbot.manager.safeInt
 import com.bagbot.manager.safeLong
 import com.bagbot.manager.safeBoolean
+import com.bagbot.manager.safeDouble
 import com.bagbot.manager.safeStringOrEmpty
 import com.bagbot.manager.safeIntOrZero
 import com.bagbot.manager.safeBooleanOrFalse
@@ -61,6 +63,7 @@ private enum class DashTab(val label: String) {
     Actions("🎬 Actions"),
     Tickets("🎫 Tickets"),
     Logs("📝 Logs"),
+    Tribunal("⚖️ Tribunal"),
     Confess("💬 Confess"),
     Welcome("👋 Welcome"),
     Goodbye("😢 Goodbye"),
@@ -218,7 +221,7 @@ fun ConfigDashboardScreen(
             // Show selected category content
             when (selectedTab) {
                 DashTab.Dashboard -> DashboardTab(configData, members, api, json, scope, snackbar)
-                DashTab.Economy -> EconomyConfigTab(configData, members, api, json, scope, snackbar)
+                DashTab.Economy -> EconomyConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
                 DashTab.Levels -> LevelsConfigTab(configData, roles, members, api, json, scope, snackbar)
                 DashTab.Booster -> BoosterConfigTab(configData, roles, api, json, scope, snackbar)
                 DashTab.Counting -> CountingConfigTab(configData, channels, api, json, scope, snackbar)
@@ -238,6 +241,7 @@ fun ConfigDashboardScreen(
                 DashTab.Geo -> GeoConfigTab(configData, members)
                 DashTab.Backups -> BackupsTab(api, json, scope, snackbar)
                 DashTab.Control -> ControlTab(api, json, scope, snackbar)
+                DashTab.Tribunal -> TribunalConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 null -> {} // Should not happen
             }
         }
@@ -255,6 +259,7 @@ private fun CategoryCard(
     val icon = when (label) {
         "🏠 Dashboard" -> Icons.Default.Dashboard
         "💰 Économie" -> Icons.Default.MonetizationOn
+        "🎁 Drops" -> Icons.Default.CardGiftcard
         "📊 Niveaux" -> Icons.Default.TrendingUp
         "🚀 Booster" -> Icons.Default.Rocket
         "🔢 Comptage" -> Icons.Default.Calculate
@@ -274,6 +279,7 @@ private fun CategoryCard(
     val accent = when (label) {
         "🏠 Dashboard" -> Color(0xFF5865F2)
         "💰 Économie" -> Color(0xFF57F287)
+        "🎁 Drops" -> Color(0xFFFFC107)
         "📊 Niveaux" -> Color(0xFF9B59B6)
         "🚀 Booster" -> Color(0xFFFF9800)
         "🔢 Comptage" -> Color(0xFF00D4FF)
@@ -403,9 +409,10 @@ private fun CategoryCard(
 private fun JsonObject.obj(key: String): JsonObject? = this[key]?.jsonObject
 private fun JsonObject.arr(key: String): JsonArray? = this[key]?.jsonArray
 private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
-private fun JsonObject.bool(key: String): Boolean? = this[key]?.jsonPrimitive?.booleanOrNull
-private fun JsonObject.int(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
-private fun JsonObject.double(key: String): Double? = this[key]?.jsonPrimitive?.doubleOrNull
+// IMPORTANT: certaines configs peuvent stocker des nombres en string ("40") au lieu de number (40)
+private fun JsonObject.bool(key: String): Boolean? = this[key].safeBoolean()
+private fun JsonObject.int(key: String): Int? = this[key].safeInt()
+private fun JsonObject.double(key: String): Double? = this[key].safeDouble()
 
 // Helper pour extraire une chaîne qui peut être soit un primitif, soit un objet avec un champ "id"
 private fun JsonObject.strOrId(key: String): String? {
@@ -783,6 +790,8 @@ private fun StatCard(
 private fun EconomyConfigTab(
     configData: JsonObject?,
     members: Map<String, String>,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
     api: ApiClient,
     json: Json,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -901,11 +910,52 @@ private fun EconomyConfigTab(
                 val actionsConfigObj = eco?.obj("actions")?.obj("config")
                 val actionsEnabled = eco?.obj("actions")?.arr("enabled").safeStringList()
 
-                val actionsKeys = remember(actionsListObj, actionsConfigObj, actionsEnabled) {
+                val actionsGifsObj = eco?.obj("actions")?.obj("gifs")
+                val actionsMessagesObj = eco?.obj("actions")?.obj("messages")
+
+                // Fallback "profond": récupérer aussi les actions depuis les cooldowns des utilisateurs (economy.balances.*.cooldowns)
+                val balancesCooldownKeys = remember(eco) {
+                    val keys = mutableSetOf<String>()
+                    val balances = eco?.obj("balances")?.jsonObject
+                    balances?.values?.asSequence()?.take(200)?.forEach { v ->
+                        val u = v.jsonObject
+                        val cds = u["cooldowns"]?.jsonObject
+                        cds?.keys?.forEach { k -> if (k.isNotBlank()) keys.add(k) }
+                    }
+                    keys.toList()
+                }
+
+                val actionsKeys = remember(
+                    actionsListObj,
+                    actionsConfigObj,
+                    actionsEnabled,
+                    actionsGifsObj,
+                    actionsMessagesObj,
+                    balancesCooldownKeys
+                ) {
                     val keys = mutableSetOf<String>()
                     actionsEnabled.forEach { if (it.isNotBlank()) keys.add(it) }
                     actionsListObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsConfigObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    actionsGifsObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    actionsMessagesObj?.jsonObject?.keys?.forEach { keys.add(it) }
+                    balancesCooldownKeys.forEach { if (it.isNotBlank()) keys.add(it) }
+                    // Fallback ultime: si le serveur renvoie une config incomplète, proposer au moins les actions "connues"
+                    // (ça évite le cas où seul "work" apparaît).
+                    if (keys.size <= 1) {
+                        listOf(
+                            "work","fish","give","steal","daily",
+                            "kiss","flirt","seduce","caress","comfort","massage","dance",
+                            "lick","suck","nibble","tickle",
+                            "fuck","sodo","orgasme","orgie",
+                            "touche","reveiller","cuisiner","douche",
+                            "bed","undress","wet","shower",
+                            "crime","caught","oops","tromper",
+                            "rose","wine","pillowfight",
+                            "collar","leash","kneel","order","punish",
+                            "branler","doigter","revive"
+                        ).forEach { keys.add(it) }
+                    }
                     keys.toList().sorted()
                 }
 
@@ -951,33 +1001,21 @@ private fun EconomyConfigTab(
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text("🎭 Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(4.dp))
+                                Text("${actionsKeys.size} action(s)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(8.dp))
-                                
-                                var expanded by remember { mutableStateOf(false) }
-                                Box {
-                                    OutlinedButton(
-                                        onClick = { expanded = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(label.ifBlank { selectedActionKey }, modifier = Modifier.weight(1f))
-                                        Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
-                                    }
-                                    androidx.compose.material3.DropdownMenu(
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
-                                    ) {
-                                        actionsKeys.forEach { key ->
-                                            androidx.compose.material3.DropdownMenuItem(
-                                                text = { Text(actionsListObj?.obj(key)?.str("label") ?: key) },
-                                                onClick = {
-                                                    selectedActionKey = key
-                                                    expanded = false
-                                                }
-                                            )
-                                        }
+
+                                val actionItems = remember(actionsKeys, actionsListObj) {
+                                    actionsKeys.map { key ->
+                                        key to (actionsListObj?.obj(key)?.str("label") ?: key)
                                     }
                                 }
+                                SearchableKeySelector(
+                                    items = actionItems,
+                                    selectedKey = selectedActionKey.takeIf { it.isNotBlank() },
+                                    onSelected = { selectedActionKey = it },
+                                    label = "Sélectionner une action"
+                                )
                             }
                         }
                     }
@@ -1247,12 +1285,16 @@ private fun EconomyConfigTab(
                 }
             }
             3 -> {
-                // Boutique - Ajout/Modif/Suppression d'objets
+                // Boutique - Ajout/Modif/Suppression d'objets + gestion des rôles boutique
                 val shopData = eco?.obj("shop")
                 var shopItems by remember(shopData) {
                     mutableStateOf(shopData?.arr("items")?.mapNotNull { it.jsonObject }?.toMutableList() ?: mutableListOf())
                 }
-                
+                var shopRoleEntries by remember(shopData) {
+                    mutableStateOf(shopData?.arr("roles")?.mapNotNull { it.jsonObject }?.toMutableList() ?: mutableListOf())
+                }
+
+                // Dialog item
                 var showAddDialog by remember { mutableStateOf(false) }
                 var editingIndex by remember { mutableStateOf<Int?>(null) }
                 var newItemId by remember { mutableStateOf("") }
@@ -1260,7 +1302,17 @@ private fun EconomyConfigTab(
                 var newItemPrice by remember { mutableStateOf("") }
                 var newItemEmoji by remember { mutableStateOf("") }
                 var savingShop by remember { mutableStateOf(false) }
-                
+
+                // Dialog role
+                var showRoleDialog by remember { mutableStateOf(false) }
+                var editingRoleIndex by remember { mutableStateOf<Int?>(null) }
+                var roleIdSelected by remember { mutableStateOf<String?>(null) }
+                var rolePrice by remember { mutableStateOf("") }
+                var roleIsTemporary by remember { mutableStateOf(false) }
+                var roleDurationValue by remember { mutableStateOf("") } // duration number if temporary
+                var roleDurationUnit by remember { mutableStateOf("days") } // hours|days
+                var savingRoles by remember { mutableStateOf(false) }
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1279,26 +1331,177 @@ private fun EconomyConfigTab(
                                     color = Color.White
                                 )
                                 Text(
-                                    "${shopItems.size} objet(s)",
+                                    "${shopItems.size} objet(s) • ${shopRoleEntries.size} rôle(s)",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Color.Gray
                                 )
                             }
-                            Button(onClick = {
-                                newItemId = ""
-                                newItemName = ""
-                                newItemPrice = ""
-                                newItemEmoji = ""
-                                editingIndex = null
-                                showAddDialog = true
-                            }) {
-                                Icon(Icons.Default.Add, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Ajouter")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = {
+                                    roleIdSelected = null
+                                    rolePrice = ""
+                                    roleIsTemporary = false
+                                    roleDurationUnit = "days"
+                                    roleDurationValue = ""
+                                    editingRoleIndex = null
+                                    showRoleDialog = true
+                                }) {
+                                    Icon(Icons.Default.Badge, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Ajout de rôle")
+                                }
+                                OutlinedButton(onClick = {
+                                    newItemId = ""
+                                    newItemName = ""
+                                    newItemPrice = ""
+                                    newItemEmoji = ""
+                                    editingIndex = null
+                                    showAddDialog = true
+                                }) {
+                                    Icon(Icons.Default.AddShoppingCart, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Ajout d'objet")
+                                }
                             }
                         }
                     }
-                    
+
+                    // Rôles boutique (config)
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("🎭 Rôles Boutique", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Permanent (0j) ou temporaire (X jours)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(10.dp))
+
+                                if (shopRoleEntries.isEmpty()) {
+                                    Text("Aucun rôle configuré.", color = Color.Gray)
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        shopRoleEntries.forEachIndexed { idx, r ->
+                                            val roleId = r["roleId"]?.jsonPrimitive?.contentOrNull ?: ""
+                                            val price = r["price"]?.jsonPrimitive?.intOrNull ?: 0
+                                            val durationValue = r["durationValue"]?.jsonPrimitive?.intOrNull
+                                            val durationUnit = r["durationUnit"]?.jsonPrimitive?.contentOrNull
+                                            val durationDaysRaw = r["durationDays"]?.jsonPrimitive?.doubleOrNull ?: 0.0
+                                            val roleName = roles[roleId] ?: roleId.ifBlank { "Rôle" }
+                                            val durationLabel = when {
+                                                durationUnit == "hours" && durationValue != null && durationValue > 0 -> "⏱️ ${durationValue}h"
+                                                durationUnit == "days" && durationValue != null && durationValue > 0 -> "⏱️ ${durationValue}j"
+                                                durationUnit == "permanent" -> "♾️ Permanent"
+                                                durationDaysRaw > 0.0 -> "⏱️ ${durationDaysRaw}j"
+                                                else -> "♾️ Permanent"
+                                            }
+
+                                            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))) {
+                                                Row(
+                                                    Modifier.fillMaxWidth().padding(14.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(roleName, color = Color.White, fontWeight = FontWeight.Bold)
+                                                        Text("ID: $roleId", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                        Text(durationLabel, color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                                        Text("Prix: $price $currencyName", color = Color(0xFF57F287), fontWeight = FontWeight.SemiBold)
+                                                    }
+                                                    Row {
+                                                        IconButton(onClick = {
+                                                            editingRoleIndex = idx
+                                                            roleIdSelected = roleId.takeIf { it.isNotBlank() }
+                                                            rolePrice = price.toString()
+                                                            // Back-compat: si durationValue/unit existe, l'utiliser; sinon dériver depuis durationDays
+                                                            if (durationUnit == "hours" && durationValue != null) {
+                                                                roleIsTemporary = durationValue > 0
+                                                                roleDurationUnit = "hours"
+                                                                roleDurationValue = durationValue.toString()
+                                                            } else if (durationUnit == "days" && durationValue != null) {
+                                                                roleIsTemporary = durationValue > 0
+                                                                roleDurationUnit = "days"
+                                                                roleDurationValue = durationValue.toString()
+                                                            } else if (durationDaysRaw > 0.0) {
+                                                                // si c'est un nombre entier -> jours, sinon -> heures arrondies
+                                                                val asInt = durationDaysRaw.toInt()
+                                                                if (kotlin.math.abs(durationDaysRaw - asInt.toDouble()) < 1e-9) {
+                                                                    roleIsTemporary = true
+                                                                    roleDurationUnit = "days"
+                                                                    roleDurationValue = asInt.toString()
+                                                                } else {
+                                                                    val hours = kotlin.math.max(1, kotlin.math.round(durationDaysRaw * 24.0).toInt())
+                                                                    roleIsTemporary = true
+                                                                    roleDurationUnit = "hours"
+                                                                    roleDurationValue = hours.toString()
+                                                                }
+                                                            } else {
+                                                                roleIsTemporary = false
+                                                                roleDurationUnit = "days"
+                                                                roleDurationValue = ""
+                                                            }
+                                                            showRoleDialog = true
+                                                        }) {
+                                                            Icon(Icons.Default.Edit, null, tint = Color(0xFF5865F2))
+                                                        }
+                                                        IconButton(onClick = { shopRoleEntries.removeAt(idx) }) {
+                                                            Icon(Icons.Default.Delete, null, tint = Color(0xFFED4245))
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            savingRoles = true
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    val body = buildJsonObject {
+                                                        put("shop", buildJsonObject {
+                                                            put("roles", JsonArray(shopRoleEntries.map { rr ->
+                                                                buildJsonObject {
+                                                                    put("roleId", rr["roleId"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                                    put("price", rr["price"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                                    // Back-compat: on conserve durationDays (utilisé par le bot),
+                                                                    // et on stocke aussi durationUnit/value pour l'UI.
+                                                                    rr["durationDays"]?.jsonPrimitive?.doubleOrNull?.let { put("durationDays", it) }
+                                                                        ?: put("durationDays", 0.0)
+                                                                    put("durationUnit", rr["durationUnit"]?.jsonPrimitive?.contentOrNull ?: "permanent")
+                                                                    put("durationValue", rr["durationValue"]?.jsonPrimitive?.intOrNull ?: 0)
+                                                                }
+                                                            }))
+                                                        })
+                                                    }
+                                                    api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
+                                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Rôles boutique sauvegardés") }
+                                                } catch (e: Exception) {
+                                                    withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                                } finally {
+                                                    withContext(Dispatchers.Main) { savingRoles = false }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                                    enabled = !savingRoles
+                                ) {
+                                    if (savingRoles) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                                    else {
+                                        Icon(Icons.Default.Save, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Sauvegarder rôles")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (shopItems.isNotEmpty()) {
                         itemsIndexed(shopItems) { index, item ->
                             val emoji = item["emoji"]?.jsonPrimitive?.contentOrNull ?: "🎁"
@@ -1389,16 +1592,27 @@ private fun EconomyConfigTab(
                                     savingShop = true
                                     withContext(Dispatchers.IO) {
                                         try {
+                                            fun slugifyId(raw: String, name: String): String {
+                                                val base = raw.trim().ifBlank { name.trim() }
+                                                return base
+                                                    .lowercase()
+                                                    .replace(":", "-")
+                                                    .replace(Regex("[^a-z0-9]+"), "-")
+                                                    .replace(Regex("^-+|-+$"), "")
+                                                    .ifBlank { "item" }
+                                            }
+
                                             val body = buildJsonObject {
+                                                // Patch partiel: ne pas écraser shop.roles / shop.grants
                                                 put("shop", buildJsonObject {
                                                     put("items", JsonArray(shopItems.map { buildJsonObject {
-                                                        put("id", it["id"]?.jsonPrimitive?.contentOrNull ?: "")
-                                                        put("name", it["name"]?.jsonPrimitive?.contentOrNull ?: "")
+                                                        val name = it["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                        val idRaw = it["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                        put("id", slugifyId(idRaw, name))
+                                                        put("name", name)
                                                         put("price", it["price"]?.jsonPrimitive?.intOrNull ?: 0)
                                                         put("emoji", it["emoji"]?.jsonPrimitive?.contentOrNull ?: "")
                                                     }}))
-                                                    put("roles", JsonArray(emptyList()))
-                                                    put("grants", buildJsonObject {})
                                                 })
                                             }
                                             api.postJson("/api/economy", json.encodeToString(JsonObject.serializer(), body))
@@ -1455,12 +1669,16 @@ private fun EconomyConfigTab(
                         title = { Text(if (editingIndex != null) "Modifier l'objet" else "Ajouter un objet") },
                         text = {
                             Column {
-                                OutlinedTextField(newItemId, { newItemId = it }, label = { Text("ID (ex: item-1)") }, modifier = Modifier.fillMaxWidth())
-                                Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(newItemName, { newItemName = it }, label = { Text("Nom") }, modifier = Modifier.fillMaxWidth())
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(
-                                    newItemPrice, { newItemPrice = it }, label = { Text("Prix") },
+                                    newItemPrice,
+                                    { input ->
+                                        // N'accepte que des chiffres et limite à 7 chiffres (<= 9_999_999)
+                                        val digits = input.filter { it.isDigit() }
+                                        newItemPrice = digits.take(7)
+                                    },
+                                    label = { Text("Prix (0 à 9 999 999)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
@@ -1487,10 +1705,34 @@ private fun EconomyConfigTab(
                         },
                         confirmButton = {
                             Button(onClick = {
+                                val price = (newItemPrice.trim().toLongOrNull() ?: 0L).coerceIn(0L, 9_999_999L).toInt()
+                                fun slugify(raw: String): String {
+                                    return raw.trim()
+                                        .lowercase()
+                                        .replace(":", "-")
+                                        .replace(Regex("[^a-z0-9]+"), "-")
+                                        .replace(Regex("^-+|-+$"), "")
+                                        .ifBlank { "item" }
+                                }
+                                fun uniqueId(base: String, existing: Set<String>): String {
+                                    if (!existing.contains(base)) return base
+                                    var i = 2
+                                    while (true) {
+                                        val cand = "$base-$i"
+                                        if (!existing.contains(cand)) return cand
+                                        i++
+                                    }
+                                }
+                                val existingIds = shopItems.mapNotNull { it["id"]?.jsonPrimitive?.contentOrNull }.toSet()
+                                val computedId = if (editingIndex != null && newItemId.isNotBlank()) {
+                                    newItemId
+                                } else {
+                                    uniqueId(slugify(newItemName), existingIds)
+                                }
                                 val newItem = buildJsonObject {
-                                    put("id", newItemId)
+                                    put("id", computedId)
                                     put("name", newItemName)
-                                    put("price", newItemPrice.toIntOrNull() ?: 0)
+                                    put("price", price)
                                     put("emoji", newItemEmoji)
                                 }
                                 if (editingIndex != null) {
@@ -1499,7 +1741,7 @@ private fun EconomyConfigTab(
                                     shopItems.add(newItem)
                                 }
                                 showAddDialog = false
-                            }, enabled = newItemId.isNotBlank() && newItemName.isNotBlank()) {
+                            }, enabled = newItemName.isNotBlank()) {
                                 Text(if (editingIndex != null) "Modifier" else "Ajouter")
                             }
                         },
@@ -1592,6 +1834,103 @@ private fun EconomyConfigTab(
                             confirmButton = {
                                 TextButton(onClick = { showEmojiPicker = false }) { Text("Fermer") }
                             }
+                        )
+                    }
+
+                    // Dialog Add/Edit Role
+                    if (showRoleDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showRoleDialog = false },
+                            title = { Text(if (editingRoleIndex != null) "Modifier un rôle" else "Ajouter un rôle") },
+                            text = {
+                                Column {
+                                    RoleSelector(
+                                        roles = roles,
+                                        selectedRoleId = roleIdSelected,
+                                        onRoleSelected = { roleIdSelected = it },
+                                        label = "Sélectionner un rôle"
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = rolePrice,
+                                        onValueChange = { input -> rolePrice = input.filter { it.isDigit() }.take(7) },
+                                        label = { Text("Prix (0 à 9 999 999)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Temporaire", color = Color.White)
+                                        Switch(checked = roleIsTemporary, onCheckedChange = { roleIsTemporary = it })
+                                    }
+                                    if (roleIsTemporary) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = roleDurationValue,
+                                                onValueChange = { input -> roleDurationValue = input.filter { it.isDigit() }.take(4) },
+                                                label = { Text("Durée") },
+                                                modifier = Modifier.weight(1f),
+                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                                            )
+                                            Box(Modifier.weight(1f)) {
+                                                var expanded by remember { mutableStateOf(false) }
+                                                OutlinedButton(
+                                                    onClick = { expanded = true },
+                                                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                                                ) {
+                                                    Text(if (roleDurationUnit == "hours") "Heures" else "Jours", modifier = Modifier.weight(1f))
+                                                    Icon(Icons.Default.ArrowDropDown, null)
+                                                }
+                                                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Heures") },
+                                                        onClick = { roleDurationUnit = "hours"; expanded = false }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("Jours") },
+                                                        onClick = { roleDurationUnit = "days"; expanded = false }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Spacer(Modifier.height(6.dp))
+                                        Text("Durée: Permanent", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val rid = roleIdSelected.orEmpty().trim()
+                                        val price = (rolePrice.trim().toLongOrNull() ?: 0L).coerceIn(0L, 9_999_999L).toInt()
+                                        val durValue = if (roleIsTemporary) (roleDurationValue.trim().toIntOrNull() ?: 0).coerceAtLeast(0) else 0
+                                        val unit = if (roleIsTemporary) roleDurationUnit else "permanent"
+                                        val durationDays = when {
+                                            !roleIsTemporary || durValue <= 0 -> 0.0
+                                            unit == "hours" -> durValue.toDouble() / 24.0
+                                            else -> durValue.toDouble()
+                                        }
+                                        val obj = buildJsonObject {
+                                            put("roleId", rid)
+                                            put("price", price)
+                                            put("durationDays", durationDays)
+                                            put("durationUnit", unit)
+                                            put("durationValue", durValue)
+                                        }
+                                        val idx = editingRoleIndex
+                                        if (idx != null && idx in shopRoleEntries.indices) shopRoleEntries[idx] = obj else shopRoleEntries.add(obj)
+                                        showRoleDialog = false
+                                    },
+                                    enabled = !roleIdSelected.isNullOrBlank()
+                                ) { Text(if (editingRoleIndex != null) "Modifier" else "Ajouter") }
+                            },
+                            dismissButton = { TextButton(onClick = { showRoleDialog = false }) { Text("Annuler") } }
                         )
                     }
                 }
@@ -2071,6 +2410,219 @@ private fun EconomyConfigTab(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+// Onglet séparé (hors Économie) pour les drops automatiques
+@Composable
+private fun DropsConfigTab(
+    configData: JsonObject?,
+    channels: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    val drops = configData?.obj("drops")
+    var enabled by remember { mutableStateOf(drops?.bool("enabled") ?: false) }
+    var channelId by remember { mutableStateOf(drops?.str("channelId") ?: "") }
+    var intervalValue by remember { mutableStateOf((drops?.int("intervalValue") ?: 1).toString()) }
+    var intervalUnit by remember { mutableStateOf(drops?.str("intervalUnit") ?: "hours") } // hours|days
+
+    val types = drops?.obj("types")
+    val xp = types?.obj("xp")
+    val money = types?.obj("money")
+
+    var xpEnabled by remember { mutableStateOf(xp?.bool("enabled") ?: false) }
+    var xpMin by remember { mutableStateOf((xp?.int("min") ?: 5).toString()) }
+    var xpMax by remember { mutableStateOf((xp?.int("max") ?: 25).toString()) }
+
+    var moneyEnabled by remember { mutableStateOf(money?.bool("enabled") ?: false) }
+    var moneyMin by remember { mutableStateOf((money?.int("min") ?: 10).toString()) }
+    var moneyMax by remember { mutableStateOf((money?.int("max") ?: 100).toString()) }
+
+    var savingDrops by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                "🎁 Drops Automatiques",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "Drops XP / Argent automatiques dans un salon",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+        }
+
+        item {
+            SectionCard(title = "⚙️ Configuration") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Activé", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+                Spacer(Modifier.height(10.dp))
+
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = channelId.takeIf { it.isNotBlank() },
+                    onChannelSelected = { channelId = it },
+                    label = "Sélectionner le salon des drops"
+                )
+                Spacer(Modifier.height(10.dp))
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = intervalValue,
+                        onValueChange = { intervalValue = it },
+                        label = { Text("Délai") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    Box(Modifier.weight(1f)) {
+                        var unitMenuExpanded by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { unitMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth().height(56.dp)
+                        ) {
+                            Text(if (intervalUnit == "days") "Jours" else "Heures", modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ArrowDropDown, null)
+                        }
+                        DropdownMenu(
+                            expanded = unitMenuExpanded,
+                            onDismissRequest = { unitMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Heures") },
+                                onClick = { intervalUnit = "hours"; unitMenuExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Jours") },
+                                onClick = { intervalUnit = "days"; unitMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "✨ Drop XP") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Activé", color = Color.White)
+                    Switch(checked = xpEnabled, onCheckedChange = { xpEnabled = it })
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = xpMin,
+                        onValueChange = { xpMin = it },
+                        label = { Text("Min") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = xpMax,
+                        onValueChange = { xpMax = it },
+                        label = { Text("Max") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "💰 Drop Argent") {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Activé", color = Color.White)
+                    Switch(checked = moneyEnabled, onCheckedChange = { moneyEnabled = it })
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = moneyMin,
+                        onValueChange = { moneyMin = it },
+                        label = { Text("Min") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = moneyMax,
+                        onValueChange = { moneyMax = it },
+                        label = { Text("Max") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    scope.launch {
+                        savingDrops = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val body = buildJsonObject {
+                                    put("enabled", enabled)
+                                    put("channelId", channelId)
+                                    put("intervalValue", intervalValue.toIntOrNull() ?: 1)
+                                    put("intervalUnit", intervalUnit)
+                                    put("types", buildJsonObject {
+                                        put("xp", buildJsonObject {
+                                            put("enabled", xpEnabled)
+                                            put("min", xpMin.toIntOrNull() ?: 5)
+                                            put("max", xpMax.toIntOrNull() ?: (xpMin.toIntOrNull() ?: 5))
+                                        })
+                                        put("money", buildJsonObject {
+                                            put("enabled", moneyEnabled)
+                                            put("min", moneyMin.toIntOrNull() ?: 10)
+                                            put("max", moneyMax.toIntOrNull() ?: (moneyMin.toIntOrNull() ?: 10))
+                                        })
+                                    })
+                                }
+                                api.putJson("/api/configs/drops", json.encodeToString(JsonObject.serializer(), body))
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Drops sauvegardés") }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                            } finally {
+                                withContext(Dispatchers.Main) { savingDrops = false }
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !savingDrops
+            ) {
+                if (savingDrops) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                else {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder Drops")
                 }
             }
         }
@@ -2748,16 +3300,37 @@ private fun ActionsConfigTab(
 ) {
     val eco = configData?.obj("economy")
     val actions = eco?.obj("actions")
+    val settings = eco?.obj("settings")
     
-    val actionsList = remember(actions) {
-        actions?.obj("list")?.mapValues { (key, value) ->
-            val obj = value.jsonObject
-            key to (obj["label"]?.jsonPrimitive?.contentOrNull ?: key)
-        }?.values?.toList() ?: emptyList()
+    // Construire une liste complète d'actions à partir de toutes les sources possibles.
+    val actionsList = remember(actions, settings) {
+        val keys = linkedSetOf<String>()
+        actions?.arr("enabled")?.safeStringList()?.forEach { if (it.isNotBlank()) keys.add(it) }
+        actions?.obj("config")?.jsonObject?.keys?.forEach { keys.add(it) }
+        actions?.obj("gifs")?.jsonObject?.keys?.forEach { keys.add(it) }
+        actions?.obj("messages")?.jsonObject?.keys?.forEach { keys.add(it) }
+        actions?.obj("list")?.jsonObject?.keys?.forEach { keys.add(it) }
+        settings?.obj("cooldowns")?.jsonObject?.keys?.forEach { keys.add(it) }
+        // fallback: récupérer aussi les actions depuis les cooldowns des utilisateurs
+        eco?.obj("balances")?.jsonObject?.values?.asSequence()?.take(200)?.forEach { v ->
+            val cds = v.jsonObject["cooldowns"]?.jsonObject
+            cds?.keys?.forEach { k -> if (k.isNotBlank()) keys.add(k) }
+        }
+
+        val listObj = actions?.obj("list")
+        keys.toList().sorted().map { k ->
+            k to (listObj?.obj(k)?.str("label") ?: k)
+        }
     }
     
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedActionKey by remember { mutableStateOf(actionsList.firstOrNull()?.first ?: "") }
+
+    LaunchedEffect(actionsList) {
+        if (selectedActionKey.isBlank() || actionsList.none { it.first == selectedActionKey }) {
+            selectedActionKey = actionsList.firstOrNull()?.first.orEmpty()
+        }
+    }
     
     Column(Modifier.fillMaxSize()) {
         // Header
@@ -2841,39 +3414,13 @@ private fun ActionGifsTab(
                 Column(Modifier.padding(16.dp)) {
                     Text("Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
-                    
-                    androidx.compose.material3.DropdownMenu(
-                        expanded = false,
-                        onDismissRequest = {}
-                    ) {}
-                    
-                    // Custom dropdown
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(
-                            onClick = { expanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val selected = actionsList.find { it.first == selectedActionKey }
-                            Text(selected?.second ?: "Sélectionner...", modifier = Modifier.weight(1f))
-                            Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            actionsList.forEach { (key, label) ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        onActionSelect(key)
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
+
+                    SearchableKeySelector(
+                        items = actionsList,
+                        selectedKey = selectedActionKey.takeIf { it.isNotBlank() },
+                        onSelected = { onActionSelect(it) },
+                        label = "Sélectionner..."
+                    )
                 }
             }
         }
@@ -3196,33 +3743,13 @@ private fun ActionMessagesTab(
                 Column(Modifier.padding(16.dp)) {
                     Text("Sélectionner une action", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
-                    
-                    var expanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(
-                            onClick = { expanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val selected = actionsList.find { it.first == selectedActionKey }
-                            Text(selected?.second ?: "Sélectionner...", modifier = Modifier.weight(1f))
-                            Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            actionsList.forEach { (key, label) ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        onActionSelect(key)
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
+
+                    SearchableKeySelector(
+                        items = actionsList,
+                        selectedKey = selectedActionKey.takeIf { it.isNotBlank() },
+                        onSelected = { onActionSelect(it) },
+                        label = "Sélectionner..."
+                    )
                 }
             }
         }
@@ -7056,6 +7583,121 @@ private fun GeoConfigTab(
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TribunalConfigTab(
+    configData: JsonObject?,
+    channels: Map<String, String>,
+    roles: Map<String, String>,
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    val tribunal = configData?.obj("tribunal")
+    val casesObj = tribunal?.obj("cases")
+    val caseEntries = remember(casesObj) {
+        casesObj?.jsonObject?.entries?.toList().orEmpty()
+            .sortedByDescending { (_, v) -> v.jsonObject["updatedAt"].safeLong() ?: 0L }
+    }
+
+    var categoryId by remember { mutableStateOf(tribunal?.str("categoryId") ?: "") }
+    var judgeRoleId by remember { mutableStateOf(tribunal?.str("judgeRoleId") ?: "") }
+    var saving by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                "⚖️ Tribunal",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "${caseEntries.size} dossier(s) dans la config",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+        }
+
+        item {
+            SectionCard(title = "⚙️ Configuration", subtitle = "Catégorie + rôle juge") {
+                Text("Catégorie (Discord)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                ChannelSelector(
+                    channels = channels,
+                    selectedChannelId = categoryId.takeIf { it.isNotBlank() },
+                    onChannelSelected = { categoryId = it },
+                    label = "Sélectionner une catégorie"
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                Text("Rôle Juge (optionnel)", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                RoleSelector(
+                    roles = roles,
+                    selectedRoleId = judgeRoleId.takeIf { it.isNotBlank() },
+                    onRoleSelected = { judgeRoleId = it },
+                    label = "Sélectionner un rôle"
+                )
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    scope.launch {
+                        saving = true
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val body = buildJsonObject {
+                                    put("categoryId", categoryId)
+                                    put("judgeRoleId", judgeRoleId)
+                                }
+                                api.putJson("/api/configs/tribunal", json.encodeToString(JsonObject.serializer(), body))
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("✅ Tribunal sauvegardé") }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                            } finally {
+                                withContext(Dispatchers.Main) { saving = false }
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !saving
+            ) {
+                if (saving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White)
+                else {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sauvegarder Tribunal")
+                }
+            }
+        }
+
+        if (caseEntries.isNotEmpty()) {
+            item {
+                SectionCard(title = "📂 Dossiers (aperçu)", subtitle = "Lecture seule") {
+                    caseEntries.take(15).forEach { (id, el) ->
+                        val o = el.jsonObject
+                        val status = o["status"].safeString() ?: "?"
+                        val plaintiffId = o["plaintiffId"].safeStringOrEmpty()
+                        val accusedId = o["accusedId"].safeStringOrEmpty()
+                        val judgeId = o["judgeId"].safeStringOrEmpty()
+                        Text(
+                            "• $id — $status — plaignant:${plaintiffId.takeLast(6)} accusé:${accusedId.takeLast(6)} juge:${judgeId.takeLast(6)}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }

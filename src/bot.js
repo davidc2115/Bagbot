@@ -5953,6 +5953,15 @@ client.once(Events.ClientReady, async (readyClient) => {
     console.error('[Bot] ❌ Erreur initialisation monitoring:', error.message);
   }
 
+  // === DROPS AUTOMATIQUES (XP / ARGENT) ===
+  try {
+    const { startAutoDrops } = require('./handlers/autoDrops');
+    startAutoDrops(readyClient);
+    console.log('[Bot] ✅ Drops automatiques démarrés');
+  } catch (error) {
+    console.error('[Bot] ❌ Erreur drops automatiques:', error.message);
+  }
+
   // === NETTOYAGE AUTOMATIQUE DES UTILISATEURS PARTIS ===
   // Nettoyer tous les jours à 3h du matin
   const scheduleDailyCleanup = () => {
@@ -8752,7 +8761,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const roles = Array.isArray(eco.shop?.roles) ? eco.shop.roles.slice() : [];
       for (const v of interaction.values) {
         if (v.startsWith('item:')) {
-          const id = v.split(':')[1];
+          const id = v.slice('item:'.length);
           const idx = items.findIndex(x => String(x.id) === id);
           if (idx >= 0) items.splice(idx, 1);
         } else if (v.startsWith('role:')) {
@@ -12252,7 +12261,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const choice = interaction.values[0];
       if (choice === 'none') return interaction.deferUpdate();
       if (choice.startsWith('item:')) {
-        const id = choice.split(':')[1];
+        const id = choice.slice('item:'.length);
         const it = (eco.shop?.items || []).find(x => String(x.id) === String(id));
         if (!it) return interaction.reply({ content: 'Article indisponible.', ephemeral: true });
         
@@ -13920,18 +13929,29 @@ async function buildBoutiqueEmbed(guild, user, offset = 0, limit = 25) {
 async function buildBoutiqueRows(guild) {
   const eco = await getEconomyConfig(guild.id);
   const options = [];
+  const parseEmojiOption = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const m = s.match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/);
+    if (m) return { id: m[2], name: m[1], animated: s.startsWith('<a:') };
+    if (s.length <= 4) return s;
+    return null;
+  };
   // Items
   for (const it of (eco.shop?.items || [])) {
     const emoji = it.emoji || '🎁';
-    const label = emoji + ' ' + (it.name || it.id) + ' — ' + (it.price||0);
-    options.push({ label, value: 'item:' + it.id });
+    const label = (it.name || it.id) + ' — ' + (it.price||0);
+    const opt = { label, value: 'item:' + it.id };
+    const parsed = parseEmojiOption(emoji);
+    if (parsed) opt.emoji = parsed;
+    options.push(opt);
   }
   // Roles
   for (const r of (eco.shop?.roles || [])) {
     const roleName = guild.roles.cache.get(r.roleId)?.name || r.name || r.roleId;
     const dur = r.durationDays ? (r.durationDays + 'j') : 'permanent';
     const label = 'Rôle: ' + roleName + ' — ' + (r.price||0) + ' (' + dur + ')';
-    options.push({ label, value: 'role:' + r.roleId + ':' + (r.durationDays||0) });
+    options.push({ label, value: 'role:' + r.roleId + ':' + (r.durationDays||0), emoji: '🎭' });
   }
   // Suites (private rooms)
   if (eco.suites) {
@@ -13944,7 +13964,7 @@ async function buildBoutiqueRows(guild) {
     for (const l of labels) {
       const price = Number(prices[l.key]||0);
       const label = (eco.suites.emoji || '💞') + ' ' + l.name + ' — ' + price;
-      options.push({ label, value: 'suite:' + l.key });
+      options.push({ label, value: 'suite:' + l.key, emoji: parseEmojiOption(eco.suites.emoji || '💞') || '💞' });
     }
   }
   const select = new StringSelectMenuBuilder().setCustomId('boutique_select').setPlaceholder('Choisir un article…').setMinValues(1).setMaxValues(1);

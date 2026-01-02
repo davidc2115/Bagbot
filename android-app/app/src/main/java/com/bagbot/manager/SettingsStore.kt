@@ -10,7 +10,7 @@ class SettingsStore private constructor(context: Context) {
         @Volatile
         private var instance: SettingsStore? = null
         
-        private const val CURRENT_VERSION = 5912 // Version 5.9.12
+        private const val CURRENT_VERSION = 6205 // Version 6.2.5
         
         fun getInstance(context: Context? = null): SettingsStore {
             return instance ?: synchronized(this) {
@@ -106,4 +106,46 @@ class SettingsStore private constructor(context: Context) {
     }
     
     fun clear() = prefs.edit().clear().apply()
+
+    // --- Per-app-user customization (stored locally on the device) ---
+    private fun userKey(userId: String, suffix: String): String = "user_${userId}_$suffix"
+
+    fun getCustomAppName(userId: String): String? {
+        if (userId.isBlank()) return null
+        return prefs.getString(userKey(userId, "custom_app_name"), null)
+    }
+
+    fun setCustomAppName(userId: String, name: String?) {
+        if (userId.isBlank()) return
+        val v = name?.trim().orEmpty()
+        val e = prefs.edit()
+        if (v.isBlank()) e.remove(userKey(userId, "custom_app_name")) else e.putString(userKey(userId, "custom_app_name"), v)
+        e.apply()
+    }
+
+    fun getCustomLogoUrl(userId: String): String? {
+        if (userId.isBlank()) return null
+        return prefs.getString(userKey(userId, "custom_logo_url"), null)
+    }
+
+    fun setCustomLogoUrl(userId: String, url: String?) {
+        if (userId.isBlank()) return
+        val v = url?.trim().orEmpty()
+        val e = prefs.edit()
+        if (v.isBlank()) e.remove(userKey(userId, "custom_logo_url")) else e.putString(userKey(userId, "custom_logo_url"), v)
+        e.apply()
+    }
+
+    fun getStaffChatNotificationTitle(userId: String): String? {
+        if (userId.isBlank()) return null
+        return prefs.getString(userKey(userId, "staff_chat_notif_title"), null)
+    }
+
+    fun setStaffChatNotificationTitle(userId: String, title: String?) {
+        if (userId.isBlank()) return
+        val v = title?.trim().orEmpty()
+        val e = prefs.edit()
+        if (v.isBlank()) e.remove(userKey(userId, "staff_chat_notif_title")) else e.putString(userKey(userId, "staff_chat_notif_title"), v)
+        e.apply()
+    }
 }
