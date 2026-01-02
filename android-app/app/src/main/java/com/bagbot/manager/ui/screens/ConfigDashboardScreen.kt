@@ -59,6 +59,7 @@ private enum class DashTab(val label: String) {
     Counting("🔢 Comptage"),
     TruthDare("🎲 A/V"),
     Actions("🎬 Actions"),
+    Drops("🎁 Drops"),
     Tickets("🎫 Tickets"),
     Logs("📝 Logs"),
     Confess("💬 Confess"),
@@ -225,6 +226,7 @@ fun ConfigDashboardScreen(
                 DashTab.TruthDare -> TruthDareConfigTab(channels, api, json, scope, snackbar)
                 DashTab.MotCache -> MotCacheConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Actions -> ActionsConfigTab(configData, api, json, scope, snackbar)
+                DashTab.Drops -> DropsConfigTab(api, json, scope, snackbar)
                 DashTab.Tickets -> TicketsConfigTab(configData, channels, roles, api, json, scope, snackbar)
                 DashTab.Logs -> LogsConfigTab(configData, members, channels, roles, api, json, scope, snackbar)
                 DashTab.Confess -> ConfessConfigTab(configData, channels, api, json, scope, snackbar)
@@ -260,6 +262,7 @@ private fun CategoryCard(
         "🔢 Comptage" -> Icons.Default.Calculate
         "🎲 Action ou Vérité" -> Icons.Default.Casino
         "🎭 Actions" -> Icons.Default.SportsEsports
+        "🎁 Drops" -> Icons.Default.CardGiftcard
         "🎟️ Tickets" -> Icons.Default.ConfirmationNumber
         "📝 Logs" -> Icons.Default.Article
         "🤫 Confessions" -> Icons.Default.Lock
@@ -279,6 +282,7 @@ private fun CategoryCard(
         "🔢 Comptage" -> Color(0xFF00D4FF)
         "🎲 A/V" -> Color(0xFFFEE75C)
         "🎬 Actions" -> Color(0xFFE91E63)
+        "🎁 Drops" -> Color(0xFFFFD700)
         "🎫 Tickets" -> Color(0xFFE67E22)
         "📝 Logs" -> Color(0xFF95A5A6)
         "💬 Confess" -> Color(0xFFED4245)
@@ -907,6 +911,41 @@ private fun EconomyConfigTab(
                     actionsListObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     actionsConfigObj?.jsonObject?.keys?.forEach { keys.add(it) }
                     keys.toList().sorted()
+                }
+
+                // Afficher un message si aucune action n'est disponible
+                if (eco == null || actionsKeys.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Aucune action économique disponible",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Les actions économiques doivent d'abord être configurées depuis le bot Discord ou le dashboard web.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    return@Column
                 }
 
                 var selectedActionKey by remember { mutableStateOf("") }
@@ -2783,6 +2822,41 @@ private fun ActionsConfigTab(
             }
         }
         
+        // Afficher un message si aucune donnée n'est disponible
+        if (eco == null || actions == null || actionsList.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Aucune action économique configurée",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Les actions économiques doivent être configurées depuis le bot Discord ou le dashboard web.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            return
+        }
+        
         // Tabs
         TabRow(selectedTabIndex = selectedTab, containerColor = Color(0xFF1E1E1E)) {
             Tab(
@@ -2800,6 +2874,159 @@ private fun ActionsConfigTab(
         when (selectedTab) {
             0 -> ActionGifsTab(actions, actionsList, selectedActionKey, { selectedActionKey = it }, api, json, scope, snackbar)
             1 -> ActionMessagesTab(actions, actionsList, selectedActionKey, { selectedActionKey = it }, api, json, scope, snackbar)
+        }
+    }
+}
+
+@Composable
+private fun DropsConfigTab(
+    api: ApiClient,
+    json: Json,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFD700).copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.CardGiftcard,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "🎁 Drops XP & Argent",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Système de récompenses pour les membres les plus rapides",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "💰 Drop Argent",
+                subtitle = "Commande: /dropargent"
+            ) {
+                Text(
+                    "Créez un drop d'argent pour récompenser le premier membre qui réagit.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(12.dp))
+                
+                Text("📋 Paramètres:", fontWeight = FontWeight.Bold, color = Color(0xFFFFD700))
+                Spacer(Modifier.height(8.dp))
+                
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("• ", color = Color.Gray)
+                        Column {
+                            Text("Montant (requis)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Quantité d'argent à distribuer", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("• ", color = Color.Gray)
+                        Column {
+                            Text("Message (optionnel)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Message personnalisé pour le drop", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.height(12.dp))
+                Text("⏱️ Durée: 60 secondes", color = Color(0xFFFFD700), style = MaterialTheme.typography.bodySmall)
+                Text("🔒 Permission requise: Gérer le serveur", color = Color(0xFFED4245), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "✨ Drop XP",
+                subtitle = "Commande: /dropxp"
+            ) {
+                Text(
+                    "Créez un drop d'XP pour récompenser le premier membre qui réagit.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(12.dp))
+                
+                Text("📋 Paramètres:", fontWeight = FontWeight.Bold, color = Color(0xFF9B59B6))
+                Spacer(Modifier.height(8.dp))
+                
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("• ", color = Color.Gray)
+                        Column {
+                            Text("Quantité (requis)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Quantité d'XP à distribuer", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("• ", color = Color.Gray)
+                        Column {
+                            Text("Message (optionnel)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("Message personnalisé pour le drop", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.height(12.dp))
+                Text("⏱️ Durée: 60 secondes", color = Color(0xFF9B59B6), style = MaterialTheme.typography.bodySmall)
+                Text("🔒 Permission requise: Gérer le serveur", color = Color(0xFFED4245), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, null, tint = Color(0xFF5865F2), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("ℹ️ Informations", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Les commandes de drop sont gérées directement par le bot Discord. Utilisez ces commandes dans n'importe quel salon où le bot a les permissions nécessaires.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("🎯 Fonctionnalités:", fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Spacer(Modifier.height(8.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("• Le créateur du drop ne peut pas le réclamer", color = Color.Gray)
+                        Text("• Un seul utilisateur peut réclamer le drop", color = Color.Gray)
+                        Text("• Le drop expire après 60 secondes", color = Color.Gray)
+                        Text("• Les drops sont instantanés (premier arrivé, premier servi)", color = Color.Gray)
+                    }
+                }
+            }
         }
     }
 }
