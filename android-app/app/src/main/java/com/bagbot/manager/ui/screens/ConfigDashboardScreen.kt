@@ -2787,45 +2787,23 @@ private fun ActionsConfigTab(
 ) {
     val eco = configData?.obj("economy")
     val actions = eco?.obj("actions")
+    val actionsListObj = actions?.obj("list")
+    val actionsConfigObj = actions?.obj("config")
+    val actionsEnabled = actions?.arr("enabled")?.safeStringList() ?: emptyList()
     
-    val actionsList = remember(actions) {
-        val listObj = actions?.obj("list")
-        val configObj = actions?.obj("config")
-        val enabled = actions?.arr("enabled")?.safeStringList() ?: emptyList()
-        
+    // Utiliser la même logique que dans EconomyConfigTab qui FONCTIONNE
+    val actionsKeys = remember(actionsListObj, actionsConfigObj, actionsEnabled) {
         val keys = mutableSetOf<String>()
-        // Ajouter toutes les clés des actions activées
-        enabled.forEach { if (it.isNotBlank()) keys.add(it) }
-        // Ajouter toutes les clés de la liste des actions
-        listObj?.jsonObject?.keys?.forEach { keys.add(it) }
-        // Ajouter toutes les clés de la config des actions
-        configObj?.jsonObject?.keys?.forEach { keys.add(it) }
-        
-        Log.d(TAG, "ActionsConfigTab - enabled: $enabled")
-        Log.d(TAG, "ActionsConfigTab - list keys: ${listObj?.jsonObject?.keys}")
-        Log.d(TAG, "ActionsConfigTab - config keys: ${configObj?.jsonObject?.keys}")
-        Log.d(TAG, "ActionsConfigTab - all keys: $keys")
-        
-        // Créer la liste avec les labels
-        val result = keys.sorted().map { key ->
-            // Essayer de récupérer le label depuis list.key.label
-            val labelFromList = try {
-                listObj?.jsonObject?.get(key)?.jsonObject?.get("label")?.jsonPrimitive?.content
-            } catch (e: Exception) {
-                null
-            }
-            // Sinon utiliser la clé comme label
-            val label = labelFromList ?: key
-            Log.d(TAG, "ActionsConfigTab - Action $key -> label: $label")
-            key to label
-        }
-        
-        Log.d(TAG, "ActionsConfigTab - final actionsList size: ${result.size}")
+        actionsEnabled.forEach { if (it.isNotBlank()) keys.add(it) }
+        actionsListObj?.jsonObject?.keys?.forEach { keys.add(it) }
+        actionsConfigObj?.jsonObject?.keys?.forEach { keys.add(it) }
+        val result = keys.toList().sorted()
+        Log.d(TAG, "ActionsConfigTab - actionsKeys: $result (size: ${result.size})")
         result
     }
     
     var selectedTab by remember { mutableIntStateOf(0) }
-    var selectedActionKey by remember { mutableStateOf(actionsList.firstOrNull()?.first ?: "") }
+    var selectedActionKey by remember { mutableStateOf(actionsKeys.firstOrNull() ?: "") }
     
     Column(Modifier.fillMaxSize()) {
         // Header
@@ -2844,7 +2822,7 @@ private fun ActionsConfigTab(
                     color = Color.White
                 )
                 Text(
-                    "${actionsList.size} actions disponibles",
+                    "${actionsKeys.size} actions disponibles",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )
@@ -2852,7 +2830,7 @@ private fun ActionsConfigTab(
         }
         
         // Afficher un message si aucune donnée n'est disponible
-        if (eco == null || actions == null || actionsList.isEmpty()) {
+        if (eco == null || actions == null || actionsKeys.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -2901,8 +2879,8 @@ private fun ActionsConfigTab(
         }
         
         when (selectedTab) {
-            0 -> ActionGifsTab(actions, actionsList, selectedActionKey, { selectedActionKey = it }, api, json, scope, snackbar)
-            1 -> ActionMessagesTab(actions, actionsList, selectedActionKey, { selectedActionKey = it }, api, json, scope, snackbar)
+            0 -> ActionGifsTab(actions, actionsListObj, actionsKeys, selectedActionKey, { selectedActionKey = it }, api, json, scope, snackbar)
+            1 -> ActionMessagesTab(actions, actionsListObj, actionsKeys, selectedActionKey, { selectedActionKey = it }, api, json, scope, snackbar)
         }
     }
 }
@@ -3063,7 +3041,8 @@ private fun DropsConfigTab(
 @Composable
 private fun ActionGifsTab(
     actions: JsonObject?,
-    actionsList: List<Pair<String, String>>,
+    actionsListObj: JsonObject?,
+    actionsKeys: List<String>,
     selectedActionKey: String,
     onActionSelect: (String) -> Unit,
     api: ApiClient,
@@ -3110,8 +3089,8 @@ private fun ActionGifsTab(
                             onClick = { expanded = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            val selected = actionsList.find { it.first == selectedActionKey }
-                            Text(selected?.second ?: "Sélectionner...", modifier = Modifier.weight(1f))
+                            val label = actionsListObj?.obj(selectedActionKey)?.str("label") ?: selectedActionKey
+                            Text(label, modifier = Modifier.weight(1f))
                             Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
                         }
                         androidx.compose.material3.DropdownMenu(
@@ -3119,9 +3098,9 @@ private fun ActionGifsTab(
                             onDismissRequest = { expanded = false },
                             modifier = Modifier.fillMaxWidth(0.9f)
                         ) {
-                            actionsList.forEach { (key, label) ->
+                            actionsKeys.forEach { key ->
                                 androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label) },
+                                    text = { Text(actionsListObj?.obj(key)?.str("label") ?: key) },
                                     onClick = {
                                         onActionSelect(key)
                                         expanded = false
@@ -3374,7 +3353,8 @@ private fun ActionGifsTab(
 @Composable
 private fun ActionMessagesTab(
     actions: JsonObject?,
-    actionsList: List<Pair<String, String>>,
+    actionsListObj: JsonObject?,
+    actionsKeys: List<String>,
     selectedActionKey: String,
     onActionSelect: (String) -> Unit,
     api: ApiClient,
@@ -3459,8 +3439,8 @@ private fun ActionMessagesTab(
                             onClick = { expanded = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            val selected = actionsList.find { it.first == selectedActionKey }
-                            Text(selected?.second ?: "Sélectionner...", modifier = Modifier.weight(1f))
+                            val label = actionsListObj?.obj(selectedActionKey)?.str("label") ?: selectedActionKey
+                            Text(label, modifier = Modifier.weight(1f))
                             Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, null)
                         }
                         androidx.compose.material3.DropdownMenu(
@@ -3468,9 +3448,9 @@ private fun ActionMessagesTab(
                             onDismissRequest = { expanded = false },
                             modifier = Modifier.fillMaxWidth(0.9f)
                         ) {
-                            actionsList.forEach { (key, label) ->
+                            actionsKeys.forEach { key ->
                                 androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(label) },
+                                    text = { Text(actionsListObj?.obj(key)?.str("label") ?: key) },
                                     onClick = {
                                         onActionSelect(key)
                                         expanded = false
