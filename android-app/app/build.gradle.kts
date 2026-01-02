@@ -12,8 +12,8 @@ android {
         applicationId = "com.bagbot.manager"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6116
-        versionName = "6.1.16"
+        versionCode = 6117
+        versionName = "6.1.17"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

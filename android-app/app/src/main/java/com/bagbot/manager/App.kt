@@ -1376,6 +1376,21 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
                     Log.d(TAG, "Response /api/configs: ${configJson.take(200)}")
                     val baseConfig = json.parseToJsonElement(configJson).jsonObject
 
+                    // LOG DEBUG: Vérifier les actions économiques
+                    try {
+                        val ecoActions = baseConfig["economy"]?.jsonObject?.get("actions")?.jsonObject
+                        val actionsList = ecoActions?.get("list")?.jsonObject
+                        val actionsConfig = ecoActions?.get("config")?.jsonObject
+                        val actionsEnabled = ecoActions?.get("enabled")?.jsonArray
+                        Log.d(TAG, "=== DEBUG ACTIONS ===")
+                        Log.d(TAG, "Actions enabled: $actionsEnabled")
+                        Log.d(TAG, "Actions list keys: ${actionsList?.keys}")
+                        Log.d(TAG, "Actions config keys: ${actionsConfig?.keys}")
+                        Log.d(TAG, "====================")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error logging actions: ${e.message}")
+                    }
+
                     // Injecter une vue fiable de l'inactivité via /api/inactivity
                     val mergedConfig = try {
                         val inactivityJson = api.getJson("/api/inactivity")
