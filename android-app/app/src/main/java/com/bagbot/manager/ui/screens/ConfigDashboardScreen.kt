@@ -7717,14 +7717,6 @@ private fun TribunalConfigTab(
                         }
                         Spacer(Modifier.height(12.dp))
                         
-                        Text("📊 Statistiques", fontWeight = FontWeight.SemiBold, color = Color(0xFF8B4513))
-                        Spacer(Modifier.height(8.dp))
-                        Text("• Dossiers enregistrés: $casesCount", color = Color.Gray)
-                        
-                        Spacer(Modifier.height(12.dp))
-                        Divider(color = Color.Gray.copy(alpha = 0.3f))
-                        Spacer(Modifier.height(12.dp))
-                        
                         Text("⚖️ Commande: /tribunal", fontWeight = FontWeight.Bold, color = Color(0xFF8B4513))
                         Text("Ouvrir un nouveau dossier au tribunal", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                         
