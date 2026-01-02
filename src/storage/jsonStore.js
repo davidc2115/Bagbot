@@ -1106,6 +1106,67 @@ function ensureEconomyShape(g) {
   }
   if (!e.actions.config || typeof e.actions.config !== 'object') e.actions.config = {};
   
+  // Initialiser actions.list avec les labels pour toutes les actions
+  if (!e.actions.list || typeof e.actions.list !== 'object') e.actions.list = {};
+  const actionLabels = {
+    daily: { label: '💰 Daily', description: 'Récompense quotidienne' },
+    work: { label: '💼 Travailler', description: 'Gagner de l\'argent en travaillant' },
+    fish: { label: '🎣 Pêcher', description: 'Pêcher pour gagner de l\'argent' },
+    give: { label: '💝 Donner', description: 'Donner de l\'argent' },
+    steal: { label: '💰 Voler', description: 'Voler quelqu\'un' },
+    kiss: { label: '💋 Embrasser', description: 'Embrasser quelqu\'un' },
+    flirt: { label: '😘 Flirter', description: 'Flirter avec quelqu\'un' },
+    seduce: { label: '😏 Séduire', description: 'Séduire quelqu\'un' },
+    fuck: { label: '🔥 Fuck', description: 'Action intense' },
+    sodo: { label: '🍑 Sodomie', description: 'Action très intense' },
+    orgasme: { label: '💦 Orgasme', description: 'Climax' },
+    branler: { label: '✊ Branler', description: 'Action manuelle' },
+    doigter: { label: '👉 Doigter', description: 'Action digitale' },
+    hairpull: { label: '💇 Tirer cheveux', description: 'Tirer les cheveux' },
+    caress: { label: '🫳 Caresser', description: 'Caresser doucement' },
+    lick: { label: '👅 Lécher', description: 'Lécher sensuellement' },
+    suck: { label: '👄 Sucer', description: 'Action orale' },
+    nibble: { label: '😬 Mordre', description: 'Mordiller gentiment' },
+    tickle: { label: '🤭 Chatouiller', description: 'Chatouiller quelqu\'un' },
+    revive: { label: '💖 Ranimer', description: 'Ranimer quelqu\'un' },
+    comfort: { label: '🤗 Réconforter', description: 'Réconforter quelqu\'un' },
+    massage: { label: '💆 Masser', description: 'Masser quelqu\'un' },
+    dance: { label: '💃 Danser', description: 'Danser ensemble' },
+    crime: { label: '🔫 Crime', description: 'Commettre un crime' },
+    shower: { label: '🚿 Douche', description: 'Prendre une douche ensemble' },
+    wet: { label: '💧 Mouiller', description: 'Mouiller quelqu\'un' },
+    bed: { label: '🛏️ Lit', description: 'Aller au lit' },
+    undress: { label: '👗 Déshabiller', description: 'Déshabiller quelqu\'un' },
+    collar: { label: '⛓️ Collier', description: 'Mettre un collier' },
+    leash: { label: '🔗 Laisse', description: 'Mettre en laisse' },
+    kneel: { label: '🧎 Agenouiller', description: 'S\'agenouiller' },
+    order: { label: '👑 Ordonner', description: 'Donner un ordre' },
+    punish: { label: '😈 Punir', description: 'Punir quelqu\'un' },
+    rose: { label: '🌹 Rose', description: 'Offrir une rose' },
+    wine: { label: '🍷 Vin', description: 'Boire du vin ensemble' },
+    pillowfight: { label: '🪶 Bataille oreillers', description: 'Bataille d\'oreillers' },
+    sleep: { label: '😴 Dormir', description: 'Dormir ensemble' },
+    oops: { label: '😳 Oups', description: 'Moment embarrassant' },
+    caught: { label: '😱 Attrapé', description: 'Se faire attraper' },
+    tromper: { label: '💔 Tromper', description: 'Tromper son partenaire' },
+    orgie: { label: '🔞 Orgie', description: 'Orgie' },
+    touche: { label: '✋ Toucher', description: 'Toucher sensuellement' },
+    reveiller: { label: '⏰ Réveiller', description: 'Réveiller quelqu\'un' },
+    cuisiner: { label: '👨‍🍳 Cuisiner', description: 'Cuisiner pour quelqu\'un' },
+    douche: { label: '🚿 Douche', description: 'Douche sensuelle' }
+  };
+  
+  // Ajouter les labels manquants
+  for (const [key, data] of Object.entries(actionLabels)) {
+    if (!e.actions.list[key] || typeof e.actions.list[key] !== 'object') {
+      e.actions.list[key] = data;
+    } else {
+      // Compléter les champs manquants
+      if (!e.actions.list[key].label) e.actions.list[key].label = data.label;
+      if (!e.actions.list[key].description) e.actions.list[key].description = data.description;
+    }
+  }
+  
   // Ensure karmaModifiers structure exists and is valid
   if (!e.karmaModifiers || typeof e.karmaModifiers !== 'object') {
     e.karmaModifiers = { shop: [], actions: [], grants: [] };
