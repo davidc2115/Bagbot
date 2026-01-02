@@ -2791,7 +2791,7 @@ private fun ActionsConfigTab(
     val actionsList = remember(actions) {
         val listObj = actions?.obj("list")
         val configObj = actions?.obj("config")
-        val enabled = actions?.arr("enabled").safeStringList()
+        val enabled = actions?.arr("enabled")?.safeStringList() ?: emptyList()
         
         val keys = mutableSetOf<String>()
         // Ajouter toutes les clés des actions activées
@@ -2801,11 +2801,27 @@ private fun ActionsConfigTab(
         // Ajouter toutes les clés de la config des actions
         configObj?.jsonObject?.keys?.forEach { keys.add(it) }
         
+        Log.d(TAG, "ActionsConfigTab - enabled: $enabled")
+        Log.d(TAG, "ActionsConfigTab - list keys: ${listObj?.jsonObject?.keys}")
+        Log.d(TAG, "ActionsConfigTab - config keys: ${configObj?.jsonObject?.keys}")
+        Log.d(TAG, "ActionsConfigTab - all keys: $keys")
+        
         // Créer la liste avec les labels
-        keys.sorted().mapNotNull { key ->
-            val label = listObj?.obj(key)?.str("label") ?: key
+        val result = keys.sorted().map { key ->
+            // Essayer de récupérer le label depuis list.key.label
+            val labelFromList = try {
+                listObj?.jsonObject?.get(key)?.jsonObject?.get("label")?.jsonPrimitive?.content
+            } catch (e: Exception) {
+                null
+            }
+            // Sinon utiliser la clé comme label
+            val label = labelFromList ?: key
+            Log.d(TAG, "ActionsConfigTab - Action $key -> label: $label")
             key to label
         }
+        
+        Log.d(TAG, "ActionsConfigTab - final actionsList size: ${result.size}")
+        result
     }
     
     var selectedTab by remember { mutableIntStateOf(0) }
