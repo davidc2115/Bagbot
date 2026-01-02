@@ -7419,7 +7419,7 @@ private fun TribunalConfigTab(
                         categoryId?.let { put("categoryId", it) }
                         judgeRoleId?.let { put("judgeRoleId", it) }
                     }
-                    api.postJson("/api/tribunal", payload)
+                    api.postJson("/api/tribunal", json.encodeToString(JsonObject.serializer(), payload))
                     withContext(Dispatchers.Main) {
                         snackbar.showSnackbar("✅ Configuration tribunal sauvegardée!")
                         isSaving = false
@@ -7502,11 +7502,10 @@ private fun TribunalConfigTab(
                     Text("Catégorie où les salons de tribunal seront créés", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(8.dp))
                     ChannelSelector(
-                        selected = categoryId,
                         channels = channels,
-                        onSelect = { categoryId = it },
-                        label = "Catégorie",
-                        allowNull = true
+                        selectedChannelId = categoryId,
+                        onChannelSelected = { categoryId = it },
+                        label = "Catégorie"
                     )
                     
                     Spacer(Modifier.height(16.dp))
@@ -7516,11 +7515,10 @@ private fun TribunalConfigTab(
                     Text("Rôle qui peut prendre en charge les dossiers", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(8.dp))
                     RoleSelector(
-                        selected = judgeRoleId,
                         roles = roles,
-                        onSelect = { judgeRoleId = it },
-                        label = "Rôle juge",
-                        allowNull = true
+                        selectedRoleId = judgeRoleId,
+                        onRoleSelected = { judgeRoleId = it },
+                        label = "Rôle juge"
                     )
                     
                     Spacer(Modifier.height(20.dp))
