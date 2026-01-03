@@ -2349,6 +2349,11 @@ module.exports = {
   getCountingConfig,
   updateCountingConfig,
   setCountingState,
+  getCountingChannelConfig,
+  setCountingChannelState,
+  updateCountingChannelConfig,
+  addCountingChannel,
+  removeCountingChannel,
   getDisboardConfig,
   updateDisboardConfig,
   // Tribunal

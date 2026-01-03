@@ -10,7 +10,7 @@ try {
   try { console.error('[Lock] init failed:', e?.message || e); } catch (_) {}
 }
 
-const { setGuildStaffRoleIds, getGuildStaffRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
+const { setGuildStaffRoleIds, getGuildStaffRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getCountingChannelConfig, setCountingChannelState, updateCountingChannelConfig, addCountingChannel, removeCountingChannel, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
 const { downloadDiscordGifForBot } = require('./utils/discord_gif_downloader');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 
@@ -5109,13 +5109,33 @@ async function buildAutoThreadRows(guild, page = 0) {
 
 async function buildCountingRows(guild) {
   const cfg = await getCountingConfig(guild.id);
+  
+  // Nouveau format : cfg.channels est un objet { channelId: config }
+  // Ancien format : cfg.channels est un array ['channelId1', 'channelId2']
+  const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+  
   const chAdd = new ChannelSelectMenuBuilder().setCustomId('counting_channels_add').setPlaceholder('Ajouter des salons…').setMinValues(1).setMaxValues(3).addChannelTypes(ChannelType.GuildText);
-  const chRem = new StringSelectMenuBuilder().setCustomId('counting_channels_remove').setPlaceholder('Retirer des salons…').setMinValues(1).setMaxValues(Math.max(1, Math.min(25, (cfg.channels||[]).length || 1)));
-  const opts = (cfg.channels||[]).map(id => ({ label: guild.channels.cache.get(id)?.name || id, value: id }));
+  const chRem = new StringSelectMenuBuilder().setCustomId('counting_channels_remove').setPlaceholder('Retirer des salons…').setMinValues(1).setMaxValues(Math.max(1, Math.min(25, channelIds.length || 1)));
+  
+  const opts = channelIds.map(id => {
+    const ch = guild.channels.cache.get(id);
+    const chCfg = cfg.channels[id] || {};
+    const current = chCfg.state?.current || 0;
+    return { 
+      label: `${ch?.name || id} (${current})`, 
+      value: id 
+    };
+  });
+  
   if (opts.length) chRem.addOptions(...opts); else chRem.addOptions({ label: 'Aucun', value: 'none' }).setDisabled(true);
-  const formulas = new ButtonBuilder().setCustomId('counting_toggle_formulas').setLabel(cfg.allowFormulas ? 'Formules: ON' : 'Formules: OFF').setStyle(cfg.allowFormulas ? ButtonStyle.Success : ButtonStyle.Secondary);
-  const reset = new ButtonBuilder().setCustomId('counting_reset').setLabel(`Remise à zéro (actuel: ${cfg.state?.current||0})`).setStyle(ButtonStyle.Danger);
+  
+  // Note : formulas et autres options sont maintenant par channel, mais on garde un toggle global pour simplifier l'UI
+  const globalFormulas = channelIds.length > 0 && channelIds.every(id => cfg.channels[id]?.allowFormulas !== false);
+  const formulas = new ButtonBuilder().setCustomId('counting_toggle_formulas').setLabel(globalFormulas ? 'Formules: ON' : 'Formules: OFF').setStyle(globalFormulas ? ButtonStyle.Success : ButtonStyle.Secondary);
+  
+  const reset = new ButtonBuilder().setCustomId('counting_reset').setLabel('Remise à zéro (sélection)').setStyle(ButtonStyle.Danger);
   const resetTrophies = new ButtonBuilder().setCustomId('counting_reset_trophies').setLabel('Reset trophées 🏆').setStyle(ButtonStyle.Danger);
+  
   return [
     new ActionRowBuilder().addComponents(chAdd),
     new ActionRowBuilder().addComponents(chRem),
@@ -10730,39 +10750,75 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // Counting config handlers
     if (interaction.isChannelSelectMenu() && interaction.customId === 'counting_channels_add') {
       const cfg = await getCountingConfig(interaction.guild.id);
-      const set = new Set(cfg.channels || []);
-      for (const id of interaction.values) set.add(String(id));
-      await updateCountingConfig(interaction.guild.id, { channels: Array.from(set) });
+      
+      // Gérer ancien et nouveau format
+      const existingChannels = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      for (const id of interaction.values) {
+        const channelId = String(id);
+        if (!existingChannels.includes(channelId)) {
+          // Ajouter un nouveau channel avec sa propre config
+          await addCountingChannel(interaction.guild.id, channelId, {
+            allowFormulas: true,
+            deleteInvalid: true
+          });
+        }
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isStringSelectMenu() && interaction.customId === 'counting_channels_remove') {
       if (interaction.values.includes('none')) return interaction.deferUpdate();
-      const cfg = await getCountingConfig(interaction.guild.id);
-      const remove = new Set(interaction.values.map(String));
-      const next = (cfg.channels||[]).filter(id => !remove.has(String(id)));
-      await updateCountingConfig(interaction.guild.id, { channels: next });
+      
+      for (const channelId of interaction.values) {
+        await removeCountingChannel(interaction.guild.id, String(channelId));
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isButton() && interaction.customId === 'counting_toggle_formulas') {
       const cfg = await getCountingConfig(interaction.guild.id);
-      await updateCountingConfig(interaction.guild.id, { allowFormulas: !cfg.allowFormulas });
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      // Toggle formulas pour tous les channels
+      const currentState = channelIds.length > 0 && channelIds.every(id => cfg.channels[id]?.allowFormulas !== false);
+      const newState = !currentState;
+      
+      for (const channelId of channelIds) {
+        await updateCountingChannelConfig(interaction.guild.id, channelId, { allowFormulas: newState });
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isButton() && interaction.customId === 'counting_reset') {
-      await setCountingState(interaction.guild.id, { current: 0, lastUserId: '' });
+      const cfg = await getCountingConfig(interaction.guild.id);
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      // Reset tous les channels
+      for (const channelId of channelIds) {
+        await setCountingChannelState(interaction.guild.id, channelId, { current: 0, lastUserId: '' });
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isButton() && interaction.customId === 'counting_reset_trophies') {
-      await updateCountingConfig(interaction.guild.id, { achievedNumbers: [] });
-      await setCountingState(interaction.guild.id, { current: 0, lastUserId: '' });
+      const cfg = await getCountingConfig(interaction.guild.id);
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      // Reset trophées et compteur pour tous les channels
+      for (const channelId of channelIds) {
+        await updateCountingChannelConfig(interaction.guild.id, channelId, { achievedNumbers: [] });
+        await setCountingChannelState(interaction.guild.id, channelId, { current: 0, lastUserId: '' });
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
@@ -12792,97 +12848,198 @@ client.on(Events.MessageCreate, async (message) => {
     // Counting runtime
     try {
       const cfg = await getCountingConfig(message.guild.id);
-      if (cfg.channels && cfg.channels.includes(message.channel.id)) {
-        const raw = (message.content || '').trim();
-        // Keep only digits, operators, parentheses, spaces, caret, sqrt symbol, and mathematical symbols × ÷
-        let onlyDigitsAndOps = raw.replace(/[^0-9+\-*\/().\s^√×÷]/g, '');
-        // Remplacer les symboles mathématiques par leurs équivalents
-        onlyDigitsAndOps = onlyDigitsAndOps.replace(/×/g, '*').replace(/÷/g, '/');
-        // If any letters are present in the original message, ignore (do not reset)
-        const state0 = cfg.state || { current: 0, lastUserId: '' };
-        const expected0 = (state0.current || 0) + 1;
-        if (/[a-zA-Z]/.test(raw)) {
-          return;
-        }
-        // If no digit at all, ignore silently
-        if (!/\d/.test(onlyDigitsAndOps)) {
-          return;
-        }
-        let value = NaN;
-        // Fast path: plain integer
-        const intMatch = onlyDigitsAndOps.match(/^-?\d+$/);
-        if (intMatch) {
-          value = Number(intMatch[0]);
-        } else if (cfg.allowFormulas) {
-          let expr0 = onlyDigitsAndOps;
-          expr0 = expr0.replace(/√\s*\(/g, 'Math.sqrt(');
-          expr0 = expr0.replace(/√\s*([0-9]+(?:\.[0-9]+)?)/g, 'Math.sqrt($1)');
-          expr0 = expr0.replace(/\^/g,'**');
-          const testable = expr0.replace(/Math\.sqrt/g,'');
-          const ok = /^[0-9+\-*\/().\s]*$/.test(testable);
-          if (ok && expr0.length > 0) {
-            try { value = Number(Function('"use strict";return (' + expr0 + ')')()); } catch (_) { value = NaN; }
+      
+      // Vérifier si le message est dans un channel de comptage
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      const channelId = message.channel.id;
+      
+      if (!channelIds.includes(channelId)) return; // Pas un channel de comptage
+      
+      // Récupérer la config spécifique à ce channel
+      const channelCfg = await getCountingChannelConfig(message.guild.id, channelId);
+      
+      const raw = (message.content || '').trim();
+      // Keep only digits, operators, parentheses, spaces, caret, sqrt symbol, and mathematical symbols × ÷
+      let onlyDigitsAndOps = raw.replace(/[^0-9+\-*\/().\s^√×÷]/g, '');
+      // Remplacer les symboles mathématiques par leurs équivalents
+      onlyDigitsAndOps = onlyDigitsAndOps.replace(/×/g, '*').replace(/÷/g, '/');
+      
+      const state = channelCfg.state || { current: 0, lastUserId: '' };
+      const expected = (state.current || 0) + 1;
+      
+      // Si le message contient des lettres (pas un calcul), supprimer
+      if (/[a-zA-Z]/.test(raw)) {
+        if (channelCfg.deleteInvalid) {
+          try {
+            await message.delete();
+            // Optionnel : envoyer un DM à l'utilisateur
+            try {
+              await message.author.send({
+                embeds: [new EmbedBuilder()
+                  .setColor(0xec407a)
+                  .setTitle('🚫 Message supprimé - Comptage')
+                  .setDescription(`Ton message dans <#${channelId}> a été supprimé.\n\n**Raison :** Ce salon est réservé au comptage uniquement.\n**Nombre attendu :** ${expected}\n\nMerci de poster uniquement des nombres ou calculs ! 😊`)
+                  .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+                ]
+              });
+            } catch (_) {
+              // L'utilisateur a peut-être bloqué les DMs, ce n'est pas grave
+            }
+          } catch (_) {
+            // Pas de permission de supprimer, on ignore
           }
-          if (!Number.isFinite(value)) {
-            const digitsOnly = onlyDigitsAndOps.replace(/[^0-9]/g,'');
-            if (digitsOnly.length > 0) value = Number(digitsOnly);
-          }
-        } else {
+        }
+        return;
+      }
+      
+      // Si aucun chiffre n'est présent, supprimer
+      if (!/\d/.test(onlyDigitsAndOps)) {
+        if (channelCfg.deleteInvalid) {
+          try {
+            await message.delete();
+          } catch (_) {}
+        }
+        return;
+      }
+      
+      let value = NaN;
+      // Fast path: plain integer
+      const intMatch = onlyDigitsAndOps.match(/^-?\d+$/);
+      if (intMatch) {
+        value = Number(intMatch[0]);
+      } else if (channelCfg.allowFormulas) {
+        let expr0 = onlyDigitsAndOps;
+        expr0 = expr0.replace(/√\s*\(/g, 'Math.sqrt(');
+        expr0 = expr0.replace(/√\s*([0-9]+(?:\.[0-9]+)?)/g, 'Math.sqrt($1)');
+        expr0 = expr0.replace(/\^/g,'**');
+        const testable = expr0.replace(/Math\.sqrt/g,'');
+        const ok = /^[0-9+\-*\/().\s]*$/.test(testable);
+        if (ok && expr0.length > 0) {
+          try { value = Number(Function('"use strict";return (' + expr0 + ')')()); } catch (_) { value = NaN; }
+        }
+        if (!Number.isFinite(value)) {
           const digitsOnly = onlyDigitsAndOps.replace(/[^0-9]/g,'');
           if (digitsOnly.length > 0) value = Number(digitsOnly);
         }
-        // Final fallback: first integer sequence
-        if (!Number.isFinite(value)) {
-          const m = onlyDigitsAndOps.match(/-?\d+/);
-          if (m) value = Number(m[0]);
+      } else {
+        const digitsOnly = onlyDigitsAndOps.replace(/[^0-9]/g,'');
+        if (digitsOnly.length > 0) value = Number(digitsOnly);
+      }
+      
+      // Final fallback: first integer sequence
+      if (!Number.isFinite(value)) {
+        const m = onlyDigitsAndOps.match(/-?\d+/);
+        if (m) value = Number(m[0]);
+      }
+      
+      // Si on ne peut pas parser un nombre, supprimer le message et avertir
+      if (!Number.isFinite(value)) {
+        if (channelCfg.deleteInvalid) {
+          try {
+            await message.delete();
+          } catch (_) {}
         }
-        // If we couldn't parse a number safely, do NOT reset the counter:
-        // random messages with digits (emojis, IDs, etc.) shouldn't wipe progress.
-        if (!Number.isFinite(value)) {
-          await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: valeur non reconnue').setDescription('Attendu: **' + expected0 + '**\nJe n\'arrive pas à interpréter ton message comme un nombre (ou une formule).\nOn ne reset pas: tu peux renvoyer **' + expected0 + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-        } else {
-          // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
-          const rounded = Math.round(value);
-          const eps = 1e-9;
-          const next = (Math.abs(value - rounded) <= eps) ? rounded : value;
-          const state = cfg.state || { current: 0, lastUserId: '' };
-          const expected = (state.current || 0) + 1;
-          if ((state.lastUserId||'') === message.author.id) {
-            await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Doucement, un à la fois…').setDescription('Deux chiffres d\'affilée 😉\nAttendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, à toi de rejouer.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-          } else if (!Number.isInteger(next)) {
-            // Non-integer results shouldn't hard-reset the game.
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: résultat non entier').setDescription('Attendu: **' + expected + '**\nTon résultat fait **' + String(next) + '** (non entier). Le comptage attend un entier.\nOn ne reset pas: renvoie **' + expected + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-          } else if (next !== expected) {
-            await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Mauvais numéro').setDescription('Attendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on se retrouve au début 💕').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-          } else {
-            await setCountingState(message.guild.id, { current: next, lastUserId: message.author.id });
-            
-            // Vérifier si c'est la première fois que ce nombre est atteint
-            const isFirstTime = !cfg.achievedNumbers || !cfg.achievedNumbers.includes(next);
-            if (isFirstTime) {
-              // Ajouter le nombre à la liste des nombres atteints
-              const updatedAchieved = [...(cfg.achievedNumbers || []), next];
-              await updateCountingConfig(message.guild.id, { achievedNumbers: updatedAchieved });
-              
-              // Ajouter les réactions : trophée + check
-              try {
-                // Vérifier permissions
-                const perms = message.channel.permissionsFor(message.guild.members.me);
-                if (perms && perms.has('AddReactions')) {
-                  await message.react('🏆');
-                  // Délai pour éviter rate limit Discord
-                  await new Promise(resolve => setTimeout(resolve, 300));
-                  await message.react('✅');
-                } else {
-                  console.log('[COUNTING] ⚠️ Pas de permission AddReactions');
-                }
-              } catch (err) {
-                console.log(`[COUNTING] ❌ Erreur réaction (première fois): ${err.message}`);
-              }
-            } else {
-              // Juste le check habituel
+        await message.author.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0xffb300)
+            .setTitle('⚠️ Comptage: valeur non reconnue')
+            .setDescription(`Attendu: **${expected}**\n\nJe n'arrive pas à interpréter ton message comme un nombre (ou une formule).\n\nRenvoie **${expected}** dans <#${channelId}> ✅`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+          ]
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
+      const rounded = Math.round(value);
+      const eps = 1e-9;
+      const next = (Math.abs(value - rounded) <= eps) ? rounded : value;
+      
+      // Vérifier si c'est le même utilisateur deux fois de suite
+      if ((state.lastUserId||'') === message.author.id) {
+        await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
+        await message.reply({ 
+          embeds: [new EmbedBuilder()
+            .setColor(0xec407a)
+            .setTitle('❌ Doucement, un à la fois…')
+            .setDescription(`Deux chiffres d'affilée 😉\n\nAttendu: **${expected}**\nRemise à zéro → **1**\n\n<@${message.author.id}>, à toi de rejouer.`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+            .setImage(categoryBanners.comptage || undefined)
+          ] 
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Vérifier si le résultat est un entier
+      if (!Number.isInteger(next)) {
+        await message.reply({ 
+          embeds: [new EmbedBuilder()
+            .setColor(0xffb300)
+            .setTitle('⚠️ Comptage: résultat non entier')
+            .setDescription(`Attendu: **${expected}**\n\nTon résultat fait **${String(next)}** (non entier).\nLe comptage attend un entier.\n\nOn ne reset pas: renvoie **${expected}** ✅`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+            .setImage(categoryBanners.comptage || undefined)
+          ] 
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Vérifier si c'est le bon nombre
+      if (next !== expected) {
+        await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
+        await message.reply({ 
+          embeds: [new EmbedBuilder()
+            .setColor(0xec407a)
+            .setTitle('❌ Mauvais numéro')
+            .setDescription(`Attendu: **${expected}**\nRemise à zéro → **1**\n\n<@${message.author.id}>, on se retrouve au début 💕`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+            .setImage(categoryBanners.comptage || undefined)
+          ] 
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Succès ! Mettre à jour l'état
+      await setCountingChannelState(message.guild.id, channelId, { current: next, lastUserId: message.author.id });
+      
+      // Vérifier si c'est la première fois que ce nombre est atteint (pour ce channel)
+      const achievedNumbers = channelCfg.achievedNumbers || [];
+      const isFirstTime = !achievedNumbers.includes(next);
+      
+      if (isFirstTime) {
+        // Ajouter le nombre à la liste des nombres atteints
+        const updatedAchieved = [...achievedNumbers, next];
+        await updateCountingChannelConfig(message.guild.id, channelId, { achievedNumbers: updatedAchieved });
+        
+        // Ajouter les réactions : trophée + check
+        try {
+          const perms = message.channel.permissionsFor(message.guild.members.me);
+          if (perms && perms.has('AddReactions')) {
+            await message.react('🏆');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await message.react('✅');
+          }
+        } catch (err) {
+          console.log(`[COUNTING] ❌ Erreur réaction (première fois): ${err.message}`);
+        }
+      } else {
+        // Juste le check habituel
+        try {
+          const perms = message.channel.permissionsFor(message.guild.members.me);
+          if (perms && perms.has('AddReactions')) {
+            await message.react('✅');
+          }
+        } catch (err) {
+          console.log(`[COUNTING] ❌ Erreur réaction: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      console.error('[COUNTING] ❌ Erreur dans le système de comptage:', err);
+    }
               try {
                 const perms = message.channel.permissionsFor(message.guild.members.me);
                 if (perms && perms.has('AddReactions')) {
