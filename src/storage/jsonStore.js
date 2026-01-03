@@ -1749,19 +1749,69 @@ function ensureAutoThreadShape(g) {
 function ensureCountingShape(g) {
   if (!g.counting || typeof g.counting !== 'object') g.counting = {};
   const c = g.counting;
-  if (!Array.isArray(c.channels)) c.channels = [];
-  if (typeof c.allowFormulas !== 'boolean') c.allowFormulas = true;
-  if (!c.state || typeof c.state !== 'object') c.state = { current: 0, lastUserId: '' };
-  // Be tolerant: some clients may persist numbers as strings.
-  if (typeof c.state.current === 'string') {
-    const s = c.state.current.trim();
-    const n = Number(s);
-    c.state.current = Number.isFinite(n) ? n : 0;
-  } else if (typeof c.state.current !== 'number') {
-    c.state.current = 0;
+  
+  // MIGRATION: Ancien format avec c.channels array + c.state unique
+  // Nouveau format: c.channels object avec un état par channel
+  if (Array.isArray(c.channels)) {
+    // Migration depuis l'ancien format
+    const oldChannels = c.channels;
+    const oldState = c.state || { current: 0, lastUserId: '' };
+    const oldAchievedNumbers = c.achievedNumbers || [];
+    const oldAllowFormulas = typeof c.allowFormulas === 'boolean' ? c.allowFormulas : true;
+    
+    // Créer le nouveau format
+    c.channels = {};
+    
+    // Migrer chaque channel avec l'état partagé (on le duplique pour chaque channel)
+    for (const channelId of oldChannels) {
+      c.channels[channelId] = {
+        allowFormulas: oldAllowFormulas,
+        state: { ...oldState },
+        achievedNumbers: [...oldAchievedNumbers],
+        deleteInvalid: true  // Nouvelle option : supprimer les messages invalides
+      };
+    }
+    
+    // Nettoyer les anciennes propriétés
+    delete c.state;
+    delete c.achievedNumbers;
+    delete c.allowFormulas;
   }
-  if (typeof c.state.lastUserId !== 'string') c.state.lastUserId = '';
-  if (!Array.isArray(c.achievedNumbers)) c.achievedNumbers = [];
+  
+  // Assurer que c.channels est un objet
+  if (!c.channels || typeof c.channels !== 'object' || Array.isArray(c.channels)) {
+    c.channels = {};
+  }
+  
+  // Assurer la forme de chaque channel
+  for (const channelId in c.channels) {
+    const ch = c.channels[channelId];
+    if (typeof ch !== 'object') {
+      c.channels[channelId] = {
+        allowFormulas: true,
+        state: { current: 0, lastUserId: '' },
+        achievedNumbers: [],
+        deleteInvalid: true
+      };
+      continue;
+    }
+    
+    if (typeof ch.allowFormulas !== 'boolean') ch.allowFormulas = true;
+    if (typeof ch.deleteInvalid !== 'boolean') ch.deleteInvalid = true;
+    
+    if (!ch.state || typeof ch.state !== 'object') ch.state = { current: 0, lastUserId: '' };
+    // Be tolerant: some clients may persist numbers as strings.
+    if (typeof ch.state.current === 'string') {
+      const s = ch.state.current.trim();
+      const n = Number(s);
+      ch.state.current = Number.isFinite(n) ? n : 0;
+    } else if (typeof ch.state.current !== 'number') {
+      ch.state.current = 0;
+    }
+    if (typeof ch.state.lastUserId !== 'string') ch.state.lastUserId = '';
+    
+    if (!Array.isArray(ch.achievedNumbers)) ch.achievedNumbers = [];
+  }
 }
 function ensureDisboardShape(g) {
   if (!g.disboard || typeof g.disboard !== 'object') g.disboard = {};
@@ -1886,12 +1936,120 @@ async function updateCountingConfig(guildId, partial) {
 }
 
 async function setCountingState(guildId, state) {
+  // DEPRECATED: Cette fonction est conservée pour rétrocompatibilité mais ne devrait plus être utilisée
+  // Utiliser setCountingChannelState à la place
   const cfg = await readConfig();
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   ensureCountingShape(cfg.guilds[guildId]);
-  cfg.guilds[guildId].counting.state = { ...(cfg.guilds[guildId].counting.state || {}), ...state };
+  
+  // Si l'ancien format existe encore, mettre à jour l'état global
+  if (cfg.guilds[guildId].counting.state) {
+    cfg.guilds[guildId].counting.state = { ...(cfg.guilds[guildId].counting.state || {}), ...state };
+  } else {
+    // Nouveau format : mettre à jour tous les channels
+    for (const channelId in cfg.guilds[guildId].counting.channels) {
+      cfg.guilds[guildId].counting.channels[channelId].state = { 
+        ...(cfg.guilds[guildId].counting.channels[channelId].state || {}), 
+        ...state 
+      };
+    }
+  }
+  
   await writeConfig(cfg, "counting");
-  return cfg.guilds[guildId].counting.state;
+  return state;
+}
+
+// Nouvelles fonctions pour gérer l'état par channel
+async function getCountingChannelConfig(guildId, channelId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  const channels = cfg.guilds[guildId].counting.channels || {};
+  if (!channels[channelId]) {
+    // Créer la config par défaut pour ce channel
+    channels[channelId] = {
+      allowFormulas: true,
+      state: { current: 0, lastUserId: '' },
+      achievedNumbers: [],
+      deleteInvalid: true
+    };
+  }
+  
+  return channels[channelId];
+}
+
+async function setCountingChannelState(guildId, channelId, state) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  if (!cfg.guilds[guildId].counting.channels[channelId]) {
+    cfg.guilds[guildId].counting.channels[channelId] = {
+      allowFormulas: true,
+      state: { current: 0, lastUserId: '' },
+      achievedNumbers: [],
+      deleteInvalid: true
+    };
+  }
+  
+  cfg.guilds[guildId].counting.channels[channelId].state = { 
+    ...(cfg.guilds[guildId].counting.channels[channelId].state || {}), 
+    ...state 
+  };
+  
+  await writeConfig(cfg, "counting");
+  return cfg.guilds[guildId].counting.channels[channelId].state;
+}
+
+async function updateCountingChannelConfig(guildId, channelId, partial) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  if (!cfg.guilds[guildId].counting.channels[channelId]) {
+    cfg.guilds[guildId].counting.channels[channelId] = {
+      allowFormulas: true,
+      state: { current: 0, lastUserId: '' },
+      achievedNumbers: [],
+      deleteInvalid: true
+    };
+  }
+  
+  cfg.guilds[guildId].counting.channels[channelId] = {
+    ...cfg.guilds[guildId].counting.channels[channelId],
+    ...partial
+  };
+  
+  await writeConfig(cfg, "counting");
+  return cfg.guilds[guildId].counting.channels[channelId];
+}
+
+async function addCountingChannel(guildId, channelId, options = {}) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  cfg.guilds[guildId].counting.channels[channelId] = {
+    allowFormulas: options.allowFormulas !== undefined ? options.allowFormulas : true,
+    state: { current: 0, lastUserId: '' },
+    achievedNumbers: [],
+    deleteInvalid: options.deleteInvalid !== undefined ? options.deleteInvalid : true
+  };
+  
+  await writeConfig(cfg, "counting");
+  return cfg.guilds[guildId].counting.channels[channelId];
+}
+
+async function removeCountingChannel(guildId, channelId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  delete cfg.guilds[guildId].counting.channels[channelId];
+  
+  await writeConfig(cfg, "counting");
+  return true;
 }
 async function getDisboardConfig(guildId) {
   const cfg = await readConfig();
