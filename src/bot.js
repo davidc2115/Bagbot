@@ -12959,6 +12959,31 @@ client.on(Events.MessageCreate, async (message) => {
       // Vérifier si c'est le même utilisateur deux fois de suite
       if ((state.lastUserId||'') === message.author.id) {
         await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
+        
+        // Créer un thread pour le gage
+        try {
+          const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
+          const thread = await message.startThread({
+            name: threadName,
+            autoArchiveDuration: 60, // 1 heure
+            reason: 'Erreur de comptage - Deux messages d\'affilée'
+          });
+          
+          // Message dans le thread avec les pings
+          await thread.send({
+            content: `<@${message.author.id}> a compté deux fois d'affilée !\n\nC'est l'heure du gage ! 😈`,
+            embeds: [new EmbedBuilder()
+              .setColor(0xec407a)
+              .setTitle('❌ Erreur : Deux chiffres d\'affilée')
+              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n\n**Règle :** Un seul message par personne ! On alterne 😉\n\n🎭 **Temps de gage !**`)
+              .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+              .setThumbnail(currentThumbnailImage)
+            ]
+          });
+        } catch (err) {
+          console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
+        }
+        
         await message.reply({ 
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
@@ -12989,7 +13014,41 @@ client.on(Events.MessageCreate, async (message) => {
       
       // Vérifier si c'est le bon nombre
       if (next !== expected) {
+        const lastGoodUserId = state.lastUserId; // Sauvegarder l'ID du dernier bon compteur
         await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
+        
+        // Créer un thread pour le gage
+        try {
+          const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
+          const thread = await message.startThread({
+            name: threadName,
+            autoArchiveDuration: 60, // 1 heure
+            reason: 'Erreur de comptage - Mauvais numéro'
+          });
+          
+          // Message dans le thread avec les pings
+          let threadContent = `<@${message.author.id}> s'est trompé de numéro !\n\n`;
+          if (lastGoodUserId && lastGoodUserId !== message.author.id) {
+            threadContent += `<@${lastGoodUserId}> était le dernier bon compteur.\n\n`;
+            threadContent += `<@${lastGoodUserId}>, à toi de donner un gage à <@${message.author.id}> ! 😈`;
+          } else {
+            threadContent += `C'est l'heure du gage ! 😈`;
+          }
+          
+          await thread.send({
+            content: threadContent,
+            embeds: [new EmbedBuilder()
+              .setColor(0xec407a)
+              .setTitle('❌ Erreur : Mauvais numéro')
+              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n**Nombre donné :** ${next}\n\n${lastGoodUserId && lastGoodUserId !== message.author.id ? `**Dernier bon compteur :** <@${lastGoodUserId}>` : ''}\n\n🎭 **Temps de gage !**`)
+              .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+              .setThumbnail(currentThumbnailImage)
+            ]
+          });
+        } catch (err) {
+          console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
+        }
+        
         await message.reply({ 
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)

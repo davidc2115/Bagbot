@@ -1,0 +1,206 @@
+#!/usr/bin/expect -f
+# Script expect pour déployer sur Freebox avec mot de passe
+
+set timeout 30
+set password "bagbot"
+set host "88.174.155.230"
+set port "33000"
+set user "bagbot"
+set bot_dir "/home/bagbot/BagBot"
+
+log_user 1
+
+puts "🔐 Déploiement SÉCURISÉ sur Freebox"
+puts "===================================="
+puts ""
+
+# Fonction pour exécuter une commande SSH
+proc ssh_exec {host port user password command} {
+    spawn ssh -p $port $user@$host $command
+    expect {
+        "password:" {
+            send "$password\r"
+            exp_continue
+        }
+        "Are you sure you want to continue connecting" {
+            send "yes\r"
+            exp_continue
+        }
+        eof
+    }
+}
+
+# Fonction pour copier un fichier avec SCP
+proc scp_file {host port user password local_file remote_file} {
+    spawn scp -P $port $local_file $user@$host:$remote_file
+    expect {
+        "password:" {
+            send "$password\r"
+            exp_continue
+        }
+        "Are you sure you want to continue connecting" {
+            send "yes\r"
+            exp_continue
+        }
+        eof
+    }
+}
+
+puts "✓ Connexion à la Freebox..."
+puts ""
+
+# Étape 1 : Créer la sauvegarde
+puts "ÉTAPE 1/5 : Création de la sauvegarde..."
+set backup_name "backup_complete_[clock format [clock seconds] -format %Y%m%d_%H%M%S]"
+
+spawn ssh -p $port $user@$host "
+    cd $bot_dir && \
+    mkdir -p backups/$backup_name && \
+    cp -r src backups/$backup_name/ && \
+    cp package.json backups/$backup_name/ 2>/dev/null || true && \
+    echo 'Sauvegarde créée le [clock format [clock seconds]]' > backups/$backup_name/README.txt && \
+    echo '$backup_name'
+"
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "Are you sure you want to continue connecting" {
+        send "yes\r"
+        exp_continue
+    }
+    -re "backup_complete_(\[0-9_\]+)" {
+        set backup_name $expect_out(1,string)
+    }
+    eof
+}
+
+puts "✓ Sauvegarde créée"
+puts ""
+
+# Étape 2 : Vérifier le bot
+puts "ÉTAPE 2/5 : Vérification du bot..."
+spawn ssh -p $port $user@$host "ps aux | grep '\[n\]ode.*src/bot.js' | awk '{print \$2}'"
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    -re "(\[0-9\]+)" {
+        set bot_pid $expect_out(1,string)
+        puts "Bot détecté (PID: $bot_pid)"
+        
+        puts ""
+        puts "Arrêter le bot ? (o/N) "
+        set stop_bot [gets stdin]
+        
+        if {$stop_bot == "o" || $stop_bot == "O" || $stop_bot == "y" || $stop_bot == "Y"} {
+            spawn ssh -p $port $user@$host "kill -15 $bot_pid"
+            expect {
+                "password:" {
+                    send "$password\r"
+                }
+            }
+            sleep 3
+            puts "✓ Bot arrêté"
+            set restart_bot 1
+        } else {
+            set restart_bot 0
+        }
+    }
+    eof {
+        puts "Bot non détecté"
+        set restart_bot 0
+    }
+}
+
+puts ""
+
+# Étape 3 : Transfert des fichiers
+puts "ÉTAPE 3/5 : Transfert des fichiers..."
+
+puts "  • bot.js..."
+spawn scp -P $port /workspace/src/bot.js $user@$host:$bot_dir/src/bot.js
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    eof
+}
+
+puts "  • jsonStore.js..."
+spawn scp -P $port /workspace/src/storage/jsonStore.js $user@$host:$bot_dir/src/storage/jsonStore.js
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    eof
+}
+
+puts "✓ Fichiers transférés"
+puts ""
+
+# Étape 4 : Vérification syntaxe
+puts "ÉTAPE 4/5 : Vérification de la syntaxe..."
+spawn ssh -p $port $user@$host "cd $bot_dir && node -c src/bot.js && node -c src/storage/jsonStore.js && echo 'OK'"
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "OK" {
+        puts "✓ Syntaxe validée"
+    }
+    "SyntaxError" {
+        puts "✗ Erreur de syntaxe !"
+        puts "Restauration de la sauvegarde..."
+        spawn ssh -p $port $user@$host "cd $bot_dir && cp -r backups/$backup_name/src/* src/"
+        expect {
+            "password:" {
+                send "$password\r"
+            }
+        }
+        exit 1
+    }
+    eof
+}
+
+puts ""
+
+# Étape 5 : Redémarrage si nécessaire
+if {$restart_bot == 1} {
+    puts "ÉTAPE 5/5 : Redémarrage du bot..."
+    spawn ssh -p $port $user@$host "cd $bot_dir && nohup node src/bot.js > bot.log 2>&1 &"
+    expect {
+        "password:" {
+            send "$password\r"
+        }
+    }
+    sleep 3
+    
+    spawn ssh -p $port $user@$host "ps aux | grep '\[n\]ode.*src/bot.js' | awk '{print \$2}'"
+    expect {
+        "password:" {
+            send "$password\r"
+            exp_continue
+        }
+        -re "(\[0-9\]+)" {
+            puts "✓ Bot redémarré (PID: $expect_out(1,string))"
+        }
+        eof
+    }
+}
+
+puts ""
+puts "===================================="
+puts "✅ DÉPLOIEMENT TERMINÉ"
+puts "===================================="
+puts ""
+puts "📦 Sauvegarde : $bot_dir/backups/$backup_name"
+puts ""
