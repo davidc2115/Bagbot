@@ -12961,7 +12961,6 @@ client.on(Events.MessageCreate, async (message) => {
         await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
         
         // Créer un thread pour le gage
-        let threadUrl = '';
         try {
           const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
           const thread = await message.startThread({
@@ -12970,11 +12969,9 @@ client.on(Events.MessageCreate, async (message) => {
             reason: 'Erreur de comptage - Deux messages d\'affilée'
           });
           
-          threadUrl = `<#${thread.id}>`;
-          
-          // Message dans le thread avec les pings et invitation à participer
+          // Message dans le thread avec invitation à tous
           await thread.send({
-            content: `<@${message.author.id}> a compté deux fois d'affilée !\n\n🎭 **C'est l'heure du gage !**\n\n💡 **@everyone peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😈`,
+            content: `<@${message.author.id}> a compté deux fois d'affilée !\n\n🎭 **C'est l'heure du gage !**\n\n💡 **Tout le monde peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😈`,
             embeds: [new EmbedBuilder()
               .setColor(0xec407a)
               .setTitle('❌ Erreur : Deux chiffres d\'affilée')
@@ -12987,9 +12984,8 @@ client.on(Events.MessageCreate, async (message) => {
           console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
         }
         
-        // Message principal avec indication de qui était le dernier compteur (le fautif lui-même)
+        // Message principal sans lien
         await message.reply({ 
-          content: threadUrl ? `🧵 Rejoignez le thread ${threadUrl} pour proposer des gages !` : undefined,
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
             .setTitle('❌ Doucement, un à la fois…')
@@ -13023,7 +13019,6 @@ client.on(Events.MessageCreate, async (message) => {
         await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
         
         // Créer un thread pour le gage
-        let threadUrl = '';
         try {
           const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
           const thread = await message.startThread({
@@ -13032,9 +13027,7 @@ client.on(Events.MessageCreate, async (message) => {
             reason: 'Erreur de comptage - Mauvais numéro'
           });
           
-          threadUrl = `<#${thread.id}>`;
-          
-          // Message dans le thread avec les pings et invitation à tous
+          // Message dans le thread avec invitation à tous
           let threadContent = `<@${message.author.id}> s'est trompé de numéro !\n\n`;
           if (lastGoodUserId && lastGoodUserId !== message.author.id) {
             threadContent += `<@${lastGoodUserId}> était le dernier bon compteur.\n\n`;
@@ -13042,7 +13035,7 @@ client.on(Events.MessageCreate, async (message) => {
           } else {
             threadContent += `C'est l'heure du gage ! 😈\n\n`;
           }
-          threadContent += `💡 **@everyone peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😊`;
+          threadContent += `💡 **Tout le monde peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😊`;
           
           await thread.send({
             content: threadContent,
@@ -13058,7 +13051,7 @@ client.on(Events.MessageCreate, async (message) => {
           console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
         }
         
-        // Message principal avec affichage du dernier bon compteur et du donneur de gage
+        // Message principal sans lien
         let mainDescription = `Attendu: **${expected}**\nDonné: **${next}**\nRemise à zéro → **1**\n\n`;
         mainDescription += `**Fautif :** <@${message.author.id}>\n`;
         
@@ -13070,7 +13063,6 @@ client.on(Events.MessageCreate, async (message) => {
         }
         
         await message.reply({ 
-          content: threadUrl ? `🧵 Rejoignez le thread ${threadUrl} pour proposer des gages !` : undefined,
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
             .setTitle('❌ Mauvais numéro')
