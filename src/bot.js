@@ -12961,6 +12961,7 @@ client.on(Events.MessageCreate, async (message) => {
         await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
         
         // Créer un thread pour le gage
+        let threadUrl = '';
         try {
           const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
           const thread = await message.startThread({
@@ -12969,13 +12970,15 @@ client.on(Events.MessageCreate, async (message) => {
             reason: 'Erreur de comptage - Deux messages d\'affilée'
           });
           
-          // Message dans le thread avec les pings
+          threadUrl = `<#${thread.id}>`;
+          
+          // Message dans le thread avec les pings et invitation à participer
           await thread.send({
-            content: `<@${message.author.id}> a compté deux fois d'affilée !\n\nC'est l'heure du gage ! 😈`,
+            content: `<@${message.author.id}> a compté deux fois d'affilée !\n\n🎭 **C'est l'heure du gage !**\n\n💡 **@everyone peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😈`,
             embeds: [new EmbedBuilder()
               .setColor(0xec407a)
               .setTitle('❌ Erreur : Deux chiffres d\'affilée')
-              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n\n**Règle :** Un seul message par personne ! On alterne 😉\n\n🎭 **Temps de gage !**`)
+              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n\n**Règle :** Un seul message par personne ! On alterne 😉\n\n🎭 **Temps de gage !**\n\n💬 Tout le monde peut proposer un gage ici !`)
               .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
               .setThumbnail(currentThumbnailImage)
             ]
@@ -12986,10 +12989,11 @@ client.on(Events.MessageCreate, async (message) => {
         
         // Message principal avec indication de qui était le dernier compteur (le fautif lui-même)
         await message.reply({ 
+          content: threadUrl ? `🧵 Rejoignez le thread ${threadUrl} pour proposer des gages !` : undefined,
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
             .setTitle('❌ Doucement, un à la fois…')
-            .setDescription(`Deux chiffres d'affilée 😉\n\nAttendu: **${expected}**\nRemise à zéro → **1**\n\n**Fautif :** <@${message.author.id}>\n\n🎭 Un thread a été créé pour le gage !`)
+            .setDescription(`Deux chiffres d'affilée 😉\n\nAttendu: **${expected}**\nRemise à zéro → **1**\n\n**Fautif :** <@${message.author.id}>\n\n🎭 Un thread a été créé pour le gage !\n💡 Tout le monde peut y proposer des idées !`)
             .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
             .setThumbnail(currentThumbnailImage)
             .setImage(categoryBanners.comptage || undefined)
@@ -13019,6 +13023,7 @@ client.on(Events.MessageCreate, async (message) => {
         await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
         
         // Créer un thread pour le gage
+        let threadUrl = '';
         try {
           const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
           const thread = await message.startThread({
@@ -13027,21 +13032,24 @@ client.on(Events.MessageCreate, async (message) => {
             reason: 'Erreur de comptage - Mauvais numéro'
           });
           
-          // Message dans le thread avec les pings
+          threadUrl = `<#${thread.id}>`;
+          
+          // Message dans le thread avec les pings et invitation à tous
           let threadContent = `<@${message.author.id}> s'est trompé de numéro !\n\n`;
           if (lastGoodUserId && lastGoodUserId !== message.author.id) {
             threadContent += `<@${lastGoodUserId}> était le dernier bon compteur.\n\n`;
-            threadContent += `<@${lastGoodUserId}>, à toi de donner un gage à <@${message.author.id}> ! 😈`;
+            threadContent += `<@${lastGoodUserId}>, à toi de donner un gage à <@${message.author.id}> ! 😈\n\n`;
           } else {
-            threadContent += `C'est l'heure du gage ! 😈`;
+            threadContent += `C'est l'heure du gage ! 😈\n\n`;
           }
+          threadContent += `💡 **@everyone peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😊`;
           
           await thread.send({
             content: threadContent,
             embeds: [new EmbedBuilder()
               .setColor(0xec407a)
               .setTitle('❌ Erreur : Mauvais numéro')
-              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n**Nombre donné :** ${next}\n\n${lastGoodUserId && lastGoodUserId !== message.author.id ? `**Dernier bon compteur :** <@${lastGoodUserId}>` : ''}\n\n🎭 **Temps de gage !**`)
+              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n**Nombre donné :** ${next}\n\n${lastGoodUserId && lastGoodUserId !== message.author.id ? `**Dernier bon compteur :** <@${lastGoodUserId}>` : ''}\n\n🎭 **Temps de gage !**\n\n💬 Tout le monde peut proposer un gage ici !`)
               .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
               .setThumbnail(currentThumbnailImage)
             ]
@@ -13056,12 +13064,13 @@ client.on(Events.MessageCreate, async (message) => {
         
         if (lastGoodUserId && lastGoodUserId !== message.author.id) {
           mainDescription += `**Dernier bon compteur :** <@${lastGoodUserId}>\n\n`;
-          mainDescription += `🎭 <@${lastGoodUserId}>, à toi de donner un gage dans le thread !`;
+          mainDescription += `🎭 <@${lastGoodUserId}>, à toi de donner un gage dans le thread !\n💡 Tout le monde peut proposer des idées !`;
         } else {
-          mainDescription += `\n🎭 Un thread a été créé pour le gage !`;
+          mainDescription += `\n🎭 Un thread a été créé pour le gage !\n💡 Tout le monde peut y proposer des idées !`;
         }
         
         await message.reply({ 
+          content: threadUrl ? `🧵 Rejoignez le thread ${threadUrl} pour proposer des gages !` : undefined,
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
             .setTitle('❌ Mauvais numéro')
