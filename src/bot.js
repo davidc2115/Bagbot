@@ -12984,11 +12984,12 @@ client.on(Events.MessageCreate, async (message) => {
           console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
         }
         
+        // Message principal avec indication de qui était le dernier compteur (le fautif lui-même)
         await message.reply({ 
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
             .setTitle('❌ Doucement, un à la fois…')
-            .setDescription(`Deux chiffres d'affilée 😉\n\nAttendu: **${expected}**\nRemise à zéro → **1**\n\n<@${message.author.id}>, à toi de rejouer.`)
+            .setDescription(`Deux chiffres d'affilée 😉\n\nAttendu: **${expected}**\nRemise à zéro → **1**\n\n**Fautif :** <@${message.author.id}>\n\n🎭 Un thread a été créé pour le gage !`)
             .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
             .setThumbnail(currentThumbnailImage)
             .setImage(categoryBanners.comptage || undefined)
@@ -13049,11 +13050,22 @@ client.on(Events.MessageCreate, async (message) => {
           console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
         }
         
+        // Message principal avec affichage du dernier bon compteur et du donneur de gage
+        let mainDescription = `Attendu: **${expected}**\nDonné: **${next}**\nRemise à zéro → **1**\n\n`;
+        mainDescription += `**Fautif :** <@${message.author.id}>\n`;
+        
+        if (lastGoodUserId && lastGoodUserId !== message.author.id) {
+          mainDescription += `**Dernier bon compteur :** <@${lastGoodUserId}>\n\n`;
+          mainDescription += `🎭 <@${lastGoodUserId}>, à toi de donner un gage dans le thread !`;
+        } else {
+          mainDescription += `\n🎭 Un thread a été créé pour le gage !`;
+        }
+        
         await message.reply({ 
           embeds: [new EmbedBuilder()
             .setColor(0xec407a)
             .setTitle('❌ Mauvais numéro')
-            .setDescription(`Attendu: **${expected}**\nRemise à zéro → **1**\n\n<@${message.author.id}>, on se retrouve au début 💕`)
+            .setDescription(mainDescription)
             .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
             .setThumbnail(currentThumbnailImage)
             .setImage(categoryBanners.comptage || undefined)
