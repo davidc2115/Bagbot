@@ -1,225 +1,226 @@
-# 🚀 Guide de Déploiement des Commandes Discord sur Freebox
+# Guide de déploiement manuel - Correctifs Comptage BagBot
 
-## ⚠️ Contexte
+## 🎯 Objectif
+Déployer les correctifs du système de comptage sur votre Freebox en toute sécurité.
 
-La Freebox (`82.67.65.98:33000`) n'est **pas accessible depuis l'environnement cloud Cursor**. Le déploiement doit être effectué soit :
-1. **Depuis une machine ayant accès SSH à la Freebox** (réseau local ou VPN)
-2. **Directement sur la Freebox** (connexion SSH puis exécution locale)
+## ⚠️ IMPORTANT - À lire avant de commencer
 
----
-
-## 🎯 Solution 1 : Déploiement depuis votre machine locale (RECOMMANDÉ)
-
-Si vous êtes sur le même réseau que la Freebox ou avez un accès SSH :
-
-### Méthode A : Script automatique avec SSH
-
-```bash
-# Transférer le script sur votre machine locale
-# Puis exécuter :
-bash deploy-discord-commands-freebox.sh ssh
-```
-
-Le script va :
-- ✅ Se connecter à la Freebox via SSH
-- ✅ Vérifier la configuration
-- ✅ Déployer les 93 commandes Discord (47 globales + 46 guild)
-- ✅ Afficher un rapport de déploiement
-
-### Méthode B : Commande SSH unique
-
-```bash
-ssh -p 33000 bagbot@82.67.65.98 'cd /home/bagbot/Bag-bot && node deploy-commands.js'
-```
+1. **Sauvegarde automatique** : Le script crée une sauvegarde avant toute modification
+2. **Le bot sera redémarré** : Prévenez vos utilisateurs d'une courte interruption
+3. **Temps estimé** : 5-10 minutes
+4. **Rollback possible** : En cas de problème, on peut revenir en arrière
 
 ---
 
-## 🎯 Solution 2 : Déploiement directement sur la Freebox
+## 📋 Méthode 1 : Déploiement automatique (RECOMMANDÉ)
 
-### Étape 1 : Connexion SSH à la Freebox
+### Depuis votre PC local
 
-```bash
-ssh -p 33000 bagbot@82.67.65.98
-# Mot de passe : bagbot
-```
-
-### Étape 2 : Aller dans le répertoire du bot
-
-```bash
-cd /home/bagbot/Bag-bot
-```
-
-### Étape 3 : Exécuter le déploiement
-
-**Option A : Script simplifié** (RECOMMANDÉ)
-
-```bash
-bash deploy-commands-freebox-local.sh
-```
-
-**Option B : Commande directe**
-
-```bash
-node deploy-commands.js
-```
-
----
-
-## 📊 Résultat attendu
-
-Après l'exécution réussie, vous devriez voir :
-
-```
-📦 Analyse des commandes...
-================================================================================
-  🌐 69 (global - serveur + MP)
-  🌐 daily (global - serveur + MP)
-  🌐 crime (global - serveur + MP)
-  ... (44 autres commandes globales)
-  🏰 ban (guild - serveur uniquement)
-  🏰 kick (guild - serveur uniquement)
-  ... (44 autres commandes guild)
-
-================================================================================
-🌐 Commandes GLOBALES (serveur + MP): 47
-🏰 Commandes GUILD (serveur uniquement): 46
-
-🚀 Déploiement...
-
-📤 Déploiement de 47 commandes globales...
-✅ Commandes globales déployées
-📤 Déploiement de 46 commandes guild...
-✅ Commandes guild déployées
-
-🎉 Déploiement terminé !
-
-📝 Résultat:
-   - 47 commandes sur serveur + MP
-   - 46 commandes sur serveur uniquement
-   - Total sur serveur: 93
-```
-
----
-
-## 🔍 Vérifier le déploiement
-
-### Sur la Freebox
-
-```bash
-cd /home/bagbot/Bag-bot
-node verify-commands.js
-```
-
-### Sur Discord
-
-1. **Commandes serveur** : Ouvrir Discord sur votre serveur → Taper `/` → Voir les 93 commandes
-2. **Commandes MP** : Envoyer un MP au bot → Taper `/` → Voir les 47 commandes globales
-
-⏰ **Délai de synchronisation Discord** : 5-10 minutes maximum
-
----
-
-## 🔧 Dépannage
-
-### ❌ Erreur : "Cannot read property 'DISCORD_TOKEN'"
-
-**Solution** : Vérifier le fichier `.env` sur la Freebox
-
-```bash
-ssh -p 33000 bagbot@82.67.65.98
-cd /home/bagbot/Bag-bot
-cat .env | grep -E "(DISCORD_TOKEN|CLIENT_ID)"
-```
-
-Les variables doivent être définies :
-```
-DISCORD_TOKEN=MTQxNDIxNjE3MzgwOTMwNzc4MA...
-CLIENT_ID=1414216173809307780
-```
-
-### ❌ Erreur : "Connection timeout" ou "Connection refused"
-
-**Causes possibles** :
-1. La Freebox est éteinte ou hors ligne
-2. Le port SSH (33000) est bloqué par un pare-feu
-3. L'adresse IP a changé (vérifier sur mafreebox.freebox.fr)
-
-**Solution** : Vérifier l'accès réseau
-
-```bash
-# Depuis votre machine locale :
-ping 82.67.65.98
-nc -zv 82.67.65.98 33000
-```
-
-### ❌ Les commandes n'apparaissent pas en MP
-
-**Solutions** :
-1. Attendre 5-10 minutes (synchronisation Discord)
-2. Redémarrer Discord (Ctrl+R ou Cmd+R)
-3. Vérifier que les commandes sont bien GLOBALES :
+1. **Transférer les fichiers vers la Freebox :**
    ```bash
-   node verify-commands.js
+   # Depuis votre machine locale, dans le dossier du workspace
+   scp -P 33000 src/bot.js bagbot@88.174.155.230:/home/bagbot/BagBot/src/
+   scp -P 33000 src/storage/jsonStore.js bagbot@88.174.155.230:/home/bagbot/BagBot/src/storage/
+   scp -P 33000 deploy_counting_fix.sh bagbot@88.174.155.230:/home/bagbot/BagBot/
+   scp -P 33000 CORRECTIFS_COMPTAGE_03JAN2026.md bagbot@88.174.155.230:/home/bagbot/BagBot/
+   ```
+   
+   **Note :** Remplacez `/home/bagbot/BagBot` par le vrai chemin si différent.
+
+2. **Se connecter à la Freebox :**
+   ```bash
+   ssh -p 33000 bagbot@88.174.155.230
    ```
 
-### ❌ Doublons de commandes
+3. **Exécuter le script de déploiement :**
+   ```bash
+   cd /home/bagbot/BagBot  # Ou le chemin réel
+   chmod +x deploy_counting_fix.sh
+   ./deploy_counting_fix.sh
+   ```
 
-**Solution** : Nettoyer et redéployer
+4. **Suivre les instructions à l'écran** ✅
+
+---
+
+## 📋 Méthode 2 : Déploiement manuel (si le script ne fonctionne pas)
+
+### Depuis votre Freebox (via SSH)
 
 ```bash
-cd /home/bagbot/Bag-bot
-node clean-all-global.js
-node deploy-commands.js
+# 1. Connexion SSH
+ssh -p 33000 bagbot@88.174.155.230
+
+# 2. Naviguer vers le répertoire du bot
+cd /home/bagbot/BagBot  # Ajustez selon votre installation
+
+# 3. Créer une sauvegarde
+mkdir -p backups/before_counting_fix_$(date +%Y%m%d_%H%M%S)
+cp -r src backups/before_counting_fix_$(date +%Y%m%d_%H%M%S)/
+
+# 4. Arrêter le bot
+pkill -f "node.*src/bot.js"
+# Ou si vous avez un script d'arrêt :
+# ./stop.sh
+
+# 5. Attendre 3 secondes
+sleep 3
+
+# 6. Copier les nouveaux fichiers
+# (vous devez d'abord les avoir transférés avec scp, voir ci-dessus)
+
+# 7. Vérifier la syntaxe
+node -c src/bot.js
+node -c src/storage/jsonStore.js
+
+# 8. Redémarrer le bot
+nohup node src/bot.js > bot.log 2>&1 &
+# Ou si vous avez un script de démarrage :
+# ./start.sh
+
+# 9. Vérifier que le bot tourne
+ps aux | grep "node.*src/bot.js"
+
+# 10. Consulter les logs
+tail -f bot.log
 ```
 
 ---
 
-## 📋 Scripts disponibles
+## 🔍 Vérification post-déploiement
 
-| Script | Description | Utilisation |
-|--------|-------------|-------------|
-| `deploy-discord-commands-freebox.sh` | Déploiement distant (SSH) | Machine locale → Freebox |
-| `deploy-commands-freebox-local.sh` | Déploiement local | Sur la Freebox directement |
-| `deploy-commands.js` | Script Node.js principal | Via Node.js |
-| `verify-commands.js` | Vérification des commandes | Après déploiement |
-| `clean-all-global.js` | Nettoyage des commandes globales | En cas de doublons |
+### 1. Vérifier que le bot est en ligne
+```bash
+ps aux | grep "node.*src/bot.js"
+```
+Vous devriez voir un processus node.
+
+### 2. Vérifier les logs
+```bash
+tail -f bot.log  # Ou le chemin de vos logs
+```
+Cherchez les messages d'erreur. Un démarrage réussi montre généralement :
+```
+[INFO] Bot connecté comme NomDuBot#1234
+[INFO] Prêt à servir X serveurs
+```
+
+### 3. Tester sur Discord
+
+#### Test 1 : Channels séparés
+1. Utilisez `/config` sur Discord
+2. Allez dans la section "Comptage"
+3. Ajoutez 2 channels différents
+4. Dans le premier channel, comptez : 1, 2, 3, 4...
+5. Dans le second channel, comptez : 1, 2, 3, 4...
+6. **✅ Résultat attendu :** Les deux channels comptent indépendamment
+
+#### Test 2 : Suppression des messages invalides
+1. Dans un channel de comptage, écrivez "bonjour"
+2. **✅ Résultat attendu :** Message supprimé + vous recevez un DM
+3. Écrivez "test 123"
+4. **✅ Résultat attendu :** Message supprimé + DM
+5. Écrivez le bon nombre (ex: "1" si on attend 1)
+6. **✅ Résultat attendu :** Le bot réagit avec ✅
+
+#### Test 3 : Formules (si activées)
+1. Si le prochain nombre attendu est 5, écrivez "2+3"
+2. **✅ Résultat attendu :** Accepté et réaction ✅
 
 ---
 
-## 🎯 Récapitulatif
+## 🚨 En cas de problème
 
-### ✅ Déploiement réussi si :
-- 47 commandes GLOBALES déployées
-- 46 commandes GUILD déployées
-- Total : 93 commandes disponibles sur le serveur
-- Les commandes MP fonctionnent (47 commandes)
+### Le bot ne démarre pas
 
-### ⏰ Temps estimé :
-- Connexion SSH : < 10 secondes
-- Déploiement : 10-30 secondes
-- Synchronisation Discord : 5-10 minutes
+```bash
+# 1. Consulter les logs
+tail -100 bot.log
+
+# 2. Vérifier les erreurs de syntaxe
+node -c src/bot.js
+node -c src/storage/jsonStore.js
+
+# 3. Si erreur, restaurer la sauvegarde
+BACKUP=$(ls -td backups/before_counting_fix_* | head -1)
+cp -r $BACKUP/src/* src/
+```
+
+### Messages non supprimés
+
+**Cause :** Le bot n'a pas la permission `MANAGE_MESSAGES`
+
+**Solution :**
+1. Sur Discord, aller dans les paramètres du serveur
+2. Rôles → Rôle du bot
+3. Activer la permission "Gérer les messages"
+
+### Les channels ne comptent pas séparément
+
+**Cause possible :** Migration non effectuée
+
+**Solution :**
+```bash
+# Vérifier les données
+cat /var/data/config.json | grep -A 20 '"counting"'
+
+# Si vous voyez "channels": [...] (un array), la migration n'a pas eu lieu
+# Redémarrez le bot pour forcer la migration
+pkill -f "node.*src/bot.js"
+sleep 2
+nohup node src/bot.js > bot.log 2>&1 &
+```
+
+### Restauration complète
+
+```bash
+# 1. Identifier la sauvegarde
+ls -ltr backups/
+
+# 2. Restaurer
+BACKUP=backups/before_counting_fix_YYYYMMDD_HHMMSS  # Remplacez par le bon nom
+cp -r $BACKUP/src/* src/
+
+# 3. Redémarrer
+pkill -f "node.*src/bot.js"
+sleep 2
+nohup node src/bot.js > bot.log 2>&1 &
+```
 
 ---
 
 ## 📞 Support
 
 En cas de problème persistant :
-
-1. **Vérifier les logs du bot** :
-   ```bash
-   ssh -p 33000 bagbot@82.67.65.98 'pm2 logs bagbot --lines 50'
-   ```
-
-2. **Vérifier le statut du bot** :
-   ```bash
-   ssh -p 33000 bagbot@82.67.65.98 'pm2 status'
-   ```
-
-3. **Redémarrer le bot** (si nécessaire) :
-   ```bash
-   ssh -p 33000 bagbot@82.67.65.98 'pm2 restart bagbot'
-   ```
+1. Consultez `/workspace/ANALYSE_BUGS_COMPTAGE_03JAN2026.md` pour comprendre les bugs corrigés
+2. Consultez `/workspace/CORRECTIFS_COMPTAGE_03JAN2026.md` pour les détails techniques
+3. Vérifiez les logs du bot : `tail -100 bot.log`
 
 ---
 
-*Dernière mise à jour : 2025-12-22*
+## ✅ Checklist de déploiement
+
+- [ ] Sauvegarde créée
+- [ ] Fichiers transférés vers la Freebox
+- [ ] Bot arrêté proprement
+- [ ] Nouveaux fichiers en place
+- [ ] Syntaxe validée
+- [ ] Bot redémarré
+- [ ] Bot visible sur Discord (status en ligne)
+- [ ] Test channels séparés effectué
+- [ ] Test suppression messages effectué
+- [ ] Permission MANAGE_MESSAGES vérifiée
+- [ ] Documentation lue
+
+**Date de déploiement :** _______________
+
+**Effectué par :** _______________
+
+**Résultat :** ⬜ Succès  ⬜ Problèmes rencontrés (détails ci-dessous)
+
+**Notes :**
+```
+_________________________________________________________________
+_________________________________________________________________
+_________________________________________________________________
+```

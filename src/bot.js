@@ -13040,21 +13040,6 @@ client.on(Events.MessageCreate, async (message) => {
     } catch (err) {
       console.error('[COUNTING] ❌ Erreur dans le système de comptage:', err);
     }
-              try {
-                const perms = message.channel.permissionsFor(message.guild.members.me);
-                if (perms && perms.has('AddReactions')) {
-                  await message.react('✅');
-                } else {
-                  console.log('[COUNTING] ⚠️ Pas de permission AddReactions');
-                }
-              } catch (err) {
-                console.log(`[COUNTING] ❌ Erreur réaction: ${err.message}`);
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
 
     // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
     // IMPORTANT: Doit être AVANT le check des levels pour ne pas être bloqué
