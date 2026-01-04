@@ -1,0 +1,304 @@
+═══════════════════════════════════════════════════════════════════════════════
+  RÉSUMÉ COMPLET - CORRECTION /CÂLIN ET /SIXTYNINE - 4 JANVIER 2026
+═══════════════════════════════════════════════════════════════════════════════
+
+📅 Date : 4 janvier 2026
+🤖 Bot : En ligne (PID: 326844)
+🔗 Freebox : 88.174.155.230:33000
+📦 Sauvegardes : 
+    • backup_calin_sixtynine_20260104_122431 (corrections Discord)
+    • backup_apk_fix_20260104_124416 (corrections app Android)
+
+═══════════════════════════════════════════════════════════════════════════════
+  ÉTAPE 1 : CORRECTION POUR DISCORD (12:24:31)
+═══════════════════════════════════════════════════════════════════════════════
+
+🐛 PROBLÈME INITIAL
+
+La commande /câlin affichait "Action désactivée sur le serveur"
+
+🔍 CAUSES IDENTIFIÉES
+
+Pour /câlin :
+  ❌ Manquait dans defaultEnabled (jsonStore.js ligne 1102)
+  ❌ Pas de configuration (money, karma, cooldown, zones)
+  ❌ Pas de handler dans bot.js
+  ❌ Pas de messages définis (succès/échec)
+  ❌ Pas de label dans l'interface
+
+Pour /sixtynine (découvert en analysant) :
+  ❌ Pas de configuration
+  ❌ Messages commentés (DISABLED)
+  ❌ Pas de label dans l'interface
+
+✅ CORRECTIONS APPLIQUÉES
+
+Fichier : src/storage/jsonStore.js
+  • Ajout de "calin" et "sixtynine" dans defaultEnabled
+  • Création configuration calin (3-10 BAG$, +2 charme, 60s, 95% succès, 10 zones)
+  • Création configuration sixtynine (25-65 BAG$, +6 perversion, 600s, 75% succès)
+  • Ajout paramètres XP pour les deux actions
+
+Fichier : src/bot.js
+  • Ajout handler pour câlin/calin/action_calin
+  • Ajout handler pour sixtynine/69
+  • Création 10 messages de succès + 6 messages d'échec pour calin
+  • Activation messages sixtynine (retrait DISABLED)
+  • Ajout labels "câlin" et "69" dans actionKeyToLabel
+
+📊 RÉSULTAT ÉTAPE 1
+
+✅ /câlin fonctionne sur Discord
+✅ /sixtynine fonctionne sur Discord
+✅ Les deux apparaissent dans /config
+✅ Messages variés et personnalisés
+✅ Récompenses configurées correctement
+
+═══════════════════════════════════════════════════════════════════════════════
+  ÉTAPE 2 : CORRECTION POUR APP ANDROID (12:44:16)
+═══════════════════════════════════════════════════════════════════════════════
+
+🐛 PROBLÈME SECONDAIRE
+
+Les actions fonctionnaient sur Discord mais n'apparaissaient PAS dans l'app
+Android BagBot Manager
+
+🔍 CAUSE IDENTIFIÉE
+
+L'app Android récupère les actions depuis eco.actions.list
+
+Le bot construit eco.actions.list en copiant les données depuis l'objet
+actionLabels dans jsonStore.js
+
+Les actions "calin" et "sixtynine" n'étaient pas dans actionLabels, donc
+elles n'apparaissaient pas dans eco.actions.list, et l'app Android ne les
+voyait pas
+
+✅ CORRECTION APPLIQUÉE
+
+Fichier : src/storage/jsonStore.js (ligne ~1156)
+
+  Ajout dans actionLabels :
+    calin: { label: '🤗 Câlin', description: 'Faire un câlin chaleureux' }
+    sixtynine: { label: '♋ 69', description: 'Position 69' }
+
+📊 RÉSULTAT ÉTAPE 2
+
+✅ calin ajouté dans eco.actions.list avec emoji 🤗
+✅ sixtynine ajouté dans eco.actions.list avec emoji ♋
+✅ L'app Android peut maintenant les récupérer via l'API
+
+═══════════════════════════════════════════════════════════════════════════════
+  STATUT FINAL - TOUTES CORRECTIONS APPLIQUÉES
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PLATEFORME : DISCORD                                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ✅ /câlin fonctionne                                                        │
+│ ✅ /sixtynine fonctionne                                                    │
+│ ✅ Apparaissent dans /config                                                │
+│ ✅ Messages personnalisés                                                   │
+│ ✅ Récompenses configurées                                                  │
+│                                                                             │
+│ /câlin @user : 3-10 BAG$ + 🫦 2 charme + 🌟 6 XP (95% succès)              │
+│ /sixtynine @user : 25-65 BAG$ + 😈 6 perversion + 🌟 20 XP (75% succès)    │
+│                    Partenaire : x1.5 récompenses                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PLATEFORME : APP ANDROID BAGBOT MANAGER                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ✅ Labels ajoutés dans eco.actions.list                                     │
+│ 🧪 À tester : Fermer et rouvrir l'app                                      │
+│                                                                             │
+│ Devrait maintenant afficher :                                               │
+│   • 🤗 Câlin (avec description)                                             │
+│   • ♋ 69 (avec description)                                                 │
+│                                                                             │
+│ Actions configurables depuis l'app :                                        │
+│   • Modifier paramètres (argent, karma, cooldown)                          │
+│   • Activer/désactiver                                                      │
+│   • Voir les zones disponibles                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+  ACTIONS À FAIRE MAINTENANT
+═══════════════════════════════════════════════════════════════════════════════
+
+🧪 TEST 1 : DISCORD
+  ✓ Déjà testé et validé par l'utilisateur
+
+🧪 TEST 2 : APP ANDROID
+  
+  IMPORTANT :
+  1. FERMEZ COMPLÈTEMENT l'app BagBot Manager
+     (Ne pas juste la mettre en arrière-plan !)
+     
+  2. ROUVREZ l'app
+  
+  3. Allez dans : Économie → Actions
+  
+  4. Vérifiez que vous voyez :
+     • 🤗 Câlin
+     • ♋ 69
+     
+  Si elles n'apparaissent toujours pas :
+  
+  5. Videz le cache de l'app :
+     Android : Paramètres → Apps → BagBot Manager → Stockage → Vider le cache
+     
+  6. Rouvrez l'app
+
+═══════════════════════════════════════════════════════════════════════════════
+  MODIFICATIONS TECHNIQUES DÉTAILLÉES
+═══════════════════════════════════════════════════════════════════════════════
+
+FICHIER : src/storage/jsonStore.js
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne 1102 : defaultEnabled                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AVANT : [...,'comfort','massage',...,'douche']                              │
+│ APRÈS : [...,'comfort','calin','massage',...,'douche','sixtynine']         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~1156 : actionLabels (pour app Android)                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   calin: { label: '🤗 Câlin',                                               │
+│            description: 'Faire un câlin chaleureux' }                       │
+│   sixtynine: { label: '♋ 69',                                               │
+│               description: 'Position 69' }                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~1214 : Configuration calin                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   calin: {                                                                  │
+│     moneyMin: 3, moneyMax: 10,                                              │
+│     karma: 'charm', karmaDelta: 2,                                          │
+│     cooldown: 60, successRate: 0.95,                                        │
+│     failMoneyMin: 1, failMoneyMax: 3, failKarmaDelta: 1,                   │
+│     partnerMoneyShare: 1.0, partnerKarmaShare: 1.0,                         │
+│     zones: ['Câlin classique', 'Câlin chaleureux', ... (10 types)]         │
+│   }                                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~1252 : Configuration sixtynine                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   sixtynine: {                                                              │
+│     moneyMin: 25, moneyMax: 65,                                             │
+│     karma: 'perversion', karmaDelta: 6,                                     │
+│     cooldown: 600, successRate: 0.75,                                       │
+│     failMoneyMin: 12, failMoneyMax: 25, failKarmaDelta: 4,                 │
+│     partnerMoneyShare: 1.5, partnerKarmaShare: 1.5                          │
+│   }                                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~1269 : Paramètres XP calin                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   calin: { xpDelta: 6, failXpDelta: 1, partnerXpShare: 1.0 }               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~1298 : Paramètres XP sixtynine                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   sixtynine: { xpDelta: 20, failXpDelta: 5, partnerXpShare: 1.5 }          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+FICHIER : src/bot.js
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~2693 : Messages calin                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   • 10 messages de succès variés                                            │
+│   • 6 messages d'échec variés                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~2558 : Messages sixtynine                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AVANT : // DISABLED: msgText = texts[...];                                 │
+│ APRÈS : msgText = texts[randInt(0, texts.length - 1)];                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~5489 : Labels interface                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   calin: 'câlin'                                                            │
+│   sixtynine: '69'                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Ligne ~11858 : Handlers                                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ AJOUTÉ :                                                                    │
+│   • Handler pour câlin/calin/action_calin                                   │
+│   • Handler pour sixtynine/69                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+  SAUVEGARDES
+═══════════════════════════════════════════════════════════════════════════════
+
+backup_calin_sixtynine_20260104_122431
+  • Contient : src/ complet
+  • Date : 4 janvier 2026 12:24:31
+  • Avant : Corrections Discord (bot.js + jsonStore.js)
+
+backup_apk_fix_20260104_124416
+  • Contient : src/storage/ complet
+  • Date : 4 janvier 2026 12:44:16
+  • Avant : Ajout labels pour app Android
+
+═══════════════════════════════════════════════════════════════════════════════
+  RESTAURATION (SI NÉCESSAIRE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Pour revenir à l'état avant TOUTES les corrections :
+
+  ssh -p 33000 bagbot@88.174.155.230
+  cd /home/bagbot/Bag-bot
+  cp -r backups/backup_calin_sixtynine_20260104_122431/src/* src/
+  pkill -f 'node.*bot.js'
+  nohup node src/bot.js > bot.log 2>&1 &
+
+Pour revenir à l'état après corrections Discord mais avant app Android :
+
+  ssh -p 33000 bagbot@88.174.155.230
+  cd /home/bagbot/Bag-bot
+  cp -r backups/backup_apk_fix_20260104_124416/storage/* src/storage/
+  pkill -f 'node.*bot.js'
+  nohup node src/bot.js > bot.log 2>&1 &
+
+═══════════════════════════════════════════════════════════════════════════════
+  DOCUMENTATION
+═══════════════════════════════════════════════════════════════════════════════
+
+CORRECTION_CALIN_04JAN2026.md
+  → Documentation technique complète des corrections Discord
+
+CORRECTION_APK_ANDROID_04JAN2026.md
+  → Documentation technique complète des corrections app Android
+
+STATUS_FINAL_CALIN_SIXTYNINE_04JAN2026.txt
+  → Guide détaillé avec paramètres et tests (avant correction APK)
+
+Ce fichier (RESUME_COMPLET_CORRECTIONS_04JAN2026.txt)
+  → Résumé complet de toutes les corrections
+
+═══════════════════════════════════════════════════════════════════════════════
+
+              🎉 CORRECTIONS TERMINÉES - TESTEZ L'APP ANDROID ! 🎉
+
+═══════════════════════════════════════════════════════════════════════════════

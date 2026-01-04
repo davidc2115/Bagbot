@@ -1153,7 +1153,9 @@ function ensureEconomyShape(g) {
     touche: { label: '✋ Toucher', description: 'Toucher sensuellement' },
     reveiller: { label: '⏰ Réveiller', description: 'Réveiller quelqu\'un' },
     cuisiner: { label: '👨‍🍳 Cuisiner', description: 'Cuisiner pour quelqu\'un' },
-    douche: { label: '🚿 Douche', description: 'Douche sensuelle' }
+    douche: { label: '🚿 Douche', description: 'Douche sensuelle' },
+    calin: { label: '🤗 Câlin', description: 'Faire un câlin chaleureux' },
+    sixtynine: { label: '♋ 69', description: 'Position 69' }
   };
   
   // Ajouter les labels manquants
