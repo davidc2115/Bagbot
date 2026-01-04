@@ -2555,7 +2555,7 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
       ]
     };
     const texts = success ? sixtynineMessages.success : sixtynineMessages.fail;
-    // DISABLED: msgText = texts[randInt(0, texts.length - 1)];
+    msgText = texts[randInt(0, texts.length - 1)];
   }
   if (actionKey === 'branler') {
     const branlerMessages = {
@@ -2689,6 +2689,32 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
       ];
       msgText = texts[randInt(0, texts.length - 1)];
     }
+  }
+  if (actionKey === 'calin') {
+    const calinMessages = {
+      success: [
+        'Tu prends {cible} dans tes bras, câlin chaleureux et réconfortant.',
+        'Un câlin tendre avec {cible}, moment de douceur partagée.',
+        'Tu serres {cible} contre toi, câlin plein d\'affection.',
+        'Câlin câlin avec {cible}, chaleur humaine bienvenue.',
+        'Tu enveloppes {cible} de tes bras, moment cocooning parfait.',
+        '{cible} se blottit contre toi, câlin apaisant.',
+        'Un gros câlin réconfortant, {cible} se sent mieux.',
+        'Tu câlines {cible} tendrement, moment de complicité.',
+        'Câlin doux et prolongé avec {cible}, pure douceur.',
+        'Tu offres un câlin sincère à {cible}, sourires échangés.'
+      ],
+      fail: [
+        '{cible} te repousse doucement, pas d\'humeur pour les câlins.',
+        'Câlin raté, {cible} préfère son espace personnel.',
+        'Tu tends les bras mais {cible} recule, timing mauvais.',
+        '{cible} n\'est pas câlin aujourd\'hui, désolé.',
+        'Tentative de câlin, mais {cible} est occupé(e).',
+        'Pas de câlin cette fois, {cible} n\'est pas réceptif/ve.'
+      ]
+    };
+    const texts = success ? calinMessages.success : calinMessages.fail;
+    msgText = texts[randInt(0, texts.length - 1)];
   }
   if (actionKey === 'shower') {
     const showerMessages = {
@@ -5460,6 +5486,7 @@ function actionKeyToLabel(key) {
     tickle: 'chatouiller',
     revive: 'réanimer',
     comfort: 'réconforter',
+    calin: 'câlin',
     massage: 'masser',
     dance: 'danser',
     crime: 'crime',
@@ -5486,7 +5513,8 @@ function actionKeyToLabel(key) {
     orgie: 'orgie',
     touche: 'toucher',
     reveiller: 'réveiller',
-    douche: 'douche (intime)'
+    douche: 'douche (intime)',
+    sixtynine: '69',
   };
   return map[key] || key;
 }
@@ -11855,6 +11883,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
     if (interaction.isChatInputCommand() && interaction.commandName === 'action_douche') {
       return handleEconomyAction(interaction, 'douche');
+    }
+    // Câlin
+    if (interaction.isChatInputCommand() && (interaction.commandName === 'câlin' || interaction.commandName === 'calin' || interaction.commandName === 'action_calin')) {
+      return handleEconomyAction(interaction, 'calin');
+    }
+    // 69
+    if (interaction.isChatInputCommand() && (interaction.commandName === 'sixtynine' || interaction.commandName === '69')) {
+      return handleEconomyAction(interaction, 'sixtynine');
     }
     if (interaction.isChatInputCommand() && interaction.commandName === 'boutique') {
       const PAGE_SIZE = 10;
