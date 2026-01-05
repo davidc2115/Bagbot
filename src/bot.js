@@ -1520,7 +1520,7 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
     return renderSafeReply(interaction, "⛔ Action désactivée.", { ephemeral: true });
   }
   // Resolve optional/required partner for actions that target a user
-  const actionsWithTarget = ['kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','massage','dance','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','touche','reveiller','douche','sixtynine','calin','give','steal'];
+  const actionsWithTarget = ['kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','massage','dance','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','touche','reveiller','douche','sixtynine','calin','boire','give','steal'];
   let initialPartner = null;
   let tromperResolvedPartner = null;
   try {
@@ -3243,6 +3243,32 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
     };
     
     const texts = success ? doucheMessages.success : doucheMessages.fail;
+    msgText = texts[randInt(0, texts.length - 1)];
+  }
+  if (actionKey === 'boire') {
+    const boireMessages = {
+      success: [
+        'Tu trinques avec {cible}, ambiance chaleureuse et détendue.',
+        'Vous partagez un verre, rires et confidences au rendez-vous.',
+        'Tu portes un toast à {cible}, moment convivial parfait.',
+        'Vous buvez ensemble, l\'alcool délie les langues.',
+        'Un verre, puis deux, puis trois... La soirée promet d\'être fun !',
+        'Tu commandes une tournée pour {cible} et toi, bonne ambiance.',
+        'Vous dégustez tranquillement vos verres en papotant.',
+        'Tu partages une bouteille avec {cible}, atmosphère sympa.',
+        'Vous levez vos verres ensemble, à la santé de votre amitié !',
+        'Tu sers un verre à {cible}, moment de complicité.'
+      ],
+      fail: [
+        '{cible} refuse poliment, pas d\'alcool aujourd\'hui.',
+        'Tu renverses le verre, situation embarrassante.',
+        '{cible} n\'a pas envie de boire maintenant.',
+        'Le verre n\'est pas à son goût, grimace évidente.',
+        'Tu proposes mais {cible} a déjà trop bu.',
+        'Refus net, {cible} préfère rester sobre.'
+      ]
+    };
+    const texts = success ? boireMessages.success : boireMessages.fail;
     msgText = texts[randInt(0, texts.length - 1)];
   }
   // Special cases
@@ -5515,6 +5541,7 @@ function actionKeyToLabel(key) {
     reveiller: 'réveiller',
     douche: 'douche (intime)',
     sixtynine: '69',
+    boire: 'boire un verre',
   };
   return map[key] || key;
 }
@@ -11891,6 +11918,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // 69
     if (interaction.isChatInputCommand() && (interaction.commandName === 'sixtynine' || interaction.commandName === '69')) {
       return handleEconomyAction(interaction, 'sixtynine');
+    }
+    // Boire un verre
+    if (interaction.isChatInputCommand() && interaction.commandName === 'boire') {
+      return handleEconomyAction(interaction, 'boire');
     }
     if (interaction.isChatInputCommand() && interaction.commandName === 'boutique') {
       const PAGE_SIZE = 10;

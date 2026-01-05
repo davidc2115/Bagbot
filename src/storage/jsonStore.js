@@ -1099,7 +1099,7 @@ function ensureEconomyShape(g) {
     "Ça brûle un peu… mais l'appétit reste entier!",
     "La cuisine est en désordre, vous finirez par commander."
   ]);
-  const defaultEnabled = ['work','fish','give','steal','kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','calin','massage','dance','crime','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','daily','touche','reveiller','cuisiner','douche','sixtynine'];
+  const defaultEnabled = ['work','fish','give','steal','kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','calin','massage','dance','crime','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','daily','touche','reveiller','cuisiner','douche','sixtynine','boire'];
   if (!Array.isArray(e.actions.enabled)) e.actions.enabled = defaultEnabled;
   else {
     for (const k of defaultEnabled) if (!e.actions.enabled.includes(k)) e.actions.enabled.push(k);
@@ -1155,7 +1155,8 @@ function ensureEconomyShape(g) {
     cuisiner: { label: '👨‍🍳 Cuisiner', description: 'Cuisiner pour quelqu\'un' },
     douche: { label: '🚿 Douche', description: 'Douche sensuelle' },
     calin: { label: '🤗 Câlin', description: 'Faire un câlin chaleureux' },
-    sixtynine: { label: '♋ 69', description: 'Position 69' }
+    sixtynine: { label: '♋ 69', description: 'Position 69' },
+    boire: { label: '🍺 Boire un verre', description: 'Boire un verre ensemble' }
   };
   
   // Ajouter les labels manquants
@@ -1252,6 +1253,7 @@ function ensureEconomyShape(g) {
     tromper: { moneyMin: 15, moneyMax: 40, karma: 'perversion', karmaDelta: 3, cooldown: 300, successRate: 0.6, failMoneyMin: 10, failMoneyMax: 25, failKarmaDelta: 3, partnerMoneyShare: 0.0, partnerKarmaShare: 0.0 },
     orgie: { moneyMin: 30, moneyMax: 100, karma: 'perversion', karmaDelta: 6, cooldown: 900, successRate: 0.65, failMoneyMin: 15, failMoneyMax: 35, failKarmaDelta: 4, partnerMoneyShare: 0.0, partnerKarmaShare: 0.0 },
     sixtynine: { moneyMin: 25, moneyMax: 65, karma: 'perversion', karmaDelta: 6, cooldown: 600, successRate: 0.75, failMoneyMin: 12, failMoneyMax: 25, failKarmaDelta: 4, partnerMoneyShare: 1.5, partnerKarmaShare: 1.5 },
+    boire: { moneyMin: 5, moneyMax: 15, karma: 'charm', karmaDelta: 2, cooldown: 90, successRate: 0.9, failMoneyMin: 2, failMoneyMax: 5, failKarmaDelta: 1, partnerMoneyShare: 1.0, partnerKarmaShare: 1.0, types: ['Bière', 'Vin', 'Cocktail', 'Champagne', 'Whisky', 'Rhum', 'Vodka', 'Gin', 'Tequila', 'Sangria', 'Mojito', 'Shot'] },
   };
   // Add XP parameters defaults for actions (success/fail) + partner XP share
   const xpDefaults = {
@@ -1298,6 +1300,7 @@ function ensureEconomyShape(g) {
     tromper: { xpDelta: 12, failXpDelta: 3, partnerXpShare: 0.0 },
     orgie: { xpDelta: 24, failXpDelta: 6, partnerXpShare: 0.0 },
     sixtynine: { xpDelta: 20, failXpDelta: 5, partnerXpShare: 1.5 },
+    boire: { xpDelta: 8, failXpDelta: 2, partnerXpShare: 1.0 },
   };
   for (const [k, d] of Object.entries(defaults)) {
     if (!e.actions.config[k] || typeof e.actions.config[k] !== 'object') e.actions.config[k] = { ...d };
