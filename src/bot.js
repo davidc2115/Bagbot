@@ -3248,24 +3248,43 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
   if (actionKey === 'boire') {
     const boireMessages = {
       success: [
-        'Tu trinques avec {cible}, ambiance chaleureuse et détendue.',
-        'Vous partagez un verre, rires et confidences au rendez-vous.',
-        'Tu portes un toast à {cible}, moment convivial parfait.',
-        'Vous buvez ensemble, l\'alcool délie les langues.',
-        'Un verre, puis deux, puis trois... La soirée promet d\'être fun !',
-        'Tu commandes une tournée pour {cible} et toi, bonne ambiance.',
-        'Vous dégustez tranquillement vos verres en papotant.',
-        'Tu partages une bouteille avec {cible}, atmosphère sympa.',
+        'Tu trinques avec {cible}, le verre claque joyeusement, ambiance parfaite.',
         'Vous levez vos verres ensemble, à la santé de votre amitié !',
-        'Tu sers un verre à {cible}, moment de complicité.'
+        'Tu commandes une tournée, {cible} sourit et accepte avec plaisir.',
+        'Vous sirotez tranquillement en discutant, moment de détente idéal.',
+        'Tu partages un moment convivial avec {cible} autour d\'un bon verre.',
+        'L\'alcool commence à faire effet, les rires fusent entre vous deux.',
+        'Tu portes un toast à {cible}, la soirée démarre bien !',
+        'Vous enchaînez les verres, l\'ambiance devient de plus en plus fun.',
+        'Tu offres un verre à {cible}, geste apprécié et convivialité assurée.',
+        'Vous dégustez ensemble, les langues se délient progressivement.',
+        'Tu sers généreusement {cible}, qui apprécie ton geste.',
+        'Vous buvez cul sec tous les deux, fous rires garantis !',
+        'Tu partages ce moment avec {cible}, complicité renforcée.',
+        'Vous trinquez bruyamment, attrapant l\'attention des autres.',
+        'Tu proposes un shot, {cible} accepte le défi sans hésiter.',
+        'Vous savourez chaque gorgée en discutant de tout et de rien.',
+        'Tu fais goûter ta boisson à {cible}, qui adore ça.',
+        'Vous passez un excellent moment ensemble, verres à la main.',
+        'Tu improvisent un jeu à boire avec {cible}, ambiance assurée.',
+        'Vous vous lâchez complètement, la soirée devient mémorable !'
       ],
       fail: [
-        '{cible} refuse poliment, pas d\'alcool aujourd\'hui.',
-        'Tu renverses le verre, situation embarrassante.',
-        '{cible} n\'a pas envie de boire maintenant.',
-        'Le verre n\'est pas à son goût, grimace évidente.',
-        'Tu proposes mais {cible} a déjà trop bu.',
-        'Refus net, {cible} préfère rester sobre.'
+        '{cible} refuse poliment, pas d\'alcool ce soir.',
+        'Tu renverses maladroitement le verre sur la table, fail total.',
+        '{cible} grimace en goûtant, vraiment pas à son goût.',
+        'Tu proposes mais {cible} a déjà trop bu, ça suffit pour lui/elle.',
+        'Refus catégorique, {cible} préfère rester sobre.',
+        '{cible} te repousse gentiment, pas envie de boire maintenant.',
+        'Tu tends le verre mais {cible} secoue la tête, non merci.',
+        'Le verre est renversé avant même d\'avoir trinqué, pas de chance.',
+        '{cible} refuse, il/elle conduit ce soir.',
+        'Tu insistes mais {cible} n\'est vraiment pas d\'humeur.',
+        'Le verre te glisse des mains, situation embarrassante.',
+        '{cible} jette un œil au verre et refuse net, trop fort.',
+        'Tu proposes mais {cible} boit juste de l\'eau ce soir.',
+        'Refus poli mais ferme, {cible} a passé l\'âge de ces conneries.',
+        '{cible} est malade, vraiment pas le bon moment.'
       ]
     };
     const texts = success ? boireMessages.success : boireMessages.fail;
