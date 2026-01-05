@@ -11920,7 +11920,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return handleEconomyAction(interaction, 'sixtynine');
     }
     // Boire un verre
-    if (interaction.isChatInputCommand() && interaction.commandName === 'boire') {
+    if (interaction.isChatInputCommand() && interaction.commandName === 'boir-verre') {
       return handleEconomyAction(interaction, 'boire');
     }
     if (interaction.isChatInputCommand() && interaction.commandName === 'boutique') {

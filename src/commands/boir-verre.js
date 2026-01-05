@@ -1,10 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
 
 module.exports = {
-  name: 'boire',
+  name: 'boir-verre',
   dmPermission: true,
   data: new SlashCommandBuilder()
-    .setName('boire')
+    .setName('boir-verre')
     .setDescription('Boire un verre avec quelqu\'un')
     .addUserOption(option =>
       option.setName('cible')
