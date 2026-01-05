@@ -1504,6 +1504,42 @@ function ensureEconomyShape(g) {
         'Orgie avortée: ambiance cassée, on remballe.',
         'Ça ne prend pas cette fois, chacun rentre frustré.',
       ]
+    },
+    boire: {
+      success: [
+        'Tu verses un verre à {target}, le contact de vos mains fait monter la tension…',
+        'Vous trinquez, le regard intense, l\'alcool n\'est qu\'un prétexte…',
+        'Tu glisses le verre vers {target} avec un sourire coquin, la soirée s\'annonce chaude.',
+        'Vos verres s\'entrechoquent, l\'ambiance devient électrique entre vous.',
+        'Tu sers généreusement {target}, qui te lance un regard plein de sous-entendus.',
+        'L\'alcool délie les langues et les corps… Vous vous rapprochez dangereusement.',
+        'Tu partages cette bouteille avec {target}, chaque gorgée rapproche vos lèvres.',
+        'Vous buvez au même verre, échange de salive et promesses silencieuses.',
+        'Tu fais goûter ta boisson à {target}, langue contre langue, c\'est torride.',
+        'L\'alcool vous échauffe, les mains commencent à se balader…',
+        'Tu proposes un jeu à boire coquin, {target} accepte avec un sourire malicieux.',
+        'Chaque shot vous rapproche, l\'inhibition disparaît progressivement…',
+        'Tu verses directement dans la bouche de {target}, moment intense et sensuel.',
+        'Vous partagez ce verre dans une atmosphère de plus en plus chaude.',
+        'L\'alcool coule, les vêtements commencent à tomber… La soirée ne fait que commencer.',
+        'Tu embrasses {target} avec le goût de l\'alcool sur les lèvres, feu et passion.',
+        'Vous vous enivrez l\'un de l\'autre autant que de vos verres…',
+        'Tu lèches une goutte sur le cou de {target}, prétexte parfait pour plus.',
+        'L\'alcool n\'est qu\'une excuse, vous savez tous deux où ça va mener…',
+        'Entre deux verres, vos corps se collent, promesse d\'une nuit torride.'
+      ],
+      fail: [
+        '{target} refuse, trop d\'alcool tue le désir.',
+        'Tu renverses le verre sur toi, moment sexy ruiné.',
+        '{target} grimace, vraiment pas son truc, ambiance cassée.',
+        'Trop insistant(e), {target} recule et met les limites.',
+        'L\'alcool te fait faire n\'importe quoi, {target} préfère arrêter là.',
+        'Tu proposes mais {target} n\'est pas d\'humeur coquine ce soir.',
+        'Le verre te glisse des mains, fail complet devant {target}.',
+        '{target} refuse net, pas question de mélanger alcool et jeu sensuel.',
+        'Tu tentes mais {target} a passé l\'âge de ces combines d\'ado.',
+        '{target} te repousse, trop bourré(e) pour être sexy là.'
+      ]
     }
   };
   for (const [k, def] of Object.entries(msgDefaults)) {
