@@ -12906,6 +12906,20 @@ client.on(Events.MessageCreate, async (message) => {
       }
     } catch (_) {}
     if (message.author?.bot) return; // exclude bots from XP and economy rewards
+    
+    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
+    // IMPORTANT: Doit être AVANT le comptage car celui-ci fait des returns
+    try {
+      const motCacheHandler = require('./modules/mot-cache-handler');
+      console.log('[MOT-CACHE-CALL] 🔄 Handler appelé pour message de', message.author.username);
+      await motCacheHandler.handleMessage(message);
+      console.log('[MOT-CACHE-CALL] ✅ Handler terminé sans erreur');
+    } catch (err) {
+      // LOG TEMPORAIRE POUR DEBUG : afficher TOUTES les erreurs
+      console.error('[MOT-CACHE-CALL] ❌ ERREUR DÉTECTÉE:', err.message);
+      console.error('[MOT-CACHE-CALL] Stack:', err.stack);
+    }
+    
     // AutoThread runtime: if message is in a configured channel, create a thread if none exists
     try {
       const at = await getAutoThreadConfig(message.guild.id);
@@ -13197,19 +13211,6 @@ client.on(Events.MessageCreate, async (message) => {
       }
     } catch (err) {
       console.error('[COUNTING] ❌ Erreur dans le système de comptage:', err);
-    }
-
-    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
-    // IMPORTANT: Doit être AVANT le check des levels pour ne pas être bloqué
-    try {
-      const motCacheHandler = require('./modules/mot-cache-handler');
-      await motCacheHandler.handleMessage(message);
-    } catch (err) {
-      // Silent fail pour ne pas bloquer le traitement des messages
-      // Log uniquement les vraies erreurs, pas les modules manquants
-      if (err.message && !err.message.includes('Cannot find module')) {
-        console.error('[MOT-CACHE] Error in message handler:', err.message);
-      }
     }
 
     const levels = await getLevelsConfig(message.guild.id);
