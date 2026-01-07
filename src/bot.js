@@ -12495,9 +12495,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const ms = (daysMap[key] || 1) * 24 * 60 * 60 * 1000;
         const until = now + ms;
         
-        // Créer les canaux avec numéro
-        const text = await interaction.guild.channels.create({ name: `🌹┃${nameBase}-#${suiteNum}-txt`, type: ChannelType.GuildText, parent: parent.id, permissionOverwrites: overwrites });
-        const voice = await interaction.guild.channels.create({ name: `🔥┃${nameBase}-#${suiteNum}-vc`, type: ChannelType.GuildVoice, parent: parent.id, permissionOverwrites: overwrites });
+        // Créer les canaux avec numéro et limitation d'âge activée
+        const text = await interaction.guild.channels.create({ name: `🌹┃${nameBase}-#${suiteNum}-txt`, type: ChannelType.GuildText, parent: parent.id, permissionOverwrites: overwrites, nsfw: true });
+        const voice = await interaction.guild.channels.create({ name: `🔥┃${nameBase}-#${suiteNum}-vc`, type: ChannelType.GuildVoice, parent: parent.id, permissionOverwrites: overwrites, nsfw: true });
         
         // Sauvegarder les données de la suite AVANT que l'event ChannelCreate ne se déclenche
         // Ajouter la suite au tableau de l'utilisateur
