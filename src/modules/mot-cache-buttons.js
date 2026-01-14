@@ -3,6 +3,7 @@
 
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType, EmbedBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { readConfig, writeConfig } = require('../storage/jsonStore');
+const { isAnimateur } = require('../utils/modHelpers');
 
 async function handleMotCacheButton(interaction) {
   console.log(`[MOT-CACHE-HANDLER] Bouton reçu: ${interaction.customId}`);
@@ -308,15 +309,16 @@ async function handleMotCacheButton(interaction) {
     });
   }
 
-  // Ouvrir la config (admin uniquement)
+  // Ouvrir la config (admin/animateur)
   if (buttonId === 'motcache_open_config') {
     console.log(`[MOT-CACHE-HANDLER] Bouton config détecté`);
     
-    // Vérifier les permissions AVANT de déférer
-    if (!interaction.memberPermissions.has('Administrator')) {
-      console.log(`[MOT-CACHE-HANDLER] Utilisateur non admin`);
+    // Vérifier les permissions AVANT de déférer (admin, staff ou animateur)
+    const canConfigure = await isAnimateur(interaction.guild, interaction.member);
+    if (!canConfigure) {
+      console.log(`[MOT-CACHE-HANDLER] Utilisateur non autorisé (pas admin/staff/animateur)`);
       return interaction.reply({
-        content: '❌ Seuls les administrateurs peuvent configurer le jeu.',
+        content: '❌ Seuls les administrateurs et animateurs peuvent configurer le jeu.',
         ephemeral: true
       });
     }

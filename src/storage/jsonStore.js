@@ -631,6 +631,7 @@ async function getGuildConfig(guildId) {
   const cfg = await readConfig();
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   if (!Array.isArray(cfg.guilds[guildId].staffRoleIds)) cfg.guilds[guildId].staffRoleIds = [];
+  if (!Array.isArray(cfg.guilds[guildId].animateurRoleIds)) cfg.guilds[guildId].animateurRoleIds = [];
   ensureTicketsShape(cfg.guilds[guildId]);
   if (!cfg.guilds[guildId].levels) {
     cfg.guilds[guildId].levels = {
@@ -665,6 +666,18 @@ async function setGuildStaffRoleIds(guildId, roleIds) {
   const cfg = await readConfig();
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   cfg.guilds[guildId].staffRoleIds = Array.from(new Set(roleIds.map(String)));
+  await writeConfig(cfg);
+}
+
+async function getGuildAnimateurRoleIds(guildId) {
+  const g = await getGuildConfig(guildId);
+  return Array.isArray(g.animateurRoleIds) ? g.animateurRoleIds : [];
+}
+
+async function setGuildAnimateurRoleIds(guildId, roleIds) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  cfg.guilds[guildId].animateurRoleIds = Array.from(new Set(roleIds.map(String)));
   await writeConfig(cfg);
 }
 
@@ -2143,6 +2156,8 @@ module.exports = {
   getGuildConfig,
   getGuildStaffRoleIds,
   setGuildStaffRoleIds,
+  getGuildAnimateurRoleIds,
+  setGuildAnimateurRoleIds,
   // Tickets
   getTicketsConfig,
   updateTicketsConfig,

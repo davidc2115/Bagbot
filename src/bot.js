@@ -10,7 +10,7 @@ try {
   try { console.error('[Lock] init failed:', e?.message || e); } catch (_) {}
 }
 
-const { setGuildStaffRoleIds, getGuildStaffRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
+const { setGuildStaffRoleIds, getGuildStaffRoleIds, setGuildAnimateurRoleIds, getGuildAnimateurRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
 const { downloadDiscordGifForBot } = require('./utils/discord_gif_downloader');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 
@@ -3682,6 +3682,15 @@ async function buildConfigEmbed(guild) {
         .map((r) => `• ${r}`)
         .join('\n')
     : '—';
+  // Animateur roles
+  const animateurIds = await getGuildAnimateurRoleIds(guild.id);
+  const animateurList = animateurIds.length
+    ? animateurIds
+        .map((id) => guild.roles.cache.get(id))
+        .filter(Boolean)
+        .map((r) => `• ${r}`)
+        .join('\n')
+    : '—';
   const config = await readConfig();
   const quarantineRoleId = config.guilds?.[guild.id]?.quarantineRoleId;
   const quarantineRole = quarantineRoleId ? (guild.roles.cache.get(quarantineRoleId)?.toString() || `<@&${quarantineRoleId}>`) : '—';
@@ -3711,6 +3720,7 @@ async function buildConfigEmbed(guild) {
     .setDescription("Choisissez une section puis ajustez les paramètres.")
     .addFields(
       { name: 'Rôles Staff', value: staffList },
+      { name: '🎭 Rôles Animateur', value: animateurList },
       { name: '🔒 Rôle Quarantaine', value: quarantineRole },
       { name: 'AutoKick (Rôle)', value: `État: ${ak.enabled ? 'Activé ✅' : 'Désactivé ⛔'}\nRôle requis: ${roleDisplay}\nDélai: ${formatDuration(ak.delayMs)}` },
       { name: '⏰ AutoKick (Inactivité)', value: `État: ${inactCfg.enabled ? 'Activé ✅' : 'Désactivé ⛔'}\nDélai: ${inactCfg.delayDays || 30} jours\nRôle inactif: ${inactRoleDisplay}\nRôles exclus: ${inactExcludedCount}` },
@@ -3733,6 +3743,7 @@ function buildTopSectionRow() {
     .setPlaceholder('Choisir une section…')
     .addOptions(
       { label: 'Staff', value: 'staff', description: 'Gérer les rôles Staff' },
+      { label: '🎭 Animateur', value: 'animateur', description: 'Gérer les rôles Animateur (jeux, événements)' },
       { label: 'AutoKick', value: 'autokick', description: "Configurer l'auto-kick" },
       { label: 'Levels', value: 'levels', description: 'Configurer XP & niveaux' },
       { label: 'Économie', value: 'economy', description: "Configurer l'économie" },
@@ -3820,6 +3831,37 @@ async function buildStaffRemoveRows(guild) {
     .setMaxValues(25);
   return [new ActionRowBuilder().addComponents(removeSelect)];
 }
+
+// Animateur role management functions
+function buildAnimateurActionRow() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('config_animateur_action')
+    .setPlaceholder('Choisir une action Animateur…')
+    .addOptions(
+      { label: '➕ Ajouter des rôles Animateur', value: 'add', description: 'Ajouter des rôles pouvant gérer les animations' },
+      { label: '➖ Retirer des rôles Animateur', value: 'remove', description: 'Retirer des rôles animateur' },
+    );
+  return new ActionRowBuilder().addComponents(select);
+}
+
+function buildAnimateurAddRows() {
+  const addSelect = new RoleSelectMenuBuilder()
+    .setCustomId('animateur_add_roles')
+    .setPlaceholder('Sélectionner les rôles à AJOUTER comme Animateur…')
+    .setMinValues(1)
+    .setMaxValues(25);
+  return [new ActionRowBuilder().addComponents(addSelect)];
+}
+
+async function buildAnimateurRemoveRows(guild) {
+  const removeSelect = new RoleSelectMenuBuilder()
+    .setCustomId('animateur_remove_roles')
+    .setPlaceholder('Sélectionner les rôles à RETIRER des Animateurs…')
+    .setMinValues(1)
+    .setMaxValues(25);
+  return [new ActionRowBuilder().addComponents(removeSelect)];
+}
+
 async function buildAutokickRows(guild) {
   const ak = await getAutoKickConfig(guild.id);
   
@@ -7083,6 +7125,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (section === 'staff') {
         const staffAction = buildStaffActionRow();
         await interaction.update({ embeds: [embed], components: [buildBackRow(), staffAction] });
+      } else if (section === 'animateur') {
+        const animateurAction = buildAnimateurActionRow();
+        await interaction.update({ embeds: [embed], components: [buildBackRow(), animateurAction] });
       } else if (section === 'autokick') {
         const akRows = await buildAutokickRows(interaction.guild);
         await interaction.update({ embeds: [embed], components: [buildBackRow(), ...akRows] });
@@ -10365,6 +10410,48 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const topRows = buildTopSectionRow();
       const staffAction = buildStaffActionRow();
       await interaction.update({ embeds: [embed], components: [...topRows, staffAction] });
+      return;
+    }
+
+    // Animateur role handlers
+    if (interaction.isStringSelectMenu() && interaction.customId === 'config_animateur_action') {
+      const action = interaction.values[0];
+      const embed = await buildConfigEmbed(interaction.guild);
+      const topRows = buildTopSectionRow();
+      const animateurAction = buildAnimateurActionRow();
+      if (action === 'add') {
+        const addRows = buildAnimateurAddRows();
+        await interaction.update({ embeds: [embed], components: [...topRows, animateurAction, ...addRows] });
+      } else if (action === 'remove') {
+        const removeRows = await buildAnimateurRemoveRows(interaction.guild);
+        await interaction.update({ embeds: [embed], components: [...topRows, animateurAction, ...removeRows] });
+      } else {
+        await interaction.update({ embeds: [embed], components: [...topRows, animateurAction] });
+      }
+      return;
+    }
+
+    if (interaction.isRoleSelectMenu() && interaction.customId === 'animateur_add_roles') {
+      await ensureStorageExists();
+      const current = await getGuildAnimateurRoleIds(interaction.guild.id);
+      const next = Array.from(new Set([...current, ...interaction.values]));
+      await setGuildAnimateurRoleIds(interaction.guild.id, next);
+      const embed = await buildConfigEmbed(interaction.guild);
+      const topRows = buildTopSectionRow();
+      const animateurAction = buildAnimateurActionRow();
+      await interaction.update({ embeds: [embed], components: [...topRows, animateurAction] });
+      return;
+    }
+
+    if (interaction.isRoleSelectMenu() && interaction.customId === 'animateur_remove_roles') {
+      const selected = new Set(interaction.values);
+      const current = await getGuildAnimateurRoleIds(interaction.guild.id);
+      const next = current.filter((id) => !selected.has(id));
+      await setGuildAnimateurRoleIds(interaction.guild.id, next);
+      const embed = await buildConfigEmbed(interaction.guild);
+      const topRows = buildTopSectionRow();
+      const animateurAction = buildAnimateurActionRow();
+      await interaction.update({ embeds: [embed], components: [...topRows, animateurAction] });
       return;
     }
 

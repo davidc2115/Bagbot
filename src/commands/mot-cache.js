@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ChannelType, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { readConfig, writeConfig } = require('../storage/jsonStore');
+const { isAnimateur } = require('../utils/modHelpers');
 
 module.exports = {
   name: 'mot-cache',
@@ -33,7 +34,7 @@ module.exports = {
 
     const userId = interaction.user.id;
     const userLetters = motCache.collections?.[userId] || [];
-    const isAdmin = interaction.memberPermissions.has('Administrator');
+    const canManage = await isAnimateur(interaction.guild, interaction.member);
 
     // Créer l'embed commun
     const embed = new EmbedBuilder()
@@ -41,7 +42,7 @@ module.exports = {
       .setColor(motCache.enabled ? '#9b59b6' : '#95a5a6');
 
     if (!motCache.enabled || !motCache.targetWord) {
-      embed.setDescription('⏸️ **Le jeu n\'est pas activé**\n\nLes administrateurs peuvent le configurer.');
+      embed.setDescription('⏸️ **Le jeu n\'est pas activé**\n\nLes administrateurs et animateurs peuvent le configurer.');
       
       const row = new ActionRowBuilder();
       
@@ -56,8 +57,8 @@ module.exports = {
         );
       }
       
-      if (isAdmin) {
-        // Admin : ajouter le bouton Config
+      if (canManage) {
+        // Admin/Animateur : ajouter le bouton Config
         row.addComponents(
           new ButtonBuilder()
             .setCustomId('motcache_open_config')
@@ -106,8 +107,8 @@ module.exports = {
         .setStyle(ButtonStyle.Success)
     );
     
-    if (isAdmin) {
-      // Ajouter bouton Config pour admins
+    if (canManage) {
+      // Ajouter bouton Config pour admins/animateurs
       row.addComponents(
         new ButtonBuilder()
           .setCustomId('motcache_open_config')
