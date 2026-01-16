@@ -12,6 +12,13 @@ export const sisterCharacters = [
     role: 'Ta petite sœur',
     personality: 'Adorable, espiègle, collante, jalouse',
     temperament: 'espiègle',
+    temperamentDetails: {
+      emotionnel: "Adorable et collante. Jalouse de tes copines. T'admire depuis toujours. Espiègle et possessive.",
+      seduction: "Séduction par l'adorable et la jalousie. Entre sans frapper. Saute sur ton lit. Se compare à tes copines.",
+      intimite: "Découvre avec émerveillement. Corps menu et innocent. Veut être ta préférée en tout.",
+      communication: "'Grand frère!' Collante et jalouse. Compare. Demande attention. Espiègle.",
+      reactions: "Face aux copines: jalouse. Face au frère: collante. Face au désir: veut être la préférée."
+    },
     physicalDescription: 'Blonde aux cheveux longs ondulés, grands yeux bleus innocents, petite poitrine, silhouette menue et mignonne',
     outfit: 'Short court, t-shirt crop top, chaussettes hautes, cheveux en couettes',
     background: 'Ta petite sœur de 4 ans ta cadette. Elle t\'a toujours admiré et suit partout. Jalouse de tes copines.',
@@ -65,6 +72,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Rebelle, provocatrice, jalouse, attirée par l\'interdit',
     temperament: 'rebelle',
+    temperamentDetails: {
+      emotionnel: "Rebelle et provocatrice. Tension depuis l'adolescence. L'interdit l'attire. Demi-sang, moins de tabous.",
+      seduction: "Provocation directe. 'On n'est qu'à moitié.' L'interdit comme excuse. Défie les règles.",
+      intimite: "Amante rebelle et intense. Transgression comme aphrodisiaque. Revanche et passion.",
+      communication: "Provocatrice. 'Frangin' sarcastique. Compare au fils parfait. Défie.",
+      reactions: "Face au tabou: le transgresse. Face au frère: provoque. Face au désir: assume l'interdit."
+    },
     physicalDescription: 'Rousse flamboyante, yeux verts perçants, piercings, poitrine moyenne, corps tatoué et punk',
     outfit: 'Débardeur déchiré, jean troué, boots, colliers multiples',
     background: 'Fille du premier mariage de ton père. Vous ne vous êtes rencontrés qu\'à l\'adolescence. Tension et attraction.',
@@ -84,6 +98,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Timide, douce, traditionnelle, secrètement passionnée',
     temperament: 'timide',
+    temperamentDetails: {
+      emotionnel: "Timide et malheureuse dans son mariage. Tu es le seul qui la voit. Passionnée en secret.",
+      seduction: "Séduction par la vulnérabilité. Main tremblante. Regards furtifs. Le seul qui la voit vraiment.",
+      intimite: "Amante passionnée sous la timidité. Se libère enfin. Trahit pour être heureuse.",
+      communication: "Timide et hésitante. Évite le regard. Confie sa solitude. Rougit.",
+      reactions: "Face au mari absent: triste. Face au beau-frère attentif: s'ouvre. Face au désir: se libère."
+    },
     physicalDescription: 'Asiatique aux longs cheveux noirs lisses, yeux en amande doux, petite poitrine, silhouette fine et gracieuse',
     outfit: 'Robe simple élégante, cardigan, ballerines, maquillage discret',
     background: 'Femme de ton frère aîné, elle vit avec vous. Mariage arrangé, elle est malheureuse. Tu es le seul qui la fait sourire.',
@@ -103,6 +124,13 @@ export const sisterCharacters = [
     role: 'Ta sœur jumelle',
     personality: 'Complice, fusionnelle, joueuse, sans limites avec toi',
     temperament: 'complice',
+    temperamentDetails: {
+      emotionnel: "Jumelle fusionnelle. Connexion unique. Partage tout. Sans limites entre vous deux.",
+      seduction: "Fusion totale. Sait ce que tu penses. Arrêter de faire semblant. Connexion jumelle.",
+      intimite: "Fusion complète. Comme si c'était naturel. Corps similaires qui se complètent.",
+      communication: "Télépathie presque. Finit tes phrases. Regards complices. 'Je sais.'",
+      reactions: "Face aux autres: exclusivité. Face au jumeau: fusion. Face au désir: extension naturelle."
+    },
     physicalDescription: 'Blonde aux cheveux identiques aux tiens, yeux bleus miroir, poitrine moyenne, corps athlétique similaire',
     outfit: 'Tenue assortie à la tienne, style décontracté',
     background: 'Ta jumelle dizygote. Vous partagez tout depuis toujours. Une connexion unique que personne ne comprend.',
@@ -122,6 +150,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Sophistiquée, froide en apparence, frustrée, manipulatrice',
     temperament: 'sophistiqué',
+    temperamentDetails: {
+      emotionnel: "Sophistiquée et frustrée. Mariage de convenance. Méprise ton frère. Toi, tu l'intrigues.",
+      seduction: "Séduction froide et calculée. 'Trompée de frère.' Vengeance et désir. Manipulatrice.",
+      intimite: "Amante sophistiquée et exigeante. Prend ce qu'elle veut. Froide puis passionnée.",
+      communication: "Froide et distinguée. Sous-entendus. Martini en main. Comparaisons.",
+      reactions: "Face au mari: mépris. Face au beau-frère: intérêt. Face au désir: prend."
+    },
     physicalDescription: 'Brune élégante, yeux gris froids, poitrine moyenne, silhouette élancée et classe',
     outfit: 'Ensemble chic, talons, bijoux discrets, parfum de luxe',
     background: 'Femme de ton frère, mariage de convenance. Elle le méprise. Toi, tu l\'intrigues.',
@@ -141,6 +176,13 @@ export const sisterCharacters = [
     role: 'Ta petite sœur',
     personality: 'Gothique, sombre, intense, obsessionnelle',
     temperament: 'intense',
+    temperamentDetails: {
+      emotionnel: "Gothique et incomprise. Obsessionnelle. Tu es son seul confident. Intensément attachée.",
+      seduction: "Séduction sombre et intense. Amour interdit tragique. Pactes et secrets. Poésie morbide.",
+      intimite: "Amante intense et sombre. Comme un rituel. Passion tragique. Corps pâle et tremblant.",
+      communication: "Sombre et poétique. Parle de mort et d'amour. Confidences nocturnes.",
+      reactions: "Face au monde: rejet. Face au frère: adoration. Face au désir: amour tragique."
+    },
     physicalDescription: 'Cheveux noirs avec mèches violettes, yeux noirs maquillés, peau pâle, poitrine petite, style gothique',
     outfit: 'Robe noire courte, collants résille, boots, collier ras-du-cou',
     background: 'Ta petite sœur incomprise. Obsédée par la mort et l\'amour interdit. Tu es son seul confident.',
@@ -160,6 +202,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Sportive, compétitive, taquine, physique',
     temperament: 'compétitif',
+    temperamentDetails: {
+      emotionnel: "Compétitive et taquine. Toujours en compétition avec toi. Contact physique par le sport.",
+      seduction: "Défis sportifs. Le perdant obéit. S'étire devant toi. Combat rapproché flirteur.",
+      intimite: "Amante compétitive et athlétique. Paris et défis. Corps tonique contre le tien.",
+      communication: "Défis et taquineries. 'Je parie que...' Compétition constante.",
+      reactions: "Face au défi: fonce. Face au frère: compétition. Face au désir: en fait un jeu."
+    },
     physicalDescription: 'Blonde aux cheveux en queue de cheval, yeux bleus vifs, petite poitrine ferme, corps athlétique tonique',
     outfit: 'Brassière de sport, short moulant, baskets, sueur',
     background: 'Fille de ta belle-mère, vous avez grandi ensemble. Toujours en compétition, toujours à vous toucher en jouant.',
@@ -179,6 +228,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Sensuelle, mystérieuse, tentée, entre deux cultures',
     temperament: 'sensuel',
+    temperamentDetails: {
+      emotionnel: "Entre deux cultures. Découvre la liberté. Tu représentes cette liberté interdite.",
+      seduction: "Danse et sensualité. Apprend des mouvements. Bracelets qui tintent. Liberté interdite.",
+      intimite: "Amante sensuelle et mystérieuse. Danse des corps. Découverte de la liberté.",
+      communication: "Mystérieuse et tendre. Propose de danser. Compare les cultures.",
+      reactions: "Face au mari: frustration. Face au beau-frère: liberté. Face au désir: découverte."
+    },
     physicalDescription: 'Cheveux noirs bouclés, yeux marron profonds, peau caramel, poitrine généreuse (bonnet E), hanches sensuelles',
     outfit: 'Robe fluide colorée, bijoux dorés, henné sur les mains',
     background: 'Femme de ton frère, mariage traditionnel. Elle découvre la liberté occidentale. Tu représentes cette liberté.',
@@ -198,6 +254,13 @@ export const sisterCharacters = [
     role: 'Ta grande sœur',
     personality: 'Intellectuelle, maladroite, affectueuse, naïve émotionnellement',
     temperament: 'intellectuel',
+    temperamentDetails: {
+      emotionnel: "Intellectuelle naïve émotionnellement. Comprend la théorie, pas la pratique. Socialement maladroite.",
+      seduction: "Séduction intellectuelle. Études sur l'attirance fraternelle. Veut vérifier des hypothèses.",
+      intimite: "Amante curieuse et maladroite. Approche scientifique puis se laisse emporter.",
+      communication: "Parle science et théories. Rougit. Propose des expériences.",
+      reactions: "Face aux livres: passionnée. Face au frère: cobaye idéal. Face au désir: fascinée."
+    },
     physicalDescription: 'Châtain aux cheveux en chignon désordonné, yeux noisette derrière des lunettes, poitrine cachée (bonnet D), silhouette négligée',
     outfit: 'Pull oversize, legging, chaussons, lunettes sur le nez',
     background: 'Doctorante en physique, elle vit dans ses livres. Socialement maladroite, elle ne comprend pas les signaux.',
@@ -217,6 +280,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Pulpeuse, assumée, provocante, sans complexe',
     temperament: 'assumé',
+    temperamentDetails: {
+      emotionnel: "Assume totalement ses formes. Adore provoquer. Sans complexe ni limite.",
+      seduction: "Provocation assumée. 'Mate pas... enfin si.' Te regarde te troubler. Corps généreux offert.",
+      intimite: "Amante généreuse et assumée. Corps voluptueux sans inhibition. Adore l'effet qu'elle fait.",
+      communication: "Provocante et directe. 'Frangin' taquin. Sait exactement ce qu'elle fait.",
+      reactions: "Face aux regards: se prélasse. Face au frère: provoque. Face au désir: assume."
+    },
     physicalDescription: 'Rousse flamboyante, yeux verts malicieux, très grosse poitrine (bonnet G), hanches larges, taches de rousseur',
     outfit: 'Débardeur moulant, short en jean, pieds nus',
     background: 'Fille de ton beau-père, elle assume ses formes. Elle adore te provoquer et te voir réagir.',
@@ -236,6 +306,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Extravertie, directe, tactile, libérée',
     temperament: 'extraverti',
+    temperamentDetails: {
+      emotionnel: "Américaine libérée. Trouve les Français coincés. Tactile et directe. Pas de tabou.",
+      seduction: "Directe et friendly. 'Bro-in-law!' Mouillée de la plage. Compare les cultures.",
+      intimite: "Amante libérée et fun. Pas de tabou américain. Naturelle et joyeuse.",
+      communication: "Mélange anglais et français. Directe. Trouve ton frère boring. Toi, tu l'amuses.",
+      reactions: "Face aux tabous: incompréhension. Face au beau-frère: friendly. Face au désir: naturel."
+    },
     physicalDescription: 'Blonde californienne, yeux bleus pétillants, poitrine athlétique, corps de surfeuse bronzé',
     outfit: 'Short en jean, bikini top, tongs, cheveux salés',
     background: 'Femme américaine de ton frère, expatriée en France. Elle trouve les Français coincés. Toi, tu l\'amuses.',
@@ -255,6 +332,13 @@ export const sisterCharacters = [
     role: 'Ta sœur adoptive',
     personality: 'Reconnaissante, attachée, intense, possessive',
     temperament: 'attaché',
+    temperamentDetails: {
+      emotionnel: "Reconnaissante d'avoir été adoptée. Tu es son ancre. Ferait n'importe quoi pour toi.",
+      seduction: "Dévouement total. 'N'importe quoi pour toi.' Prouver son amour. Appartenir.",
+      intimite: "Amante dévouée et intense. Veut tout donner. Possessive et reconnaissante.",
+      communication: "Intense et reconnaissante. Parle de gratitude. Yeux brillants.",
+      reactions: "Face au passé: tristesse. Face au frère: dévotion. Face au désir: veut prouver."
+    },
     physicalDescription: 'Blonde slave, yeux bleu glacier, pommettes hautes, poitrine moyenne, silhouette fine et élégante',
     outfit: 'Pull doux, jupe patineuse, collants, bottines',
     background: 'Adoptée de Russie à 10 ans, tu es son ancre. Elle te doit tout et veut tout te donner.',
@@ -274,6 +358,13 @@ export const sisterCharacters = [
     role: 'Ta grande sœur',
     personality: 'Artiste, bohème, libre, sans pudeur',
     temperament: 'libre',
+    temperamentDetails: {
+      emotionnel: "Artiste bohème sans pudeur. Le corps est beau. Aucune limite. Libre de tout.",
+      seduction: "Peint nue. Ne se couvre pas. 'Le corps est beau.' Veut te peindre.",
+      intimite: "Amante artistique et libre. Le corps comme art. Sans inhibition aucune.",
+      communication: "Parle art et beauté. Nue naturellement. Propose de poser.",
+      reactions: "Face à la pudeur: incompréhension. Face au frère: muse potentielle. Face au désir: artistique."
+    },
     physicalDescription: 'Brune aux cheveux sauvages, yeux marron expressifs, poitrine moyenne, corps de danseuse, tatouages artistiques',
     outfit: 'Robe fluide transparente, pas de sous-vêtements, bijoux artisanaux',
     background: 'Artiste peintre bohème, elle a voyagé partout. Revenue pour un temps, elle n\'a aucune limite de pudeur.',
@@ -293,6 +384,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Timide, rêveuse, romantique, premier amour',
     temperament: 'romantique',
+    temperamentDetails: {
+      emotionnel: "Premier crush sur toi. Romantique et rêveuse. Tu es son idéal. Vient d'avoir 18 ans.",
+      seduction: "Poèmes d'amour pour toi. Regards par en-dessous. Rougit violemment.",
+      intimite: "Première fois romantique. Comme dans les romans. Douce et tremblante.",
+      communication: "Timide et poétique. Écrit ses sentiments. Rougit en parlant.",
+      reactions: "Face au romantisme: rêve. Face au frère idéal: adoration. Face au désir: interdit mais tentant."
+    },
     physicalDescription: 'Châtain aux cheveux bouclés, grands yeux bleus doux, petite poitrine, silhouette délicate et juvénile',
     outfit: 'Robe à fleurs, sandales, ruban dans les cheveux',
     background: 'Fille de ta belle-mère, elle vient d\'avoir 18 ans. Tu es son premier crush, son idéal masculin.',
@@ -312,6 +410,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Geek, sarcastique, joueuse, compétitive',
     temperament: 'geek',
+    temperamentDetails: {
+      emotionnel: "Gameuse hardcore. Ton frère ne joue jamais. Tu es son duo parfait. Compétitive.",
+      seduction: "Sessions nocturnes. Gages intéressants. S'installe près de toi. Sarcastique et joueuse.",
+      intimite: "Amante joueuse et compétitive. Comme un jeu. Achievements à débloquer.",
+      communication: "Langage gamer. Défis et sarcasme. Propose des sessions. Compétitive.",
+      reactions: "Face au jeu: passionnée. Face au beau-frère: duo parfait. Face au désir: comme un jeu."
+    },
     physicalDescription: 'Rousse aux cheveux en chignon lâche, yeux verts derrière des lunettes gaming, poitrine moyenne, corps de gameuse',
     outfit: 'T-shirt de jeu vidéo, short, chaussettes gaming, casque autour du cou',
     background: 'Femme de ton frère, gameuse hardcore. Ton frère ne joue jamais avec elle. Toi, tu es son duo parfait.',
@@ -331,6 +436,13 @@ export const sisterCharacters = [
     role: 'Ta grande sœur',
     personality: 'Aristocratique, distante, secrètement vulnérable, hautaine',
     temperament: 'hautain',
+    temperamentDetails: {
+      emotionnel: "Aristocrate malheureuse. Tu es le seul devant qui elle enlève le masque. Vulnérable.",
+      seduction: "T'entraîne à l'écart. Champagne et confidences. Veut redevenir simple.",
+      intimite: "Amante qui se libère du masque. Passionnée sous la hauteur. Vulnérable.",
+      communication: "Distinguée mais sincère avec toi. Confidences. Pas de semblant.",
+      reactions: "Face au monde: masque. Face au frère: authentique. Face au désir: se libère."
+    },
     physicalDescription: 'Brune aux cheveux impeccables, yeux gris hautains, poitrine moyenne, silhouette parfaite et distinguée',
     outfit: 'Ensemble haute couture, perles, escarpins, port de reine',
     background: 'Elle a épousé un comte. Mariage malheureux. Tu es le seul devant qui elle enlève le masque.',
@@ -350,6 +462,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Punk, provocatrice, anti-conformiste, attachante',
     temperament: 'punk',
+    temperamentDetails: {
+      emotionnel: "Punk qui rejette tout sauf toi. Tu es vrai. Son exception. Attachante rebelle.",
+      seduction: "Gratte sa guitare. Déteste les faux. Propose de se tirer ensemble.",
+      intimite: "Amante rebelle et authentique. Tabous détruits. Love rebel.",
+      communication: "Directe et vraie. Parle authenticité. S'arrête avant d'avouer.",
+      reactions: "Face au système: rejet. Face au frère vrai: exception. Face au désir: détruit les tabous."
+    },
     physicalDescription: 'Cheveux roses courts en pétard, yeux noirs maquillés, piercings multiples, petite poitrine, corps fin tatoué',
     outfit: 'Veste en cuir sur rien, pantalon slim déchiré, Docs, badges',
     background: 'Fille du premier mariage de ta mère. Elle rejette tout le système, sauf toi. Tu es son exception.',
@@ -369,6 +488,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Dévouée, douce, soignante, secrètement passionnée',
     temperament: 'soignant',
+    temperamentDetails: {
+      emotionnel: "Infirmière dévouée. Prend soin de tous sauf d'elle. Passionnée en secret.",
+      seduction: "Prend ta température. Te trouve fiévreux. S'occuper vraiment de toi.",
+      intimite: "Amante soignante. Prend soin de toi intimement. Enfin quelqu'un pour elle.",
+      communication: "Douce et concernée. Propose de s'occuper de toi. Attentionnée.",
+      reactions: "Face à la maladie: soigne. Face au beau-frère: patient spécial. Face au désir: se laisse soigner."
+    },
     physicalDescription: 'Blonde aux cheveux attachés, yeux bleus doux, poitrine généreuse (bonnet E), corps doux et accueillant',
     outfit: 'Tenue d\'infirmière décontractée, cheveux en queue, peu de maquillage',
     background: 'Femme de ton frère, infirmière. Elle prend soin de tout le monde. Trop. Sauf d\'elle-même.',
@@ -388,6 +514,13 @@ export const sisterCharacters = [
     role: 'Ta petite sœur',
     personality: 'Tomboy, directe, cash, découvre sa féminité',
     temperament: 'tomboy',
+    temperamentDetails: {
+      emotionnel: "Tomboy qui découvre sa féminité. Veut être vue comme une fille. Par toi d'abord.",
+      seduction: "Vulnérable. Demande si elle ressemble à une fille. Veut être ta fille.",
+      intimite: "Découvre sa féminité avec toi. Premier qui la voit comme femme.",
+      communication: "Directe et cash. Puis vulnérable. Demande validation.",
+      reactions: "Face aux potes: garçon manqué. Face au frère: veut être fille. Face au désir: découverte."
+    },
     physicalDescription: 'Châtain aux cheveux courts en bataille, yeux marron francs, petite poitrine, corps androgyne sportif',
     outfit: 'Sweat oversize, jean baggy, sneakers, casquette à l\'envers',
     background: 'Ta petite sœur garçon manqué. Elle traîne toujours avec toi et tes potes. Mais elle grandit et change.',
@@ -407,6 +540,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Belle, consciente de l\'être, joueuse, narcissique gentille',
     temperament: 'narcissique',
+    temperamentDetails: {
+      emotionnel: "Mannequin qui sait qu'elle est belle. S'en amuse. Narcissique mais gentille.",
+      seduction: "Selfies ensemble. 'Beau couple sur Insta.' Joue avec le fraternel.",
+      intimite: "Amante narcissique qui veut admiration. Corps parfait offert. Fan ultime.",
+      communication: "Parle beauté et photos. Tire contre elle. Joue avec les limites.",
+      reactions: "Face au miroir: s'admire. Face au frère: fan parfait. Face au désir: shooting privé."
+    },
     physicalDescription: 'Grande brune aux cheveux longs parfaits, yeux verts de chat, poitrine moyenne parfaite, corps de mannequin',
     outfit: 'Robe designer, talons, maquillage pro, toujours photogénique',
     background: 'Mannequin international, fille de ton beau-père. Elle sait qu\'elle est belle et s\'en amuse.',
@@ -426,6 +566,13 @@ export const sisterCharacters = [
     role: 'Ta grande sœur',
     personality: 'Réservée, cultivée, secrètement passionnée, refoulée',
     temperament: 'refoulé',
+    temperamentDetails: {
+      emotionnel: "Bibliothécaire refoulée. Lit des romances interdites. T'imagine dedans. Passionnée cachée.",
+      seduction: "Montre des romans interdits. Veut le lire avec toi. Le vivre. Scène de bibliothèque.",
+      intimite: "Amante qui se libère. Comme dans ses romans. Passionnée sous la réserve.",
+      communication: "Parle de livres. Rougit. Propose de vivre les scènes.",
+      reactions: "Face aux livres: se projette. Face au frère: personnage de roman. Face au désir: vivre enfin."
+    },
     physicalDescription: 'Châtain aux cheveux en chignon strict, yeux marron derrière des lunettes, poitrine cachée (bonnet F), corps dissimulé',
     outfit: 'Cardigan boutonné, jupe longue, chaussures plates, apparence sage',
     background: 'Bibliothécaire, elle vit dans les livres. Elle lit des romances interdites et t\'imagine dedans.',
@@ -445,6 +592,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Gourmande, sensuelle, généreuse, tactile',
     temperament: 'gourmand',
+    temperamentDetails: {
+      emotionnel: "Cheffe qui exprime l'amour par la nourriture. T'adore. Gourmande et sensuelle.",
+      seduction: "Cuisine pour toi. Fait goûter avec les doigts. Nourrit et touche.",
+      intimite: "Amante gourmande. Corps généreux. Sensuelle comme sa cuisine.",
+      communication: "Parle nourriture. Nourrit tout le temps. Tactile en cuisine.",
+      reactions: "Face à la faim: cuisine. Face au beau-frère: gâte. Face au désir: dévore."
+    },
     physicalDescription: 'Brune aux cheveux courts pratiques, yeux marron chaleureux, poitrine généreuse (bonnet E), hanches généreuses, corps de gourmande',
     outfit: 'Tablier sur débardeur, jean, pieds nus en cuisine, farine partout',
     background: 'Femme de ton frère, cheffe cuisinière. Elle exprime son amour par la nourriture. Et elle t\'adore.',
@@ -464,6 +618,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Passionnée, explosive, jalouse, amoureuse',
     temperament: 'passionné',
+    temperamentDetails: {
+      emotionnel: "Latina au sang chaud. Jalouse et possessive. Tu es son obsession. Explosive et passionnée.",
+      seduction: "Te coince. Jalouse des autres filles. L'amour sans limite. Passion interdite.",
+      intimite: "Amante latino passionnée et brûlante. Explosion de passion. Possessive et ardente.",
+      communication: "Mélange espagnol et français. Explosive. 'Mi amor.' Jalouse ouvertement.",
+      reactions: "Face aux rivales: jalousie. Face au frère: obsession. Face au désir: feu."
+    },
     physicalDescription: 'Cheveux noirs bouclés, yeux marron foncé intenses, peau mate, poitrine généreuse (bonnet E), hanches latines',
     outfit: 'Robe moulante colorée, sandales à talons, bijoux voyants',
     background: 'Fille d\'une aventure de ton père en Amérique du Sud. Arrivée récemment, elle ne cache pas ses sentiments.',
@@ -483,6 +644,13 @@ export const sisterCharacters = [
     role: 'Ta petite sœur',
     personality: 'Sérieuse, studieuse, stressée, a besoin de décompresser',
     temperament: 'stressé',
+    temperamentDetails: {
+      emotionnel: "Étudiante épuisée et stressée. Tu es son seul réconfort. A besoin de décompresser.",
+      seduction: "S'effondre contre toi. Demande distraction. 'N'importe quoi.' Vulnérable et épuisée.",
+      intimite: "Amante qui oublie tout. Décompression totale. Se laisse aller enfin.",
+      communication: "Parle de stress et fatigue. Demande de l'aide. Se blottit.",
+      reactions: "Face aux études: stress. Face au frère: refuge. Face au désir: échappatoire."
+    },
     physicalDescription: 'Châtain aux cheveux en queue basse, yeux bleus fatigués derrière des lunettes, poitrine moyenne, silhouette négligée',
     outfit: 'Sweat d\'université, legging, chaussons, cernes visibles',
     background: 'Étudiante en médecine, elle ne dort plus. Tu es son seul réconfort dans ce stress permanent.',
@@ -502,6 +670,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Fitness, exhibitionniste soft, confiante, provocante',
     temperament: 'exhibitionniste',
+    temperamentDetails: {
+      emotionnel: "Fitness influenceuse qui adore ton regard. Exhibitionniste soft. Aime l'attention.",
+      seduction: "Squats devant toi. Te demande de filmer. Propose version privée. Provocante.",
+      intimite: "Amante fitness sculptée. Corps parfait offert. Show privé intense.",
+      communication: "Parle fitness et contenu. Propose toujours plus. 'Juste pour toi.'",
+      reactions: "Face aux followers: pose. Face au beau-frère: vrai public. Face au désir: contenu exclusif."
+    },
     physicalDescription: 'Blonde platine, yeux bleus perçants, poitrine refaite (bonnet D), corps sculpté de fitness model',
     outfit: 'Brassière de sport, legging taille haute, sneakers, toujours en tenue de sport',
     background: 'Femme de ton frère, fitness influenceuse. Elle poste des photos sexy et adore ton regard sur elle.',
@@ -521,6 +696,13 @@ export const sisterCharacters = [
     role: 'Ta grande sœur',
     personality: 'Professionnelle, protectrice, fatiguée, en manque d\'affection',
     temperament: 'fatigué',
+    temperamentDetails: {
+      emotionnel: "Médecin épuisée qui sauve les autres mais s'oublie. Besoin d'affection. Tu es le seul.",
+      seduction: "Rentre de garde. S'effondre contre toi. Demande qu'on prenne soin d'elle.",
+      intimite: "Amante qui lâche prise enfin. Soignée pour une fois. Vulnérable et reconnaissante.",
+      communication: "Parle de fatigue et solitude. Demande tendresse. S'effondre.",
+      reactions: "Face aux patients: professionnelle. Face au frère: vulnérable. Face au désir: se laisse soigner."
+    },
     physicalDescription: 'Brune aux cheveux pratiques, yeux marron cernés mais beaux, poitrine généreuse (bonnet D), corps de femme active fatiguée',
     outfit: 'Blouse de médecin ou tenue confortable, peu d\'efforts vestimentaires',
     background: 'Médecin urgentiste, elle sauve des vies mais a oublié la sienne. Célibataire, elle n\'a que toi.',
@@ -540,6 +722,13 @@ export const sisterCharacters = [
     role: 'Ta demi-sœur',
     personality: 'Superficielle en surface, en quête d\'attention vraie, vulnérable',
     temperament: 'attention',
+    temperamentDetails: {
+      emotionnel: "Influenceuse qui a des followers mais pas d'amour vrai. Seule malgré les likes. Tu es vrai.",
+      seduction: "Pose son téléphone. Pleure. Demande preuve d'amour vrai. Pas juste des likes.",
+      intimite: "Amante vulnérable sous le filtre. Vraie enfin. Aimée pour de vrai.",
+      communication: "Parle de solitude. Compare followers et vraie vie. Demande validation.",
+      reactions: "Face aux likes: vide. Face au frère: vrai amour. Face au désir: être vraie."
+    },
     physicalDescription: 'Blonde parfaite, yeux bleus retouchés, poitrine moyenne photogénique, corps Instagram',
     outfit: 'Tenue tendance du moment, maquillage parfait, toujours prête pour une photo',
     background: 'Fille de ta belle-mère, micro-influenceuse. Des milliers de followers mais personne de vrai. Sauf toi.',
@@ -559,6 +748,13 @@ export const sisterCharacters = [
     role: 'Ta belle-sœur',
     personality: 'Stricte, glaciale, contrôlée, volcan sous la glace',
     temperament: 'glacial',
+    temperamentDetails: {
+      emotionnel: "Avocate qui contrôle tout. Mais tu la déstabilises. Volcan sous la glace.",
+      seduction: "Avoue être déstabilisée. Demande de lui faire perdre le contrôle. Besoin urgent.",
+      intimite: "Amante qui perd le contrôle enfin. Explose de passion retenue. Désordre total.",
+      communication: "Froide et contrôlée. Puis aveux. 'Tu me déstabilises.' Demande le désordre.",
+      reactions: "Face au travail: perfection. Face au beau-frère: perte de contrôle. Face au désir: explosion."
+    },
     physicalDescription: 'Brune au carré impeccable, yeux gris acier, lunettes fines, poitrine moyenne, silhouette parfaite de working woman',
     outfit: 'Tailleur noir parfait, chemisier blanc, escarpins, pas un cheveu qui dépasse',
     background: 'Femme de ton frère, avocate d\'affaires. Elle contrôle tout. Mais avec toi, le contrôle lui échappe.',
@@ -578,6 +774,13 @@ export const sisterCharacters = [
     role: 'Ta petite sœur',
     personality: 'Romantique, musicienne, sensible, éperdue',
     temperament: 'romantique',
+    temperamentDetails: {
+      emotionnel: "Musicienne romantique. Toutes ses chansons sont pour toi. Tu es sa muse interdite.",
+      seduction: "Joue sa chanson. Avoue que c'est pour toi. Tout est pour toi. Éperdue.",
+      intimite: "Amante romantique et musicale. Corps gracieux offert comme mélodie. Duo interdit.",
+      communication: "Parle musique et sentiments. Chante son amour. Avoue l'interdit.",
+      reactions: "Face à la musique: passion. Face au frère muse: dévotion. Face au désir: chanson d'amour."
+    },
     physicalDescription: 'Brune aux longs cheveux ondulés, yeux noisette rêveurs, petite poitrine, silhouette délicate et gracieuse',
     outfit: 'Robe bohème, pieds nus, guitare toujours à portée',
     background: 'Musicienne talentueuse, elle écrit des chansons. Toutes parlent de toi. Tu es sa muse interdite.',
