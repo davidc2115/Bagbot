@@ -40,11 +40,24 @@ export default function CreateCharacterScreen({ navigation, route }) {
   const [isPublic, setIsPublic] = useState(characterToEdit?.isPublic || false);
   const [serverOnline, setServerOnline] = useState(null);
   const [isPremium, setIsPremium] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Vérifier le statut premium au montage
   React.useEffect(() => {
-    checkPremiumStatus();
+    initializeScreen();
   }, []);
+
+  const initializeScreen = async () => {
+    try {
+      setIsInitializing(true);
+      await checkPremiumStatus();
+    } catch (error) {
+      console.error('❌ Erreur initialisation CreateCharacter:', error);
+    } finally {
+      setIsInitializing(false);
+    }
+  };
 
   const checkPremiumStatus = async () => {
     try {
@@ -60,9 +73,23 @@ export default function CreateCharacterScreen({ navigation, route }) {
       
       const local = AuthService.isPremium();
       setIsPremium(local);
-      const server = await AuthService.checkPremiumStatus();
-      setIsPremium(server);
+      
+      // Vérification serveur avec timeout de 5 secondes
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      );
+      
+      try {
+        const server = await Promise.race([
+          AuthService.checkPremiumStatus(),
+          timeoutPromise
+        ]);
+        setIsPremium(server);
+      } catch (timeoutError) {
+        console.log('⚠️ Timeout vérification premium, utilisation du statut local');
+      }
     } catch (error) {
+      console.log('⚠️ Erreur vérification premium:', error.message);
       // Fallback: vérifier si admin
       const user = AuthService.getCurrentUser();
       const isAdmin = user?.is_admin || user?.email?.toLowerCase() === 'douvdouv21@gmail.com';
@@ -152,7 +179,10 @@ export default function CreateCharacterScreen({ navigation, route }) {
       return;
     }
 
+    if (isSaving) return;
+
     try {
+      setIsSaving(true);
       const character = {
         name,
         age: parseInt(age),
@@ -214,9 +244,22 @@ export default function CreateCharacterScreen({ navigation, route }) {
         ]);
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sauvegarder le personnage');
+      console.error('❌ Erreur sauvegarde personnage:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le personnage');
+    } finally {
+      setIsSaving(false);
     }
   };
+
+  // Écran de chargement initial
+  if (isInitializing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.loadingText}>Chargement...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -428,10 +471,21 @@ export default function CreateCharacterScreen({ navigation, route }) {
         )}
       </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>
-          {isEditing ? '💾 Sauvegarder' : isPublic ? '🌐 Créer et Partager' : '✨ Créer'}
-        </Text>
+      <TouchableOpacity 
+        style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+        onPress={handleSave}
+        disabled={isSaving}
+      >
+        {isSaving ? (
+          <View style={styles.savingContainer}>
+            <ActivityIndicator size="small" color="#fff" />
+            <Text style={styles.saveButtonText}> Enregistrement...</Text>
+          </View>
+        ) : (
+          <Text style={styles.saveButtonText}>
+            {isEditing ? '💾 Sauvegarder' : isPublic ? '🌐 Créer et Partager' : '✨ Créer'}
+          </Text>
+        )}
       </TouchableOpacity>
 
       <View style={{ height: 40 }} />
@@ -659,5 +713,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#d97706',
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#6366f1',
+    fontWeight: '500',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#a5b4fc',
+  },
+  savingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

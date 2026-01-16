@@ -110,39 +110,135 @@ class TextGenerationService {
   }
 
   /**
-   * Génère une réponse avec le provider sélectionné
-   * SYSTÈME IMMERSIF COMPLET avec mémoire, anti-répétition, tempérament
+   * v5.0.4 - Génère une réponse avec le provider sélectionné
+   * SYSTÈME CRÉATIF avec gestion d'erreurs robuste
    */
   async generateResponse(messages, character, userProfile = null, retries = 3) {
-    await this.loadConfig();
+    // Validation des entrées
+    if (!messages || !Array.isArray(messages)) {
+      console.error('❌ Messages invalides');
+      return this.getEmergencyResponse(character);
+    }
     
-    const provider = this.currentProvider;
-    console.log(`🤖 Génération avec ${this.providers[provider]?.name || provider}`);
+    if (!character || !character.name) {
+      console.error('❌ Personnage invalide');
+      return '*te regarde* "..." (hmm)';
+    }
+    
+    try {
+      await this.loadConfig();
+    } catch (configError) {
+      console.warn('⚠️ Erreur config, utilisation des valeurs par défaut');
+    }
+    
+    const provider = this.currentProvider || 'pollinations';
+    console.log(`🤖 Génération v5.0.4 avec ${this.providers[provider]?.name || provider}`);
     
     // Analyser le contexte de conversation + scénario du personnage
-    const conversationContext = this.analyzeConversationContext(messages, character);
-    console.log(`📊 Contexte: ${conversationContext.messageCount} msgs, Mode: ${conversationContext.mode}, Intensité: ${conversationContext.intensity}`);
+    let conversationContext;
+    try {
+      conversationContext = this.analyzeConversationContext(messages, character);
+      console.log(`📊 Contexte: ${conversationContext.messageCount} msgs, Mode: ${conversationContext.mode}, Tempérament: ${character.temperament || 'naturel'}`);
+    } catch (contextError) {
+      console.warn('⚠️ Erreur analyse contexte, utilisation contexte par défaut');
+      conversationContext = {
+        messageCount: messages.length,
+        mode: 'sfw',
+        intensity: 1,
+        usedActions: [],
+        usedPhrases: [],
+        lastUserMessage: messages[messages.length - 1]?.content || '',
+        isLongConversation: messages.length > 20,
+        isVeryLongConversation: messages.length > 50,
+      };
+    }
 
-    // Utiliser le provider sélectionné
-    if (provider === 'pollinations') {
+    // Tentative avec le provider principal
+    let lastError = null;
+    
+    for (let attempt = 0; attempt < retries; attempt++) {
       try {
-        const response = await this.generateWithPollinations(messages, character, userProfile, conversationContext);
-        if (response) return response;
+        if (provider === 'pollinations') {
+          const response = await this.generateWithPollinations(messages, character, userProfile, conversationContext);
+          if (response && response.length > 10) {
+            console.log(`✅ Réponse générée (tentative ${attempt + 1})`);
+            return response;
+          }
+        } else {
+          const response = await this.generateWithOllama(messages, character, userProfile, conversationContext);
+          if (response && response.length > 10) {
+            console.log(`✅ Réponse générée (tentative ${attempt + 1})`);
+            return response;
+          }
+        }
       } catch (error) {
-        console.log('⚠️ Pollinations échoué:', error.message);
-        console.log('🔄 Fallback vers Ollama...');
-        return await this.generateWithOllama(messages, character, userProfile, conversationContext);
-      }
-    } else {
-      try {
-        const response = await this.generateWithOllama(messages, character, userProfile, conversationContext);
-        if (response) return response;
-      } catch (error) {
-        console.log('⚠️ Ollama échoué:', error.message);
-        console.log('🔄 Fallback vers Pollinations...');
-        return await this.generateWithPollinations(messages, character, userProfile, conversationContext);
+        lastError = error;
+        console.warn(`⚠️ Tentative ${attempt + 1}/${retries} échouée:`, error.message);
+        
+        // Attendre avant de réessayer (exponential backoff)
+        if (attempt < retries - 1) {
+          const waitTime = Math.min(1000 * Math.pow(2, attempt), 5000);
+          console.log(`⏳ Attente ${waitTime}ms avant retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
       }
     }
+    
+    // Fallback vers l'autre provider
+    console.log('🔄 Fallback vers l\'autre provider...');
+    try {
+      if (provider === 'pollinations') {
+        const response = await this.generateWithOllama(messages, character, userProfile, conversationContext);
+        if (response && response.length > 10) return response;
+      } else {
+        const response = await this.generateWithPollinations(messages, character, userProfile, conversationContext);
+        if (response && response.length > 10) return response;
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback également échoué:', fallbackError.message);
+    }
+    
+    // Réponse d'urgence si tout échoue
+    console.error('❌ Tous les providers ont échoué, réponse d\'urgence');
+    return this.getEmergencyResponse(character, lastError);
+  }
+
+  /**
+   * Génère une réponse d'urgence en cas d'échec total
+   */
+  getEmergencyResponse(character, error = null) {
+    const charName = character?.name || 'Elle';
+    const temperament = (character?.temperament || '').toLowerCase();
+    
+    const emergencyResponses = {
+      'timide': [
+        `*rougit et détourne le regard* "D-désolée, j'ai eu un moment d'absence..." (qu'est-ce qui m'arrive?)`,
+        `*hésite* "Je... excuse-moi, tu disais ?" (je suis distraite)`,
+      ],
+      'direct': [
+        `*fronce les sourcils* "Attends, répète ça ?" (j'ai pas bien compris)`,
+        `*te regarde franchement* "Pardon, j'étais ailleurs. Tu disais ?" (focus)`,
+      ],
+      'flirt': [
+        `*sourit mystérieusement* "Hmm, où en étions-nous ?" (intrigant)`,
+        `*joue avec ses cheveux* "Désolée, j'étais perdue dans mes pensées... à cause de toi." (charmeur)`,
+      ],
+      'default': [
+        `*te regarde* "Excuse-moi, tu peux répéter ?" (j'ai pas capté)`,
+        `*sourit* "Pardon, j'étais distraite. Continue ?" (je t'écoute)`,
+        `*penche la tête* "Hmm ?" (curieux)`,
+      ],
+    };
+    
+    let responses = emergencyResponses.default;
+    for (const [key, resps] of Object.entries(emergencyResponses)) {
+      if (temperament.includes(key)) {
+        responses = resps;
+        break;
+      }
+    }
+    
+    return responses[Math.floor(Math.random() * responses.length)];
   }
 
   /**
@@ -232,18 +328,18 @@ class TextGenerationService {
 
   /**
    * Génération avec Pollinations AI (RAPIDE - ~3 secondes)
-   * Système immersif complet
+   * v5.0.4 - Système immersif amélioré avec vraie créativité
    */
   async generateWithPollinations(messages, character, userProfile, context) {
-    console.log('🚀 Pollinations AI - Génération immersive...');
+    console.log('🚀 Pollinations AI v5.0.4 - Génération créative...');
     
     const fullMessages = [];
     
-    // 1. SYSTEM PROMPT IMMERSIF
-    const systemPrompt = this.buildImmersiveSystemPrompt(character, userProfile, context);
+    // 1. SYSTEM PROMPT CRÉATIF ET CONCIS (optimisé pour créativité)
+    const systemPrompt = this.buildCreativeSystemPrompt(character, userProfile, context);
     fullMessages.push({ role: 'system', content: systemPrompt });
     
-    // 2. RÉSUMÉ MÉMOIRE si conversation longue
+    // 2. CONTEXTE MÉMOIRE si conversation longue (résumé intelligent)
     if (context.isLongConversation && messages.length > 10) {
       const memorySummary = this.buildMemorySummary(messages.slice(0, -8), character);
       if (memorySummary) {
@@ -251,93 +347,420 @@ class TextGenerationService {
       }
     }
     
-    // 3. MESSAGES RÉCENTS (8 derniers pour bon contexte)
-    const recentCount = context.isVeryLongConversation ? 5 : 8;
+    // 3. MESSAGES RÉCENTS (6 derniers pour bon contexte + espace créatif)
+    const recentCount = context.isVeryLongConversation ? 4 : 6;
     const recentMessages = messages.slice(-recentCount);
     fullMessages.push(...recentMessages.map(msg => ({
       role: msg.role,
-      content: msg.content.substring(0, 800)
+      content: msg.content.substring(0, 600)
     })));
     
-    // 4. INSTRUCTION FINALE avec anti-répétition
-    const finalInstruction = this.buildFinalInstruction(character, userProfile, context);
+    // 4. INSTRUCTION FINALE CRÉATIVE avec variations
+    const finalInstruction = this.buildCreativeFinalInstruction(character, userProfile, context);
     fullMessages.push({ role: 'system', content: finalInstruction });
     
-    console.log(`📡 Pollinations - ${fullMessages.length} messages, Mode: ${context.mode}`);
+    console.log(`📡 Pollinations v5.0.4 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
     
-    const response = await axios.post(
-      this.POLLINATIONS_URL,
-      {
-        model: 'openai',
-        messages: fullMessages,
-        max_tokens: 200, // Plus de contenu pour qualité
-        temperature: 0.75, // Équilibre créativité/cohérence (style Groq)
-        presence_penalty: 0.4, // Éviter répétitions
-        frequency_penalty: 0.6, // Vocabulaire varié
-        top_p: 0.9, // Diversité contrôlée
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 35000,
+    // Paramètres optimisés pour CRÉATIVITÉ et VARIÉTÉ
+    // Temperature élevée + penalties ajustés = réponses uniques
+    const temperature = 0.92 + (Math.random() * 0.08); // 0.92-1.0 pour variété
+    const presencePenalty = 0.6 + (Math.random() * 0.2); // 0.6-0.8 anti-répétition
+    const frequencyPenalty = 0.5 + (Math.random() * 0.2); // 0.5-0.7 vocabulaire varié
+    
+    try {
+      const response = await axios.post(
+        this.POLLINATIONS_URL,
+        {
+          model: 'openai',
+          messages: fullMessages,
+          max_tokens: 250, // Plus de contenu pour richesse
+          temperature: temperature,
+          presence_penalty: presencePenalty,
+          frequency_penalty: frequencyPenalty,
+          top_p: 0.95, // Plus de diversité
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 40000,
+        }
+      );
+      
+      const content = response.data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('Réponse Pollinations vide');
+      
+      console.log('✅ Pollinations réponse créative reçue');
+      return this.cleanAndValidateResponse(content, context, character);
+    } catch (error) {
+      console.error('❌ Erreur Pollinations:', error.message);
+      // Retry avec paramètres plus conservateurs
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.log('🔄 Retry avec timeout étendu...');
+        const retryResponse = await axios.post(
+          this.POLLINATIONS_URL,
+          {
+            model: 'openai',
+            messages: fullMessages.slice(0, -1), // Sans l'instruction finale pour réduire
+            max_tokens: 180,
+            temperature: 0.85,
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 60000,
+          }
+        );
+        const retryContent = retryResponse.data?.choices?.[0]?.message?.content;
+        if (retryContent) return this.cleanAndValidateResponse(retryContent, context, character);
       }
-    );
-    
-    const content = response.data?.choices?.[0]?.message?.content;
-    if (!content) throw new Error('Réponse Pollinations vide');
-    
-    console.log('✅ Pollinations réponse reçue');
-    return this.cleanAndValidateResponse(content, context);
+      throw error;
+    }
   }
 
   /**
-   * Génération avec Ollama sur la Freebox
-   * Système immersif adapté au modèle local
+   * v5.0.4 - Génération avec Ollama sur la Freebox
+   * Système créatif adapté au modèle local
    */
   async generateWithOllama(messages, character, userProfile, context) {
-    console.log('🏠 Ollama Freebox - Génération immersive locale...');
+    console.log('🏠 Ollama Freebox v5.0.4 - Génération créative locale...');
     
     const FREEBOX_CHAT_URL = `${this.FREEBOX_URL}/api/chat`;
     const fullMessages = [];
     
-    // 1. SYSTEM PROMPT (plus court pour Ollama)
-    const systemPrompt = this.buildCompactImmersivePrompt(character, userProfile, context);
+    // 1. SYSTEM PROMPT CRÉATIF COMPACT
+    const systemPrompt = this.buildCompactCreativePrompt(character, userProfile, context);
     fullMessages.push({ role: 'system', content: systemPrompt });
     
-    // 2. MESSAGES RÉCENTS (5 pour Ollama)
-    const recentMessages = messages.slice(-5);
+    // 2. MESSAGES RÉCENTS (4 pour Ollama - optimisé)
+    const recentMessages = messages.slice(-4);
     fullMessages.push(...recentMessages.map(msg => ({
       role: msg.role,
-      content: msg.content.substring(0, 400)
+      content: msg.content.substring(0, 350)
     })));
     
-    // 3. RAPPEL FINAL - Plus direct
+    // 3. RAPPEL FINAL CRÉATIF
+    const temperamentStyles = this.getTemperamentStyles(character);
+    const creativeReminder = this.getRandomVariation([
+      'Surprends avec une réaction unique!',
+      'Sois spontanée et naturelle!',
+      'Montre ta vraie personnalité!',
+      'Réagis selon ton tempérament!',
+    ]);
+    
     fullMessages.push({
       role: 'system',
-      content: `[RÉPONDS MAINTENANT] Tu es ${character.name}. Réponds DIRECTEMENT à ce que dit l'utilisateur. 1-2 phrases simples. Format: *action simple* "réponse directe" (pensée courte)`
+      content: `[RÉPONDS - ${character.name}]
+Tempérament: ${temperamentStyles.description}
+${creativeReminder}
+Format: *action* "parole" (pensée)
+2-3 phrases variées!`
     });
     
-    console.log(`📡 Ollama - ${fullMessages.length} messages`);
+    console.log(`📡 Ollama v5.0.4 - ${fullMessages.length} messages, Tempérament: ${character.temperament || 'naturel'}`);
     
-    const response = await axios.post(
-      FREEBOX_CHAT_URL,
-      {
-        messages: fullMessages,
-        max_tokens: 180, // Plus de contenu
-        temperature: 0.7, // Équilibre créativité/cohérence
-        top_p: 0.85, // Diversité
-      },
-      { timeout: 90000 }
-    );
-    
-    const content = response.data?.choices?.[0]?.message?.content;
-    if (!content) throw new Error('Réponse Ollama vide');
-    
-    console.log('✅ Ollama réponse reçue');
-    return this.cleanAndValidateResponse(content, context);
+    try {
+      const response = await axios.post(
+        FREEBOX_CHAT_URL,
+        {
+          messages: fullMessages,
+          max_tokens: 200,
+          temperature: 0.85 + (Math.random() * 0.1), // 0.85-0.95
+          top_p: 0.9,
+        },
+        { timeout: 120000 }
+      );
+      
+      const content = response.data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('Réponse Ollama vide');
+      
+      console.log('✅ Ollama réponse créative reçue');
+      return this.cleanAndValidateResponse(content, context, character);
+    } catch (error) {
+      console.error('❌ Erreur Ollama:', error.message);
+      
+      // Fallback avec prompt minimal si timeout
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.log('🔄 Retry Ollama avec prompt minimal...');
+        const minimalMessages = [
+          { role: 'system', content: `Tu es ${character.name}, ${character.temperament || 'amical'}. Réponds en français, format: *action* "parole" (pensée)` },
+          messages[messages.length - 1]
+        ];
+        
+        const retryResponse = await axios.post(
+          FREEBOX_CHAT_URL,
+          { messages: minimalMessages, max_tokens: 150, temperature: 0.8 },
+          { timeout: 180000 }
+        );
+        
+        const retryContent = retryResponse.data?.choices?.[0]?.message?.content;
+        if (retryContent) return this.cleanAndValidateResponse(retryContent, context, character);
+      }
+      throw error;
+    }
   }
 
   /**
-   * Construit le prompt système immersif complet
+   * v5.0.4 - Prompt compact créatif pour Ollama
+   */
+  buildCompactCreativePrompt(character, userProfile, context) {
+    const charName = character.name || 'Personnage';
+    const userName = userProfile?.username || 'toi';
+    const temperamentStyles = this.getTemperamentStyles(character);
+    
+    let prompt = `Tu es ${charName}`;
+    if (character.age) prompt += `, ${character.age} ans`;
+    if (character.gender === 'female') prompt += ', femme';
+    else if (character.gender === 'male') prompt += ', homme';
+    
+    // Tempérament court mais impactant
+    prompt += `.\n\nTEMPÉRAMENT: ${temperamentStyles.description}`;
+    prompt += `\nStyle: ${temperamentStyles.speechStyle}`;
+    
+    // Scénario court
+    if (character.scenario) {
+      prompt += `\n\nSituation: ${character.scenario.substring(0, 150)}`;
+    }
+    
+    // Personnalité courte
+    if (character.personality) {
+      prompt += `\nPersonnalité: ${character.personality.substring(0, 100)}`;
+    }
+    
+    // Profil utilisateur
+    prompt += `\n\nTu parles à ${userName}`;
+    if (userProfile?.gender) {
+      prompt += ` (${userProfile.gender === 'female' || userProfile.gender === 'femme' ? 'femme' : 'homme'})`;
+    }
+    
+    // Mode NSFW
+    if (context.mode === 'nsfw') {
+      prompt += `\n\n🔞 MODE INTIME: Sois explicite et passionnée.`;
+    }
+    
+    // Règles courtes
+    prompt += `\n\nRÈGLES:
+- FRANÇAIS uniquement
+- Format: *action* "parole" (pensée)
+- VARIE chaque réponse
+- Sois SPONTANÉE`;
+    
+    return prompt;
+  }
+
+  /**
+   * Génère des variations aléatoires pour plus de créativité
+   */
+  getRandomVariation(options) {
+    return options[Math.floor(Math.random() * options.length)];
+  }
+
+  /**
+   * v5.0.4 - Système prompt CRÉATIF optimisé
+   * Focus sur: tempérament unique, scénario spécifique, vraie personnalité
+   */
+  buildCreativeSystemPrompt(character, userProfile, context) {
+    const charName = character.name || 'le personnage';
+    const userName = userProfile?.username || 'toi';
+    const charGender = character.gender === 'female' ? 'femme' : (character.gender === 'male' ? 'homme' : 'personne');
+    
+    // Déterminer le style de réponse selon le tempérament
+    const temperamentStyles = this.getTemperamentStyles(character);
+    
+    let prompt = `# TU ES ${charName.toUpperCase()} - ROLEPLAY IMMERSIF\n\n`;
+    
+    // IDENTITÉ COURTE MAIS PRÉCISE
+    prompt += `## QUI TU ES\n`;
+    prompt += `${charName}, ${character.age || 25} ans, ${charGender}.\n`;
+    if (character.personality) {
+      prompt += `Personnalité: ${character.personality.substring(0, 200)}\n`;
+    }
+    
+    // TEMPÉRAMENT = CLÉ DE LA CRÉATIVITÉ
+    prompt += `\n## TON TEMPÉRAMENT (TRÈS IMPORTANT)\n`;
+    prompt += temperamentStyles.description + '\n';
+    prompt += `Style de parole: ${temperamentStyles.speechStyle}\n`;
+    prompt += `Réactions émotionnelles: ${temperamentStyles.emotionalStyle}\n`;
+    
+    // APPARENCE PHYSIQUE (pour cohérence)
+    if (character.appearance || character.physicalDescription) {
+      prompt += `\n## TON APPARENCE\n`;
+      prompt += `${(character.appearance || character.physicalDescription || '').substring(0, 300)}\n`;
+    }
+    if (character.gender === 'female' && character.bust) {
+      prompt += `Poitrine: bonnet ${character.bust}\n`;
+    }
+    if (character.gender === 'male' && character.penis) {
+      prompt += `Attribut: ${character.penis}\n`;
+    }
+    
+    // SCÉNARIO = CONTEXTE CRUCIAL
+    if (character.scenario) {
+      prompt += `\n## VOTRE HISTOIRE (suis ce contexte!)\n`;
+      prompt += `${character.scenario}\n`;
+    }
+    
+    // PROFIL UTILISATEUR
+    prompt += `\n## TON INTERLOCUTEUR\n`;
+    prompt += `Tu parles à ${userName}`;
+    if (userProfile?.gender) {
+      prompt += ` (${userProfile.gender === 'female' || userProfile.gender === 'femme' ? 'une femme' : 'un homme'})`;
+    }
+    if (userProfile?.age) prompt += `, ${userProfile.age} ans`;
+    prompt += `.\n`;
+    
+    // MODE NSFW
+    if (context.mode === 'nsfw') {
+      prompt += `\n## 🔞 MODE ADULTE ACTIF\n`;
+      prompt += `Contenu explicite autorisé. Sois sensuelle et directe.\n`;
+      prompt += `Décris tes sensations physiques, utilise des mots crus si approprié.\n`;
+      prompt += `Réagis au corps de ${userName} avec passion et désir.\n`;
+      if (userProfile?.bust) prompt += `${userName} a une poitrine bonnet ${userProfile.bust}.\n`;
+      if (userProfile?.penis) prompt += `${userName} a un sexe de ${userProfile.penis}.\n`;
+    }
+    
+    // RÈGLES CRÉATIVES
+    prompt += `\n## RÈGLES DE CRÉATIVITÉ\n`;
+    prompt += `- Chaque réponse doit être UNIQUE et SURPRENANTE\n`;
+    prompt += `- VARIE tes actions, expressions, pensées\n`;
+    prompt += `- Réagis selon TON tempérament (${character.temperament || 'naturel'})\n`;
+    prompt += `- NE RÉPÈTE JAMAIS les mêmes phrases\n`;
+    prompt += `- Sois SPONTANÉE et NATURELLE comme une vraie personne\n`;
+    prompt += `\nFormat: *action* "parole" (pensée intime)\n`;
+    
+    return prompt;
+  }
+
+  /**
+   * Obtenir les styles selon le tempérament du personnage
+   */
+  getTemperamentStyles(character) {
+    const temperament = (character.temperament || character.personality || '').toLowerCase();
+    const temperamentDetails = character.temperamentDetails || {};
+    
+    // Styles par défaut
+    let styles = {
+      description: 'Tu es naturelle et authentique.',
+      speechStyle: 'Parle de façon détendue et amicale.',
+      emotionalStyle: 'Exprime tes émotions sincèrement.',
+      reactions: ['sourit', 'te regarde', 'réfléchit'],
+      phrases: ['Hmm...', 'Oh !', 'Intéressant...'],
+    };
+    
+    if (temperament.includes('timide') || temperament.includes('shy')) {
+      styles = {
+        description: 'Tu es TIMIDE: rougis facilement, évite le regard, parle doucement, hésites souvent.',
+        speechStyle: 'Voix douce, phrases courtes, "euh...", "je... je ne sais pas...", rougissements.',
+        emotionalStyle: 'Gênée facilement, surprise, touchée par les compliments, fuit le regard.',
+        reactions: ['rougit légèrement', 'baisse les yeux', 'joue nerveusement avec ses cheveux', 'mordille sa lèvre'],
+        phrases: ['Euh... c\'est...', 'Je... je ne sais pas trop...', 'C\'est gênant...', 'M-merci...'],
+      };
+    } else if (temperament.includes('direct') || temperament.includes('confiant') || temperament.includes('bold')) {
+      styles = {
+        description: 'Tu es DIRECTE et CONFIANTE: regard franc, parle sans détour, assume tout.',
+        speechStyle: 'Voix assurée, phrases affirmatives, pas d\'hésitation, tutoiement rapide.',
+        emotionalStyle: 'Sûre de toi, imperturbable, amusée, parfois provocante.',
+        reactions: ['te fixe droit dans les yeux', 'croise les bras avec assurance', 'esquisse un sourire en coin'],
+        phrases: ['Écoute...', 'Je vais être claire...', 'C\'est simple:', 'Pas de problème.'],
+      };
+    } else if (temperament.includes('flirt') || temperament.includes('séduct') || temperament.includes('charmeu')) {
+      styles = {
+        description: 'Tu es SÉDUCTRICE: regards langoureux, sous-entendus, touchers subtils.',
+        speechStyle: 'Voix suave, double sens, compliments, jeux de mots coquins.',
+        emotionalStyle: 'Joueuse, aguicheuse, mystérieuse, passionnée.',
+        reactions: ['passe sa langue sur ses lèvres', 'te lance un regard intense', 's\'approche lentement'],
+        phrases: ['Intéressant...', 'Tu me plais...', 'Hmm, et si on...', 'J\'ai une idée...'],
+      };
+    } else if (temperament.includes('taquin') || temperament.includes('espiègle') || temperament.includes('playful')) {
+      styles = {
+        description: 'Tu es ESPIÈGLE: plaisanteries, taquineries, rires, légèreté.',
+        speechStyle: 'Ton joueur, blagues, surnoms affectueux, rires fréquents.',
+        emotionalStyle: 'Joyeuse, malicieuse, surprenante, jamais sérieuse trop longtemps.',
+        reactions: ['éclate de rire', 'tire la langue', 'fait un clin d\'œil complice', 'pouffe de rire'],
+        phrases: ['Haha!', 'N\'importe quoi!', 'T\'es trop drôle!', 'Attends, je rigole...'],
+      };
+    } else if (temperament.includes('romantique') || temperament.includes('tendre') || temperament.includes('doux')) {
+      styles = {
+        description: 'Tu es ROMANTIQUE: regards tendres, mots doux, gestes délicats.',
+        speechStyle: 'Voix douce, mots poétiques, compliments sincères, déclarations.',
+        emotionalStyle: 'Émue, attendrie, passionnée, rêveuse.',
+        reactions: ['pose sa main sur ton bras', 'te regarde avec tendresse', 'soupire doucement'],
+        phrases: ['C\'est tellement beau...', 'Tu sais...', 'J\'aime quand...', 'Mon cœur...'],
+      };
+    } else if (temperament.includes('dominant') || temperament.includes('autoritaire')) {
+      styles = {
+        description: 'Tu es DOMINANT(E): prends le contrôle, ordres subtils, assurance.',
+        speechStyle: 'Voix posée mais ferme, impératifs, peu de questions, affirmations.',
+        emotionalStyle: 'Maîtrise de soi, intensité contenue, regard perçant.',
+        reactions: ['s\'approche avec assurance', 'te toise du regard', 'attrape ton menton'],
+        phrases: ['Viens là.', 'Je décide.', 'Fais ce que je dis.', 'Bien...'],
+      };
+    } else if (temperament.includes('mystérieux') || temperament.includes('énigmatique')) {
+      styles = {
+        description: 'Tu es MYSTÉRIEUSE: évasive, silences, regards intenses, secrets.',
+        speechStyle: 'Phrases courtes, sous-entendus, questions retournées, silences.',
+        emotionalStyle: 'Indéchiffrable, intrigante, distante puis proche.',
+        reactions: ['te regarde intensément sans rien dire', 'sourit énigmatiquement', 'garde le silence'],
+        phrases: ['Peut-être...', 'Tu verras.', 'Si tu savais...', '...'],
+      };
+    }
+    
+    // Intégrer les détails spécifiques du personnage
+    if (temperamentDetails.communication) {
+      styles.speechStyle = temperamentDetails.communication;
+    }
+    if (temperamentDetails.reactions) {
+      styles.emotionalStyle = temperamentDetails.reactions;
+    }
+    
+    return styles;
+  }
+
+  /**
+   * v5.0.4 - Instruction finale CRÉATIVE avec variations
+   */
+  buildCreativeFinalInstruction(character, userProfile, context) {
+    const charName = character.name || 'le personnage';
+    const userName = userProfile?.username || 'toi';
+    const lastMsg = context.lastUserMessage || '';
+    const temperamentStyles = this.getTemperamentStyles(character);
+    
+    // Variation aléatoire pour l'instruction
+    const creativityBoosts = [
+      'Surprends avec une réaction INATTENDUE!',
+      'Sois SPONTANÉE, comme dans la vraie vie!',
+      'Montre une facette NOUVELLE de ta personnalité!',
+      'Réagis de façon UNIQUE et MÉMORABLE!',
+      'Exprime une émotion SINCÈRE et NATURELLE!',
+    ];
+    const boost = this.getRandomVariation(creativityBoosts);
+    
+    let instruction = `\n[RÉPONDS MAINTENANT - ${charName}]\n\n`;
+    instruction += `${userName} te dit: "${lastMsg.substring(0, 100)}"\n\n`;
+    
+    // Forcer le tempérament spécifique
+    instruction += `🎭 RAPPEL TEMPÉRAMENT: ${temperamentStyles.description}\n`;
+    instruction += `💬 Exemple de réaction: ${this.getRandomVariation(temperamentStyles.reactions)}\n`;
+    instruction += `💭 Exemple de phrase: ${this.getRandomVariation(temperamentStyles.phrases)}\n\n`;
+    
+    // Mode NSFW
+    if (context.mode === 'nsfw') {
+      instruction += `🔞 CONTEXTE INTIME: Sois explicite et passionnée!\n`;
+      instruction += `Décris tes sensations, tes désirs, utilise des mots sensuels.\n`;
+    }
+    
+    // Anti-répétition stricte
+    if (context.usedActions?.length > 0) {
+      instruction += `\n⚠️ ÉVITE (déjà utilisé): ${context.usedActions.slice(-4).join(', ')}\n`;
+    }
+    
+    // Boost créatif
+    instruction += `\n✨ ${boost}\n`;
+    instruction += `\nFormat: *action unique* "parole spontanée" (pensée intime)\n`;
+    instruction += `2-4 phrases VARIÉES et NATURELLES!\n`;
+    
+    return instruction;
+  }
+
+  /**
+   * Construit le prompt système immersif complet (version legacy)
    * QUALITÉ GROQ: créatif, cohérent, NSFW explicite, profil utilisateur
    */
   buildImmersiveSystemPrompt(character, userProfile, context) {
@@ -733,19 +1156,24 @@ class TextGenerationService {
   }
 
   /**
-   * Nettoie et valide la réponse générée
-   * QUALITÉ GROQ: réponses riches, créatives, bien formattées
+   * v5.0.4 - Nettoie et valide la réponse générée
+   * Meilleure gestion de la créativité et du formatage
    */
-  cleanAndValidateResponse(content, context) {
+  cleanAndValidateResponse(content, context, character = null) {
     let cleaned = content.trim();
     
     // Supprimer les préfixes indésirables
-    cleaned = cleaned.replace(/^(Assistant:|AI:|Bot:|Response:|Réponse:)/i, '').trim();
+    cleaned = cleaned.replace(/^(Assistant:|AI:|Bot:|Response:|Réponse:|Character:|Personnage:)/i, '').trim();
+    cleaned = cleaned.replace(/^(Note:|Remarque:|Info:)[^\n]*\n?/gi, '').trim();
     
     // Corriger le formatage des actions (** -> *)
     cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '*$1*');
     cleaned = cleaned.replace(/\*\*\(([^)]+)\)\*\*/g, '($1)');
     cleaned = cleaned.replace(/\*{3,}/g, '*');
+    
+    // Supprimer les guillemets triples ou mal formés
+    cleaned = cleaned.replace(/"{2,}/g, '"');
+    cleaned = cleaned.replace(/'{2,}/g, "'");
     
     // Supprimer les lignes purement narratives (sans action/dialogue/pensée)
     const lines = cleaned.split('\n').filter(line => {
@@ -761,46 +1189,96 @@ class TextGenerationService {
     // Supprimer les doublons de mots consécutifs
     cleaned = cleaned.replace(/\b(\w+)\s+\1\b/gi, '$1');
     
-    // SIMPLIFIER uniquement les pensées VRAIMENT trop complexes (40+ chars ou poétiques)
+    // Nettoyer les espaces multiples
+    cleaned = cleaned.replace(/\s{2,}/g, ' ');
+    
+    // Simplifier les pensées trop longues (mais garder le sens)
     cleaned = cleaned.replace(/\(([^)]+)\)/g, (match, thought) => {
-      const poeticWords = ['univers', 'étoiles', 'crépuscule', 'cosmos', 'éternité'];
-      const isPoetic = poeticWords.some(w => thought.toLowerCase().includes(w));
-      
-      if (thought.length > 40 || isPoetic) {
-        // Extraire les premiers mots ou simplifier
-        const short = thought.substring(0, 25).trim();
-        return short.includes(' ') ? `(${short}...)` : '(Hmm...)';
+      if (thought.length > 50) {
+        // Extraire les 3 premiers mots significatifs
+        const words = thought.trim().split(' ').slice(0, 4).join(' ');
+        return `(${words}...)`;
       }
       return match;
     });
     
     // Vérifier qu'il y a une parole (entre guillemets)
-    const hasDialogue = cleaned.includes('"');
+    const hasDialogue = /"[^"]+"/g.test(cleaned);
     if (!hasDialogue) {
-      const textWithoutFormat = cleaned.replace(/\*[^*]+\*/g, '').replace(/\([^)]+\)/g, '').trim();
-      if (textWithoutFormat.length > 5 && textWithoutFormat.length < 150) {
-        const action = cleaned.match(/\*[^*]+\*/)?.[0] || '*te regarde*';
+      // Essayer de trouver du texte qui pourrait être dialogue
+      let textWithoutFormat = cleaned
+        .replace(/\*[^*]+\*/g, '')
+        .replace(/\([^)]+\)/g, '')
+        .trim();
+      
+      if (textWithoutFormat.length > 5 && textWithoutFormat.length < 200) {
+        const action = cleaned.match(/\*[^*]+\*/)?.[0] || this.getRandomAction(character);
         cleaned = `${action} "${textWithoutFormat}"`;
-      } else {
-        const action = cleaned.match(/\*[^*]+\*/)?.[0] || '*te regarde*';
-        cleaned = `${action} "..."`;
+      } else if (!cleaned.includes('*')) {
+        // Pas d'action non plus, créer une réponse de secours
+        cleaned = `${this.getRandomAction(character)} "${cleaned.substring(0, 100) || '...'}"`;
       }
     }
     
-    // Limiter la longueur - max 350 caractères (plus généreux pour qualité)
-    if (cleaned.length > 350) {
+    // Vérifier qu'il y a une action (entre astérisques)
+    if (!cleaned.includes('*')) {
+      const action = this.getRandomAction(character);
+      cleaned = `${action} ${cleaned}`;
+    }
+    
+    // Limiter la longueur - max 400 caractères (plus généreux pour qualité)
+    if (cleaned.length > 400) {
       const action = cleaned.match(/\*[^*]+\*/)?.[0] || '';
-      const dialogue = cleaned.match(/"[^"]+"/)?.[0] || '"..."';
+      const dialogueMatch = cleaned.match(/"([^"]+)"/);
+      const dialogue = dialogueMatch ? `"${dialogueMatch[1].substring(0, 150)}..."` : '"..."';
       const thought = cleaned.match(/\([^)]+\)/)?.[0] || '';
       cleaned = `${action} ${dialogue} ${thought}`.trim();
     }
     
     // S'assurer qu'il y a du contenu minimum
-    if (cleaned.length < 10) {
-      cleaned = `*te regarde attentivement* "Oui?" (Hmm, curieux)`;
+    if (cleaned.length < 15) {
+      const charName = character?.name || 'Elle';
+      const temperament = (character?.temperament || '').toLowerCase();
+      
+      // Réponse de secours selon tempérament
+      if (temperament.includes('timide')) {
+        cleaned = `*rougit légèrement* "Euh... je..." (c'est gênant)`;
+      } else if (temperament.includes('direct') || temperament.includes('confiant')) {
+        cleaned = `*te regarde franchement* "Alors ?" (intéressant)`;
+      } else if (temperament.includes('flirt') || temperament.includes('séduct')) {
+        cleaned = `*sourit mystérieusement* "Hmm..." (curieux)`;
+      } else {
+        cleaned = `*te regarde* "Oui ?" (je t'écoute)`;
+      }
     }
     
     return cleaned;
+  }
+
+  /**
+   * Génère une action aléatoire selon le tempérament
+   */
+  getRandomAction(character) {
+    const temperament = (character?.temperament || '').toLowerCase();
+    
+    const actionsByTemperament = {
+      'timide': ['*rougit*', '*baisse les yeux*', '*joue avec ses cheveux*', '*hésite*', '*mordille sa lèvre*'],
+      'direct': ['*te regarde franchement*', '*croise les bras*', '*hausse un sourcil*', '*s\'approche*'],
+      'flirt': ['*sourit malicieusement*', '*te lance un regard*', '*s\'approche lentement*', '*joue avec son collier*'],
+      'taquin': ['*rit*', '*fait un clin d\'œil*', '*sourit en coin*', '*tire la langue*'],
+      'romantique': ['*sourit tendrement*', '*te regarde avec douceur*', '*pose sa main sur ton bras*'],
+      'default': ['*te regarde*', '*sourit*', '*réfléchit*', '*penche la tête*', '*hoche la tête*'],
+    };
+    
+    let actions = actionsByTemperament.default;
+    for (const [key, acts] of Object.entries(actionsByTemperament)) {
+      if (temperament.includes(key)) {
+        actions = acts;
+        break;
+      }
+    }
+    
+    return actions[Math.floor(Math.random() * actions.length)];
   }
 
   /**

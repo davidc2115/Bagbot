@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import StorageService from '../services/StorageService';
 import enhancedCharacters from '../data/allCharacters';
@@ -14,6 +15,8 @@ import CustomCharacterService from '../services/CustomCharacterService';
 export default function ChatsScreen({ navigation }) {
   const [allCharacters, setAllCharacters] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -27,33 +30,56 @@ export default function ChatsScreen({ navigation }) {
   }, [navigation]);
 
   const loadData = async () => {
-    // Charger tous les personnages (de base + personnalisés + publics)
-    const customChars = await CustomCharacterService.getCustomCharacters();
-    
-    // Aussi charger les personnages publics des autres utilisateurs
-    let publicChars = [];
     try {
-      publicChars = await CustomCharacterService.getPublicCharacters();
-    } catch (e) {
-      console.log('Erreur chargement personnages publics:', e.message);
-    }
-    
-    // Combiner tous les personnages (éviter les doublons par ID)
-    const allChars = [...enhancedCharacters];
-    const seenIds = new Set(allChars.map(c => c.id));
-    
-    for (const char of [...customChars, ...publicChars]) {
-      if (!seenIds.has(char.id)) {
-        allChars.push(char);
-        seenIds.add(char.id);
+      setIsLoading(true);
+      setError(null);
+      
+      console.log('📚 ChatsScreen: Chargement des données...');
+      
+      // Charger tous les personnages (de base + personnalisés + publics)
+      let customChars = [];
+      try {
+        customChars = await CustomCharacterService.getCustomCharacters();
+        console.log(`✅ ${customChars.length} personnages personnalisés chargés`);
+      } catch (e) {
+        console.log('⚠️ Erreur chargement personnages personnalisés:', e.message);
       }
+      
+      // Aussi charger les personnages publics des autres utilisateurs
+      let publicChars = [];
+      try {
+        publicChars = await CustomCharacterService.getPublicCharacters();
+        console.log(`✅ ${publicChars.length} personnages publics chargés`);
+      } catch (e) {
+        console.log('⚠️ Erreur chargement personnages publics:', e.message);
+      }
+      
+      // Combiner tous les personnages (éviter les doublons par ID)
+      const allChars = [...enhancedCharacters];
+      const seenIds = new Set(allChars.map(c => String(c.id)));
+      
+      for (const char of [...customChars, ...publicChars]) {
+        const charId = String(char.id);
+        if (!seenIds.has(charId)) {
+          allChars.push(char);
+          seenIds.add(charId);
+        }
+      }
+      
+      console.log(`✅ Total: ${allChars.length} personnages`);
+      setAllCharacters(allChars);
+      
+      // Charger les conversations
+      const allConversations = await StorageService.getAllConversations();
+      console.log(`✅ ${allConversations?.length || 0} conversations chargées`);
+      setConversations(allConversations || []);
+      
+    } catch (e) {
+      console.error('❌ Erreur chargement ChatsScreen:', e);
+      setError(e.message);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setAllCharacters(allChars);
-    
-    // Charger les conversations
-    const allConversations = await StorageService.getAllConversations();
-    setConversations(allConversations);
   };
 
   const deleteConversation = async (characterId) => {
@@ -154,14 +180,44 @@ export default function ChatsScreen({ navigation }) {
     );
   };
 
+  // Écran de chargement
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.loadingText}>Chargement des conversations...</Text>
+      </View>
+    );
+  }
+
+  // Écran d'erreur
+  if (error) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyEmoji}>⚠️</Text>
+        <Text style={styles.emptyTitle}>Erreur</Text>
+        <Text style={styles.emptyText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+          <Text style={styles.retryButtonText}>🔄 Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (conversations.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyEmoji}>💬</Text>
         <Text style={styles.emptyTitle}>Aucune conversation</Text>
         <Text style={styles.emptyText}>
-          Commencez une conversation avec un personnage depuis l'onglet Personnages
+          Commencez une conversation avec un personnage depuis l'onglet Découvrir
         </Text>
+        <TouchableOpacity 
+          style={styles.startButton} 
+          onPress={() => navigation.navigate('Discover')}
+        >
+          <Text style={styles.startButtonText}>❤️ Découvrir les personnages</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -175,9 +231,11 @@ export default function ChatsScreen({ navigation }) {
       <FlatList
         data={conversations}
         renderItem={renderConversation}
-        keyExtractor={item => item.characterId.toString()}
+        keyExtractor={item => item.characterId?.toString() || Math.random().toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshing={isLoading}
+        onRefresh={loadData}
       />
     </View>
   );
@@ -305,5 +363,41 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#6366f1',
+    fontWeight: '500',
+  },
+  startButton: {
+    marginTop: 20,
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  startButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
