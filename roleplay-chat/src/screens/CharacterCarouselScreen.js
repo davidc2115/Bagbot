@@ -303,13 +303,9 @@ export default function CharacterCarouselScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Logo Boys & Girls avec diamants (image) */}
+      {/* Logo Boys & Girls - Text-based */}
       <View style={styles.logoContainer}>
-        <Image 
-          source={require('../../assets/boys-and-girls-logo.png')} 
-          style={styles.logoImage}
-          resizeMode="contain"
-        />
+        <Text style={styles.logoText}>💋 Boys & Girls 💋</Text>
       </View>
       
       {/* Header Premium */}
@@ -541,14 +537,10 @@ export default function CharacterCarouselScreen({ navigation }) {
         </Animated.View>
       </View>
 
-      {/* Bouton démarrer avec image dorée */}
+      {/* Bouton démarrer doré */}
       <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.selectButton} onPress={handleSelect}>
-          <Image
-            source={require('../../assets/gold-button.png')}
-            style={styles.goldButtonImage}
-            resizeMode="contain"
-          />
+          <Text style={styles.selectButtonText}>💬 Discuter</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -563,13 +555,18 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     backgroundColor: '#0a0a14',
-    paddingVertical: 5,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoImage: {
-    width: SCREEN_WIDTH * 0.95,
-    height: 85,
+  logoText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#C9A227',
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+    letterSpacing: 2,
   },
   headerSafe: {
     backgroundColor: '#12121f',
@@ -966,10 +963,23 @@ const styles = StyleSheet.create({
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#C9A227',
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  goldButtonImage: {
-    width: '100%',
-    height: '100%',
+  selectButtonText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0a0a12',
+    textShadowColor: 'rgba(255, 255, 255, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   emptyText: {
     fontSize: 18,
