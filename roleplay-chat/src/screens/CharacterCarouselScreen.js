@@ -303,13 +303,10 @@ export default function CharacterCarouselScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Logo Boys & Girls avec diamants (image) */}
+      {/* Logo Boys & Girls */}
       <View style={styles.logoContainer}>
-        <Image 
-          source={require('../../assets/boys-and-girls-logo.png')} 
-          style={styles.logoImage}
-          resizeMode="contain"
-        />
+        <Text style={styles.logoTitle}>💋 Boys & Girls 💋</Text>
+        <Text style={styles.logoVersion}>v5.0.0</Text>
       </View>
       
       {/* Header Premium */}
@@ -563,13 +560,23 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     backgroundColor: '#0a0a14',
-    paddingVertical: 5,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoImage: {
-    width: SCREEN_WIDTH * 0.95,
-    height: 85,
+  logoTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#C9A227',
+    textShadowColor: '#8B6914',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 10,
+    letterSpacing: 3,
+  },
+  logoVersion: {
+    fontSize: 12,
+    color: '#8B6914',
+    marginTop: 2,
   },
   headerSafe: {
     backgroundColor: '#12121f',

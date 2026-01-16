@@ -70,3 +70,6 @@ test-token.js
 
 ecosystem.config.js.original
 *.original
+android-sdk/
+build-output/
+roleplay-chat/android/
