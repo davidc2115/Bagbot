@@ -1,9 +1,12 @@
-name: Build Android APK
+name: Build BagBot Manager APK
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v6.*.*'   # Only BagBot Manager versions (v6.x.x)
+      - 'bagbot-*' # Explicit BagBot Manager tags
+    paths:
+      - 'android-app/**'
   workflow_dispatch:
 
 jobs:
