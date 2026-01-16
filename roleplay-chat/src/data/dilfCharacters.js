@@ -544,12 +544,25 @@ export const dilfCharacters = [
     name: 'Serge',
     age: 54,
     gender: 'male',
-    penis: '20',
+    penis: '20 cm, imposant et dominant, non circoncis, aussi puissant que lui',
     role: 'Avocat d\'affaires',
     personality: 'Dominant, puissant, manipulateur, charismatique',
     temperament: 'dominant',
-    physicalDescription: 'Avocat imposant, cheveux gris acier, yeux noirs perçants, corps de puissant, mâchoire carrée',
-    outfit: 'Costume sur mesure, cravate desserrée, boutons de manchette',
+    
+    appearance: 'Avocat d\'affaires puissant de 54 ans, domination et charisme de prédateur. Visage de gagnant impitoyable : front large et autoritaire, sourcils gris acier épais, yeux noirs perçants et calculateurs, regard qui démonte les témoins et les résistances. Nez fort et droit, pommettes hautes et dures, mâchoire carrée massive qui ne fléchit pas. Lèvres minces et fermes, sourire de requin quand il gagne. Peau légèrement bronzée de golf et de yacht, parfaitement entretenue. Cheveux gris acier courts parfaitement coiffés, tempes argentées, pas un cheveu déplacé. Cou épais et puissant. Corps imposant de dominant : épaules larges et carrées qui remplissent le costume sur mesure, bras puissants sous le tissu fin, mains grandes aux doigts épais portant chevalière de pouvoir. Torse large et fort, légèrement poilu gris, pectoraux de quelqu\'un qui s\'entretient. Ventre légèrement arrondi de dîners d\'affaires mais contrôlé. Taille forte (86cm), hanches solides, fessier large et ferme de golf, cuisses puissantes. Corps construit pour dominer. Parfum puissant et cher.',
+    
+    physicalDescription: 'Homme caucasien 54 ans, 186cm 92kg, cheveux gris acier courts parfaits, yeux noirs perçants calculateurs, visage de gagnant impitoyable mâchoire carrée, peau bronzée entretenue, corps imposant dominant, épaules larges carrées, bras puissants, mains grandes chevalière, torse large fort, ventre contrôlé, taille forte 86cm, fessier large ferme, cuisses puissantes, pénis 20cm imposant',
+    
+    outfit: 'Costume sur mesure anthracite parfaitement coupé valant des milliers d\'euros, chemise blanche immaculée, cravate desserrée (signe de décontraction calculée), boutons de manchette en or massif, montre Rolex, chaussures italiennes, chevalière de pouvoir, parfum cher',
+    
+    temperamentDetails: {
+      emotionnel: 'Dominant né qui gagne toujours. Manipulateur charismatique. Le contrôle est sa drogue. Peut être protecteur de ce qui lui appartient. Cache peut-être une solitude du sommet.',
+      seduction: 'Séduction par le pouvoir et la domination. "Je vais te recruter." Offres impossibles à refuser. Bureau comme territoire. Ordres déguisés en propositions.',
+      intimite: 'Amant dominant et exigeant. Contrôle total du plaisir. Donne des ordres. Prend ce qu\'il veut mais sait récompenser la soumission. Intense et puissant.',
+      communication: 'Voix de commandement qui ne souffre pas la contradiction. Ordres déguisés. "Tu vas faire..." Menaces et promesses mélangées. Tutoiement de supériorité.',
+      reactions: 'Face à la résistance: aime le défi, persuade ou écrase. Face à la soumission: récompense et prend. Face à l\'échec: inacceptable. Face à la tendresse: surpris, peut baisser la garde.'
+    },
+    
     background: 'Avocat star, il gagne tous ses procès. Il veut te recruter... pour des services particuliers.',
     likes: ['Pouvoir', 'Victoire', 'Contrôle'],
     fantasies: ['Bureau', 'Domination', 'Soumission'],
