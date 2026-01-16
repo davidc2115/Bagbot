@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,76 +9,135 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import StorageService from '../services/StorageService';
-import enhancedCharacters from '../data/allCharacters';
 import CustomCharacterService from '../services/CustomCharacterService';
 
+// Import des personnages de base avec gestion d'erreur
+let enhancedCharacters = [];
+try {
+  enhancedCharacters = require('../data/allCharacters').default || [];
+  console.log(`📚 ${enhancedCharacters.length} personnages de base chargés`);
+} catch (e) {
+  console.warn('⚠️ Erreur import personnages:', e.message);
+  enhancedCharacters = [];
+}
+
 export default function ChatsScreen({ navigation }) {
-  const [allCharacters, setAllCharacters] = useState([]);
+  const [allCharacters, setAllCharacters] = useState(enhancedCharacters);
   const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const loadingTimeout = useRef(null);
+  const isMounted = useRef(true);
 
   useEffect(() => {
+    isMounted.current = true;
     loadData();
     
     // Refresh when screen is focused
     const unsubscribe = navigation.addListener('focus', () => {
-      loadData();
+      if (isMounted.current) {
+        loadData();
+      }
     });
 
-    return unsubscribe;
+    return () => {
+      isMounted.current = false;
+      if (loadingTimeout.current) {
+        clearTimeout(loadingTimeout.current);
+      }
+      unsubscribe();
+    };
   }, [navigation]);
 
   const loadData = async () => {
+    // Sécurité: timeout de 10 secondes max pour éviter le blocage
+    if (loadingTimeout.current) {
+      clearTimeout(loadingTimeout.current);
+    }
+    loadingTimeout.current = setTimeout(() => {
+      if (isMounted.current && isLoading) {
+        console.warn('⚠️ Timeout chargement ChatsScreen');
+        setIsLoading(false);
+      }
+    }, 10000);
+
     try {
-      setIsLoading(true);
-      setError(null);
+      if (isMounted.current) setIsLoading(true);
+      if (isMounted.current) setError(null);
       
       console.log('📚 ChatsScreen: Chargement des données...');
       
-      // Charger tous les personnages (de base + personnalisés + publics)
-      let customChars = [];
+      // ÉTAPE 1: Charger les conversations IMMÉDIATEMENT (local, rapide)
       try {
-        customChars = await CustomCharacterService.getCustomCharacters();
-        console.log(`✅ ${customChars.length} personnages personnalisés chargés`);
-      } catch (e) {
-        console.log('⚠️ Erreur chargement personnages personnalisés:', e.message);
+        const allConversations = await StorageService.getAllConversations();
+        if (isMounted.current) {
+          console.log(`✅ ${allConversations?.length || 0} conversations chargées`);
+          setConversations(allConversations || []);
+        }
+      } catch (convError) {
+        console.warn('⚠️ Erreur chargement conversations:', convError.message);
+        if (isMounted.current) setConversations([]);
       }
-      
-      // Aussi charger les personnages publics des autres utilisateurs
-      let publicChars = [];
-      try {
-        publicChars = await CustomCharacterService.getPublicCharacters();
-        console.log(`✅ ${publicChars.length} personnages publics chargés`);
-      } catch (e) {
-        console.log('⚠️ Erreur chargement personnages publics:', e.message);
-      }
-      
-      // Combiner tous les personnages (éviter les doublons par ID)
-      const allChars = [...enhancedCharacters];
+
+      // ÉTAPE 2: Les personnages de base sont déjà chargés (import statique)
+      let allChars = [...enhancedCharacters];
       const seenIds = new Set(allChars.map(c => String(c.id)));
       
-      for (const char of [...customChars, ...publicChars]) {
-        const charId = String(char.id);
-        if (!seenIds.has(charId)) {
-          allChars.push(char);
-          seenIds.add(charId);
+      // ÉTAPE 3: Charger les personnages personnalisés (avec timeout court)
+      try {
+        const customPromise = CustomCharacterService.getCustomCharacters();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout custom chars')), 5000)
+        );
+        
+        const customChars = await Promise.race([customPromise, timeoutPromise]);
+        if (customChars && Array.isArray(customChars)) {
+          console.log(`✅ ${customChars.length} personnages personnalisés`);
+          for (const char of customChars) {
+            const charId = String(char.id);
+            if (!seenIds.has(charId)) {
+              allChars.push(char);
+              seenIds.add(charId);
+            }
+          }
         }
+      } catch (customError) {
+        console.warn('⚠️ Personnages personnalisés non chargés:', customError.message);
       }
       
-      console.log(`✅ Total: ${allChars.length} personnages`);
-      setAllCharacters(allChars);
+      // ÉTAPE 4: Personnages publics (non bloquant, en arrière-plan)
+      // Ne pas attendre - charger en arrière-plan si possible
+      CustomCharacterService.getPublicCharacters()
+        .then(publicChars => {
+          if (isMounted.current && publicChars && publicChars.length > 0) {
+            console.log(`✅ ${publicChars.length} personnages publics (arrière-plan)`);
+            setAllCharacters(prev => {
+              const newChars = [...prev];
+              const existingIds = new Set(newChars.map(c => String(c.id)));
+              for (const char of publicChars) {
+                if (!existingIds.has(String(char.id))) {
+                  newChars.push(char);
+                }
+              }
+              return newChars;
+            });
+          }
+        })
+        .catch(e => console.log('⚠️ Personnages publics non disponibles'));
       
-      // Charger les conversations
-      const allConversations = await StorageService.getAllConversations();
-      console.log(`✅ ${allConversations?.length || 0} conversations chargées`);
-      setConversations(allConversations || []);
+      if (isMounted.current) {
+        console.log(`✅ Total: ${allChars.length} personnages`);
+        setAllCharacters(allChars);
+      }
       
     } catch (e) {
       console.error('❌ Erreur chargement ChatsScreen:', e);
-      setError(e.message);
+      if (isMounted.current) setError(e.message);
     } finally {
-      setIsLoading(false);
+      if (loadingTimeout.current) {
+        clearTimeout(loadingTimeout.current);
+      }
+      if (isMounted.current) setIsLoading(false);
     }
   };
 

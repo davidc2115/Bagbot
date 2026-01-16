@@ -43,57 +43,58 @@ export default function CreateCharacterScreen({ navigation, route }) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Vérifier le statut premium au montage
-  React.useEffect(() => {
-    initializeScreen();
-  }, []);
+  // Référence pour éviter les memory leaks
+  const isMounted = React.useRef(true);
 
-  const initializeScreen = async () => {
-    try {
-      setIsInitializing(true);
-      await checkPremiumStatus();
-    } catch (error) {
-      console.error('❌ Erreur initialisation CreateCharacter:', error);
-    } finally {
-      setIsInitializing(false);
-    }
-  };
+  // Vérifier le statut premium au montage - NON BLOQUANT
+  React.useEffect(() => {
+    isMounted.current = true;
+    
+    // Afficher le formulaire IMMÉDIATEMENT, vérifier premium en arrière-plan
+    setIsInitializing(false);
+    
+    // Vérification premium en arrière-plan (non bloquant)
+    checkPremiumStatus();
+    
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const checkPremiumStatus = async () => {
     try {
-      // Vérifier si admin (toujours premium)
+      // Vérifier d'abord localement (instantané)
       const user = AuthService.getCurrentUser();
       const isAdmin = user?.is_admin || user?.email?.toLowerCase() === 'douvdouv21@gmail.com';
       
       if (isAdmin) {
         console.log('👑 Admin détecté - Premium automatique');
-        setIsPremium(true);
+        if (isMounted.current) setIsPremium(true);
         return;
       }
       
+      // Statut local
       const local = AuthService.isPremium();
-      setIsPremium(local);
+      if (isMounted.current) setIsPremium(local);
       
-      // Vérification serveur avec timeout de 5 secondes
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 5000)
-      );
-      
+      // Vérification serveur en arrière-plan avec timeout court
       try {
-        const server = await Promise.race([
-          AuthService.checkPremiumStatus(),
-          timeoutPromise
-        ]);
-        setIsPremium(server);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
+        const server = await AuthService.checkPremiumStatus();
+        clearTimeout(timeoutId);
+        
+        if (isMounted.current) setIsPremium(server);
       } catch (timeoutError) {
-        console.log('⚠️ Timeout vérification premium, utilisation du statut local');
+        console.log('⚠️ Vérification premium: utilisation du statut local');
       }
     } catch (error) {
       console.log('⚠️ Erreur vérification premium:', error.message);
-      // Fallback: vérifier si admin
+      // Fallback silencieux
       const user = AuthService.getCurrentUser();
       const isAdmin = user?.is_admin || user?.email?.toLowerCase() === 'douvdouv21@gmail.com';
-      setIsPremium(isAdmin || AuthService.isPremium());
+      if (isMounted.current) setIsPremium(isAdmin || AuthService.isPremium());
     }
   };
 
@@ -250,16 +251,6 @@ export default function CreateCharacterScreen({ navigation, route }) {
       setIsSaving(false);
     }
   };
-
-  // Écran de chargement initial
-  if (isInitializing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
-        <Text style={styles.loadingText}>Chargement...</Text>
-      </View>
-    );
-  }
 
   return (
     <ScrollView style={styles.container}>
