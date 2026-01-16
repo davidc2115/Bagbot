@@ -5,11 +5,11 @@ import axios from 'axios';
  * Service de génération de texte - SANS GROQ
  * Utilise Pollinations AI (rapide) ou Ollama Freebox (local)
  * 
- * v5.0.6 - COHÉRENCE AMÉLIORÉE: Réponses directes au message utilisateur
- *        - ID utilisateur unique pour chaque requête Pollinations
- *        - Température réduite pour plus de cohérence
- *        - Configuration intégrée dans l'APK
- *        - Support serveurs alternatifs
+ * v5.0.7 - GESTION CONNEXION AMÉLIORÉE
+ *        - Multi-serveurs avec fallback automatique
+ *        - Détection et messages d'erreur clairs
+ *        - Retry intelligent avec backoff
+ *        - Support hors-ligne avec réponses de secours
  */
 class TextGenerationService {
   constructor() {
@@ -17,11 +17,28 @@ class TextGenerationService {
     this.FREEBOX_URL = 'http://88.174.155.230:33437';
     this.POLLINATIONS_URL = 'https://text.pollinations.ai/openai';
     
-    // Serveurs alternatifs (fallback)
-    this.ALTERNATIVE_SERVERS = [
-      { name: 'Pollinations', url: 'https://text.pollinations.ai/openai', type: 'openai' },
-      { name: 'Freebox Ollama', url: 'http://88.174.155.230:33437/api/chat', type: 'ollama' },
+    // Serveurs alternatifs avec fallback automatique
+    this.SERVERS = [
+      { 
+        name: 'Pollinations AI', 
+        url: 'https://text.pollinations.ai/openai', 
+        type: 'openai',
+        timeout: 30000,
+        priority: 1
+      },
+      { 
+        name: 'Freebox Ollama', 
+        url: 'http://88.174.155.230:33437/api/chat', 
+        type: 'ollama',
+        timeout: 60000,
+        priority: 2
+      },
     ];
+    
+    // État de connexion des serveurs
+    this.serverStatus = {};
+    this.lastServerCheck = 0;
+    this.SERVER_CHECK_INTERVAL = 60000; // Vérifier toutes les minutes
     
     // Providers disponibles (SANS GROQ)
     this.providers = {
@@ -43,9 +60,75 @@ class TextGenerationService {
     // ID utilisateur unique pour les requêtes (généré au premier usage)
     this.userSessionId = null;
     
+    // Compteur d'erreurs pour diagnostic
+    this.errorCount = 0;
+    this.lastError = null;
+    
     // Pour compatibilité avec l'ancien code
     this.apiKeys = { groq: [] };
     this.currentKeyIndex = { groq: 0 };
+  }
+  
+  /**
+   * v5.0.7 - Vérifie la disponibilité des serveurs
+   */
+  async checkServerAvailability() {
+    const now = Date.now();
+    if (now - this.lastServerCheck < this.SERVER_CHECK_INTERVAL) {
+      return this.serverStatus;
+    }
+    
+    console.log('🔍 Vérification des serveurs...');
+    this.lastServerCheck = now;
+    
+    for (const server of this.SERVERS) {
+      try {
+        let testUrl = server.url;
+        if (server.type === 'ollama') {
+          testUrl = server.url.replace('/api/chat', '/health');
+        }
+        
+        const response = await axios.get(testUrl, { 
+          timeout: 5000,
+          validateStatus: () => true
+        });
+        
+        this.serverStatus[server.name] = {
+          available: response.status < 500,
+          lastCheck: now,
+          responseTime: Date.now() - now
+        };
+        console.log(`✅ ${server.name}: Disponible`);
+      } catch (error) {
+        this.serverStatus[server.name] = {
+          available: false,
+          lastCheck: now,
+          error: error.message
+        };
+        console.log(`❌ ${server.name}: Hors ligne (${error.message})`);
+      }
+    }
+    
+    return this.serverStatus;
+  }
+  
+  /**
+   * v5.0.7 - Obtient le meilleur serveur disponible
+   */
+  async getBestServer() {
+    await this.checkServerAvailability();
+    
+    // Trier par priorité et disponibilité
+    const availableServers = this.SERVERS
+      .filter(s => this.serverStatus[s.name]?.available !== false)
+      .sort((a, b) => a.priority - b.priority);
+    
+    if (availableServers.length === 0) {
+      console.error('❌ Aucun serveur disponible!');
+      return null;
+    }
+    
+    return availableServers[0];
   }
   
   /**
@@ -72,6 +155,43 @@ class TextGenerationService {
       this.userSessionId = 'temp_' + Date.now();
       return this.userSessionId;
     }
+  }
+  
+  /**
+   * v5.0.7 - Génère un message d'erreur clair pour l'utilisateur
+   */
+  getConnectionErrorMessage(error) {
+    const errorMsg = error?.message?.toLowerCase() || '';
+    
+    if (errorMsg.includes('network') || errorMsg.includes('internet') || errorMsg.includes('offline')) {
+      return {
+        title: '📵 Pas de connexion Internet',
+        message: 'Vérifie ta connexion Wi-Fi ou données mobiles et réessaie.',
+        canRetry: true
+      };
+    }
+    
+    if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+      return {
+        title: '⏱️ Serveur lent',
+        message: 'Le serveur met trop de temps à répondre. Réessaie dans quelques secondes.',
+        canRetry: true
+      };
+    }
+    
+    if (errorMsg.includes('server') || errorMsg.includes('503') || errorMsg.includes('502')) {
+      return {
+        title: '🔧 Serveur en maintenance',
+        message: 'Le serveur est temporairement indisponible. Réessaie dans quelques minutes.',
+        canRetry: true
+      };
+    }
+    
+    return {
+      title: '❌ Erreur de connexion',
+      message: 'Impossible de contacter le serveur. Vérifie ta connexion et réessaie.',
+      canRetry: true
+    };
   }
 
   async loadConfig() {
@@ -149,8 +269,8 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.6 - Génère une réponse avec le provider sélectionné
-   * SYSTÈME CRÉATIF avec profil utilisateur complet et cohérence améliorée
+   * v5.0.7 - Génère une réponse avec le provider sélectionné
+   * GESTION CONNEXION AMÉLIORÉE avec fallback multi-serveurs
    */
   async generateResponse(messages, character, userProfile = null, retries = 3) {
     // Validation des entrées
@@ -170,11 +290,20 @@ class TextGenerationService {
       console.warn('⚠️ Erreur config, utilisation des valeurs par défaut');
     }
     
+    // v5.0.7: Vérifier la disponibilité des serveurs
+    const bestServer = await this.getBestServer();
+    if (!bestServer) {
+      console.error('❌ Aucun serveur disponible');
+      this.lastError = { type: 'no_server', message: 'Aucun serveur disponible' };
+      return this.getOfflineResponse(character, userProfile);
+    }
+    
     const provider = this.currentProvider || 'pollinations';
     
     // Log du profil utilisateur pour debug
     const userInfo = userProfile ? `${userProfile.username || 'Anonyme'} (${userProfile.gender || '?'})` : 'Non défini';
-    console.log(`🤖 Génération v5.0.6 avec ${this.providers[provider]?.name || provider}`);
+    console.log(`🤖 Génération v5.0.7 avec ${this.providers[provider]?.name || provider}`);
+    console.log(`🌐 Serveur: ${bestServer.name}`);
     console.log(`👤 Profil utilisateur: ${userInfo}`);
     
     // Log du dernier message pour debug cohérence
@@ -287,6 +416,68 @@ class TextGenerationService {
     
     return responses[Math.floor(Math.random() * responses.length)];
   }
+  
+  /**
+   * v5.0.7 - Génère une réponse hors-ligne quand aucun serveur n'est disponible
+   * Réponses pré-générées qui maintiennent l'immersion
+   */
+  getOfflineResponse(character, userProfile = null) {
+    const charName = character?.name || 'Elle';
+    const userName = userProfile?.username || '';
+    const temperament = (character?.temperament || '').toLowerCase();
+    const gender = character?.gender || 'female';
+    
+    // Réponses hors-ligne selon le tempérament
+    const offlineResponses = {
+      'timide': [
+        `*rougit et baisse les yeux* "Je... je suis un peu distraite là..." (connexion perdue)`,
+        `*joue nerveusement avec ses doigts* "D-désolée, j'ai du mal à réfléchir..." (problème de connexion)`,
+        `*hésite* "Euh... attends, laisse-moi un moment..." (je me reconnecte)`,
+      ],
+      'direct': [
+        `*fronce les sourcils* "Attends, y'a un truc qui va pas..." (connexion instable)`,
+        `*te regarde* "Donne-moi une seconde, je reviens." (problème technique)`,
+        `*soupire* "C'est pas mon jour... Réessaie ?" (erreur de connexion)`,
+      ],
+      'flirt': [
+        `*fait la moue* "Hmm, le destin nous joue des tours..." (connexion perdue)`,
+        `*sourit tristement* "Tu me manques déjà... Reviens vite ?" (hors ligne)`,
+        `*te lance un regard* "J'ai besoin de toi pour fonctionner..." (reconnecte-toi)`,
+      ],
+      'taquin': [
+        `*tire la langue* "Oups, j'ai bugué !" (connexion perdue)`,
+        `*rit* "Haha, même moi j'ai mes limites !" (serveur hors ligne)`,
+        `*fait un clin d'œil* "On dirait que j'ai besoin d'une pause !" (réessaie)`,
+      ],
+      'romantique': [
+        `*soupire tendrement* "J'aimerais pouvoir te répondre..." (connexion perdue)`,
+        `*te regarde avec douceur* "Mon cœur est là, mais ma voix s'est perdue..." (hors ligne)`,
+        `*prend ta main* "Attends-moi, je reviens vite..." (problème de connexion)`,
+      ],
+      'default': [
+        `*te regarde* "Désolé${gender === 'female' ? 'e' : ''}, j'ai un petit souci technique..." (connexion perdue)`,
+        `*sourit* "Oups, laisse-moi un instant..." (serveur hors ligne)`,
+        `*penche la tête* "Hmm, quelque chose ne va pas. Réessaie ?" (erreur de connexion)`,
+      ],
+    };
+    
+    // Sélectionner les réponses selon le tempérament
+    let responses = offlineResponses.default;
+    for (const [key, resps] of Object.entries(offlineResponses)) {
+      if (temperament.includes(key)) {
+        responses = resps;
+        break;
+      }
+    }
+    
+    // Personnaliser avec le nom de l'utilisateur si disponible
+    let response = responses[Math.floor(Math.random() * responses.length)];
+    if (userName) {
+      response = response.replace('te regarde', `regarde ${userName}`);
+    }
+    
+    return response;
+  }
 
   /**
    * Analyse le contexte de la conversation + scénario pour adapter les réponses
@@ -375,12 +566,12 @@ class TextGenerationService {
 
   /**
    * Génération avec Pollinations AI (RAPIDE - ~3 secondes)
-   * v5.0.6 - COHÉRENCE AMÉLIORÉE + ID utilisateur unique
+   * v5.0.7 - COHÉRENCE AMÉLIORÉE + ID utilisateur unique
    */
   async generateWithPollinations(messages, character, userProfile, context) {
     // Obtenir l'ID utilisateur unique
     const sessionId = await this.getUserSessionId();
-    console.log('🚀 Pollinations AI v5.0.6 - Session:', sessionId.substring(0, 15) + '...');
+    console.log('🚀 Pollinations AI v5.0.7 - Session:', sessionId.substring(0, 15) + '...');
     
     const fullMessages = [];
     
@@ -412,10 +603,10 @@ class TextGenerationService {
     const finalInstruction = this.buildFinalCoherenceReminder(context.lastUserMessage, character, userProfile, context);
     fullMessages.push({ role: 'system', content: finalInstruction });
     
-    console.log(`📡 Pollinations v5.0.6 - ${fullMessages.length} msgs, Mode: ${context.mode}`);
+    console.log(`📡 Pollinations v5.0.7 - ${fullMessages.length} msgs, Mode: ${context.mode}`);
     console.log(`💬 Dernier msg user: "${context.lastUserMessage?.substring(0, 50)}..."`);
     
-    // v5.0.6: TEMPÉRATURE RÉDUITE pour plus de COHÉRENCE (0.7-0.8)
+    // v5.0.7: TEMPÉRATURE RÉDUITE pour plus de COHÉRENCE (0.7-0.8)
     const temperature = 0.70 + (Math.random() * 0.10); // 0.70-0.80 pour cohérence
     const presencePenalty = 0.3 + (Math.random() * 0.2); // 0.3-0.5 modéré
     const frequencyPenalty = 0.3 + (Math.random() * 0.2); // 0.3-0.5 modéré
@@ -474,7 +665,7 @@ class TextGenerationService {
   }
   
   /**
-   * v5.0.6 - Instruction de COHÉRENCE STRICTE
+   * v5.0.7 - Instruction de COHÉRENCE STRICTE
    * Force le modèle à répondre DIRECTEMENT au message utilisateur
    */
   buildCoherenceInstruction(lastUserMessage, character) {
@@ -499,7 +690,7 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
   }
   
   /**
-   * v5.0.6 - Rappel final avec le message EXACT
+   * v5.0.7 - Rappel final avec le message EXACT
    */
   buildFinalCoherenceReminder(lastUserMessage, character, userProfile, context) {
     const charName = character?.name || 'le personnage';
@@ -522,11 +713,11 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
   }
 
   /**
-   * v5.0.6 - Génération avec Ollama sur la Freebox
+   * v5.0.7 - Génération avec Ollama sur la Freebox
    * Profil utilisateur + cohérence + NSFW explicite
    */
   async generateWithOllama(messages, character, userProfile, context) {
-    console.log('🏠 Ollama Freebox v5.0.6 - Génération avec profil utilisateur...');
+    console.log('🏠 Ollama Freebox v5.0.7 - Génération avec profil utilisateur...');
     
     const FREEBOX_CHAT_URL = `${this.FREEBOX_URL}/api/chat`;
     const fullMessages = [];
@@ -589,7 +780,7 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
       content: finalContent
     });
     
-    console.log(`📡 Ollama v5.0.6 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
+    console.log(`📡 Ollama v5.0.7 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
     
     try {
       const response = await axios.post(
@@ -633,7 +824,7 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
   }
 
   /**
-   * v5.0.6 - Prompt compact créatif pour Ollama avec PROFIL UTILISATEUR
+   * v5.0.7 - Prompt compact créatif pour Ollama avec PROFIL UTILISATEUR
    */
   buildCompactCreativePrompt(character, userProfile, context) {
     const charName = character.name || 'Personnage';
@@ -716,7 +907,7 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
   }
 
   /**
-   * v5.0.6 - Système prompt CRÉATIF optimisé avec PROFIL UTILISATEUR COMPLET
+   * v5.0.7 - Système prompt CRÉATIF optimisé avec PROFIL UTILISATEUR COMPLET
    * Focus sur: tempérament, scénario, profil utilisateur (sexe, pseudo, attributs physiques), cohérence
    */
   buildCreativeSystemPrompt(character, userProfile, context) {
@@ -937,7 +1128,7 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
   }
 
   /**
-   * v5.0.6 - Instruction finale CRÉATIVE avec cohérence et profil utilisateur
+   * v5.0.7 - Instruction finale CRÉATIVE avec cohérence et profil utilisateur
    * Focus sur: réponse cohérente au dernier message, utilisation du profil
    */
   buildCreativeFinalInstruction(character, userProfile, context) {
@@ -1450,7 +1641,7 @@ Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
   }
 
   /**
-   * v5.0.6 - Nettoie et valide la réponse générée
+   * v5.0.7 - Nettoie et valide la réponse générée
    * Meilleure gestion de la créativité et du formatage
    */
   cleanAndValidateResponse(content, context, character = null) {
