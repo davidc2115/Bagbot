@@ -1,0 +1,111 @@
+name: Build Boys & Girls Roleplay APK
+
+on:
+  push:
+    tags:
+      - 'v5.*.*'   # Boys & Girls versions (v5.x.x)
+      - 'roleplay-*' # Explicit roleplay tags
+    paths:
+      - 'roleplay-chat/**'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 5.0.5)'
+        required: true
+        default: '5.0.5'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: roleplay-chat/package-lock.json
+          
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        
+      - name: Setup Expo CLI
+        run: npm install -g expo-cli eas-cli
+        
+      - name: Install dependencies
+        run: |
+          cd roleplay-chat
+          npm ci
+          
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="dev-build"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+          
+      - name: Build Android APK with Expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          cd roleplay-chat
+          npx expo prebuild --platform android --clean
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          
+      - name: Rename APK
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          mkdir -p Boys-and-Girls-APK
+          cp roleplay-chat/android/app/build/outputs/apk/release/app-release.apk Boys-and-Girls-APK/Boys-and-Girls-v$VERSION-android.apk
+          ls -lh Boys-and-Girls-APK/
+          
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Boys-and-Girls-APK
+          path: Boys-and-Girls-APK/*.apk
+          
+      - name: Create or Update Release
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          TAG="v$VERSION"
+          APK_FILE="Boys-and-Girls-APK/Boys-and-Girls-v$VERSION-android.apk"
+          
+          # Check if release exists
+          if gh release view $TAG > /dev/null 2>&1; then
+            echo "Release $TAG exists, uploading APK..."
+            gh release upload $TAG "$APK_FILE" --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create $TAG "$APK_FILE" \
+              --title "Boys & Girls v$VERSION" \
+              --notes "## Boys & Girls v$VERSION
+
+### Nouveautés
+- Profil utilisateur complet (sexe, pseudo, attributs physiques)
+- Cohérence améliorée avec les messages précédents
+- Mode NSFW plus explicite et naturel
+
+📱 **Télécharger**: Boys-and-Girls-v$VERSION-android.apk
+🔄 **Après installation**: Redémarrer l'application"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
