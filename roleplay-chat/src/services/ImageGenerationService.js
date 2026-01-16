@@ -2762,21 +2762,22 @@ class ImageGenerationService {
           // Semi-nu
           'shirt open revealing bare breasts, jeans unzipped',
           'dress pulled down to waist, breasts exposed',
-        'towel falling off, nude body partially visible',
-        'robe untied and open, nude underneath',
-        'sheet covering lower body only, topless',
-        // Nu
-        'completely nude, naked body fully exposed',
-        'fully naked, nothing hidden at all',
-        'nude with only high heels, elegant nudity',
-        'naked wearing only jewelry, artistic nude',
-        // Provocant habillé
-        'wearing tight mini dress riding up, no underwear visible',
-        'wearing crop top showing underboob, micro shorts',
-        'wearing see-through top, nipples clearly visible',
-        'wearing bikini that barely covers anything',
-        'wearing unbuttoned blouse, cleavage extreme',
-      ];
+          'towel falling off, nude body partially visible',
+          'robe untied and open, nude underneath',
+          'sheet covering lower body only, topless',
+          // Nu
+          'completely nude, naked body fully exposed',
+          'fully naked, nothing hidden at all',
+          'nude with only high heels, elegant nudity',
+          'naked wearing only jewelry, artistic nude',
+          // Provocant habillé
+          'wearing tight mini dress riding up, no underwear visible',
+          'wearing crop top showing underboob, micro shorts',
+          'wearing see-through top, nipples clearly visible',
+          'wearing bikini that barely covers anything',
+          'wearing unbuttoned blouse, cleavage extreme',
+        ];
+      }
       // Tenue basée sur le niveau
       let outfitIndex = Math.min(level - 2, megaOutfits.length - 1);
       outfitIndex = Math.max(0, outfitIndex);
