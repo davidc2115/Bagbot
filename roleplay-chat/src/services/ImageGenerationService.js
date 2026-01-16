@@ -3043,25 +3043,43 @@ class ImageGenerationService {
     // Construction du prompt final - STRUCTURE CLAIRE
     let finalPrompt = '';
     
-    // v5.0.3: EXTRACTION PRIORITAIRE DU TYPE DE CORPS
+    // v5.0.4: EXTRACTION PRIORITAIRE DU TYPE DE CORPS - FRANÇAIS COMPLET
     const promptLower = cleanPrompt.toLowerCase();
     let bodyTypePrefix = '';
     
-    // Détecter et PRIORISER le type de corps (ronde, généreuse, curvy, etc.)
-    if (promptLower.includes('very curvy') || promptLower.includes('très ronde') || promptLower.includes('very plump') || promptLower.includes('bbw')) {
-      bodyTypePrefix = 'BBW plus size, very curvy thick plump body, chubby full figured, soft round belly, wide hips, thick thighs, ';
-      console.log('💪 Body type détecté: TRÈS RONDE/BBW');
-    } else if (promptLower.includes('curvy plump') || promptLower.includes('ronde') || promptLower.includes('chubby') || promptLower.includes('plump body')) {
-      bodyTypePrefix = 'curvy chubby plump body, soft rounded figure, thick curves, belly, wide hips, ';
-      console.log('💪 Body type détecté: RONDE/CHUBBY');
-    } else if (promptLower.includes('voluptuous') || promptLower.includes('voluptu') || promptLower.includes('généreuse') || promptLower.includes('generous curves')) {
-      bodyTypePrefix = 'voluptuous curvy body, generous curves, full figured, hourglass shape, ';
-      console.log('💪 Body type détecté: VOLUPTUEUSE/GÉNÉREUSE');
-    } else if (promptLower.includes('thick') || promptLower.includes('pulpeuse') || promptLower.includes('curvy')) {
-      bodyTypePrefix = 'thick curvy body, pronounced curves, full hips, ';
+    // Détecter et PRIORISER le type de corps avec TOUS les termes français
+    // TRÈS GROSSE / TRÈS RONDE / BBW
+    if (promptLower.includes('très ronde') || promptLower.includes('très grosse') || promptLower.includes('très gros') ||
+        promptLower.includes('very curvy') || promptLower.includes('very plump') || promptLower.includes('bbw') ||
+        promptLower.includes('obèse') || promptLower.includes('énorme')) {
+      bodyTypePrefix = 'BBW plus size woman, very curvy very thick very plump body, extremely chubby full figured, big soft round belly, very wide hips, very thick thighs, fat, overweight, ';
+      console.log('💪 Body type détecté: TRÈS RONDE/TRÈS GROSSE/BBW');
+    }
+    // GROSSE / GRASSE / RONDE
+    else if (promptLower.includes('grosse') || promptLower.includes('gros ') || promptLower.includes('grasse') ||
+             promptLower.includes('ronde') || promptLower.includes('rond ') || promptLower.includes('chubby') ||
+             promptLower.includes('plump') || promptLower.includes('dodu') || promptLower.includes('potelé') ||
+             promptLower.includes('enrobé') || promptLower.includes('corpulent')) {
+      bodyTypePrefix = 'chubby plump curvy woman, soft rounded body, belly fat, thick curves, wide hips, thick thighs, soft figure, ';
+      console.log('💪 Body type détecté: GROSSE/RONDE/CHUBBY');
+    }
+    // GÉNÉREUSE / VOLUPTUEUSE / FORMES
+    else if (promptLower.includes('généreuse') || promptLower.includes('généreux') || promptLower.includes('formes') ||
+             promptLower.includes('voluptu') || promptLower.includes('pulpeuse') || promptLower.includes('opulente') ||
+             promptLower.includes('plantureuse') || promptLower.includes('bien en chair')) {
+      bodyTypePrefix = 'voluptuous curvy woman, generous curves, full figured hourglass, large breasts, wide hips, thick thighs, womanly figure, ';
+      console.log('💪 Body type détecté: GÉNÉREUSE/VOLUPTUEUSE');
+    }
+    // THICK / CURVY
+    else if (promptLower.includes('thick') || promptLower.includes('curvy') || promptLower.includes('épaisse') ||
+             promptLower.includes('hanches larges') || promptLower.includes('grosses fesses') || promptLower.includes('grosses cuisses')) {
+      bodyTypePrefix = 'thick curvy woman, pronounced curves, full hips, big butt, thick thighs, ';
       console.log('💪 Body type détecté: THICK/CURVY');
-    } else if (promptLower.includes('maternal') || promptLower.includes('maternelle') || promptLower.includes('mommy')) {
-      bodyTypePrefix = 'soft maternal curvy body, motherly figure, womanly curves, ';
+    }
+    // MATERNELLE
+    else if (promptLower.includes('maternal') || promptLower.includes('maternelle') || promptLower.includes('mommy') ||
+             promptLower.includes('maman') || promptLower.includes('mère')) {
+      bodyTypePrefix = 'soft maternal curvy woman, motherly figure, womanly curves, nurturing body, ';
       console.log('💪 Body type détecté: MATERNELLE');
     }
     

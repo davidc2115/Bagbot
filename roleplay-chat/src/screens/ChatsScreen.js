@@ -6,14 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import StorageService from '../services/StorageService';
 import enhancedCharacters from '../data/allCharacters';
 import CustomCharacterService from '../services/CustomCharacterService';
 
 export default function ChatsScreen({ navigation }) {
-  const [allCharacters, setAllCharacters] = useState([]);
+  const [allCharacters, setAllCharacters] = useState([...enhancedCharacters]);
   const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -27,47 +30,43 @@ export default function ChatsScreen({ navigation }) {
   }, [navigation]);
 
   const loadData = async () => {
-    // v5.0.3: OPTIMISÉ - Charger d'abord les personnages de base immédiatement
-    const allChars = [...enhancedCharacters];
-    const seenIds = new Set(allChars.map(c => c.id));
-    
-    // Charger les conversations en parallèle (priorité)
-    const allConversations = await StorageService.getAllConversations();
-    setConversations(allConversations);
-    setAllCharacters(allChars);
-    
-    // Charger personnages custom en arrière-plan (sans bloquer)
     try {
-      const customChars = await CustomCharacterService.getCustomCharacters();
-      for (const char of customChars) {
-        if (!seenIds.has(char.id)) {
-          allChars.push(char);
-          seenIds.add(char.id);
-        }
-      }
-      setAllCharacters([...allChars]);
-    } catch (e) {
-      console.log('⚠️ Erreur personnages custom:', e.message);
-    }
-    
-    // Charger personnages publics en arrière-plan (très basse priorité)
-    setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      
+      // v5.0.4: OPTIMISÉ - Charger personnages de base IMMÉDIATEMENT
+      const allChars = [...enhancedCharacters];
+      setAllCharacters(allChars);
+      
+      // Charger les conversations (priorité)
+      const allConversations = await StorageService.getAllConversations();
+      console.log('📚 Conversations chargées:', allConversations?.length || 0);
+      setConversations(allConversations || []);
+      setLoading(false);
+      
+      // Charger personnages custom en arrière-plan
+      const seenIds = new Set(allChars.map(c => c.id));
       try {
-        const publicChars = await CustomCharacterService.getAllVisibleCharacters();
-        const updatedChars = [...enhancedCharacters];
-        const updatedIds = new Set(updatedChars.map(c => c.id));
-        
-        for (const char of publicChars) {
-          if (!updatedIds.has(char.id)) {
-            updatedChars.push(char);
-            updatedIds.add(char.id);
+        const customChars = await CustomCharacterService.getCustomCharacters();
+        if (customChars && customChars.length > 0) {
+          for (const char of customChars) {
+            if (!seenIds.has(char.id)) {
+              allChars.push(char);
+              seenIds.add(char.id);
+            }
           }
+          setAllCharacters([...allChars]);
         }
-        setAllCharacters(updatedChars);
       } catch (e) {
-        // Silencieux - pas critique
+        console.log('⚠️ Erreur personnages custom:', e.message);
       }
-    }, 500);
+      
+    } catch (e) {
+      console.error('❌ Erreur chargement conversations:', e);
+      setError(e.message);
+      setLoading(false);
+      setConversations([]);
+    }
   };
 
   const deleteConversation = async (characterId) => {
@@ -117,28 +116,35 @@ export default function ChatsScreen({ navigation }) {
 
   const renderConversation = ({ item }) => {
     const character = getCharacter(item.characterId);
-    if (!character) return null;
+    
+    // v5.0.4: Afficher même si personnage non trouvé (avec fallback)
+    const charName = character?.name || `Personnage #${item.characterId?.substring(0, 8) || '?'}`;
+    const charInitials = character?.name?.split(' ').map(n => n[0]).join('') || '?';
 
-    const lastMessage = item.messages[item.messages.length - 1];
+    const lastMessage = item.messages?.[item.messages.length - 1];
     const messagePreview = lastMessage?.content?.substring(0, 80) + '...' || 'Aucun message';
 
     return (
       <View style={styles.card}>
         <TouchableOpacity
           style={styles.cardTouchable}
-          onPress={() => navigation.navigate('Conversation', { character })}
+          onPress={() => {
+            if (character) {
+              navigation.navigate('Conversation', { character });
+            } else {
+              Alert.alert('Personnage introuvable', 'Ce personnage n\'existe plus ou n\'est pas chargé.');
+            }
+          }}
         >
           <View style={styles.cardContent}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>
-                {character.name.split(' ').map(n => n[0]).join('')}
-              </Text>
+            <View style={[styles.avatarPlaceholder, !character && { backgroundColor: '#9ca3af' }]}>
+              <Text style={styles.avatarText}>{charInitials}</Text>
             </View>
             <View style={styles.info}>
               <View style={styles.header}>
-                <Text style={styles.name}>{character.name}</Text>
+                <Text style={styles.name}>{charName}</Text>
                 <Text style={styles.date}>
-                  {new Date(item.lastUpdated).toLocaleDateString('fr-FR')}
+                  {item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString('fr-FR') : ''}
                 </Text>
               </View>
               <Text style={styles.preview} numberOfLines={2}>
@@ -146,7 +152,7 @@ export default function ChatsScreen({ navigation }) {
               </Text>
               <View style={styles.statsContainer}>
                 <Text style={styles.stats}>
-                  💬 {item.messages.length} messages
+                  💬 {item.messages?.length || 0} messages
                 </Text>
                 <Text style={styles.stats}>
                   💖 Affection: {item.relationship?.affection || 50}%
@@ -168,13 +174,37 @@ export default function ChatsScreen({ navigation }) {
     );
   };
 
-  if (conversations.length === 0) {
+  // v5.0.4: État de chargement
+  if (loading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.emptyTitle}>Chargement...</Text>
+      </View>
+    );
+  }
+  
+  // v5.0.4: Affichage d'erreur
+  if (error) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyEmoji}>⚠️</Text>
+        <Text style={styles.emptyTitle}>Erreur</Text>
+        <Text style={styles.emptyText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+          <Text style={styles.retryText}>🔄 Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!conversations || conversations.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyEmoji}>💬</Text>
         <Text style={styles.emptyTitle}>Aucune conversation</Text>
         <Text style={styles.emptyText}>
-          Commencez une conversation avec un personnage depuis l'onglet Personnages
+          Commencez une conversation avec un personnage depuis l'onglet Découvrir
         </Text>
       </View>
     );
@@ -189,7 +219,7 @@ export default function ChatsScreen({ navigation }) {
       <FlatList
         data={conversations}
         renderItem={renderConversation}
-        keyExtractor={item => item.characterId.toString()}
+        keyExtractor={item => item.characterId?.toString() || Math.random().toString()}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
@@ -319,5 +349,17 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    backgroundColor: '#6366f1',
+    borderRadius: 25,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
