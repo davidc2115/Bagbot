@@ -5,10 +5,11 @@ import axios from 'axios';
  * Service de génération de texte - SANS GROQ
  * Utilise Pollinations AI (rapide) ou Ollama Freebox (local)
  * 
- * v5.0.6 - COHÉRENCE MAXIMALE
+ * v5.0.6 - COHÉRENCE MAXIMALE + ID UTILISATEUR UNIQUE
  *        - Détection NSFW améliorée (mots explicites uniquement)
  *        - Réponse DIRECTE au dernier message utilisateur
  *        - Température réduite pour cohérence
+ *        - ID utilisateur unique pour Pollinations AI
  */
 class TextGenerationService {
   constructor() {
@@ -33,9 +34,38 @@ class TextGenerationService {
     // Provider par défaut: Pollinations (plus rapide)
     this.currentProvider = 'pollinations';
     
+    // v5.0.6: ID utilisateur unique pour Pollinations (compte séparé par utilisateur)
+    this.userSessionId = null;
+    
     // Pour compatibilité avec l'ancien code
     this.apiKeys = { groq: [] };
     this.currentKeyIndex = { groq: 0 };
+  }
+  
+  /**
+   * v5.0.6 - Génère ou récupère un ID de session utilisateur unique
+   * Chaque utilisateur a son propre "compte" Pollinations
+   */
+  async getUserSessionId() {
+    if (this.userSessionId) return this.userSessionId;
+    
+    try {
+      let sessionId = await AsyncStorage.getItem('pollinations_user_id');
+      
+      if (!sessionId) {
+        // Générer un nouvel ID unique
+        sessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+        await AsyncStorage.setItem('pollinations_user_id', sessionId);
+        console.log('🆔 Nouvel ID Pollinations créé:', sessionId);
+      }
+      
+      this.userSessionId = sessionId;
+      return sessionId;
+    } catch (error) {
+      // Fallback: ID temporaire basé sur le timestamp
+      this.userSessionId = 'temp_' + Date.now();
+      return this.userSessionId;
+    }
   }
 
   async loadConfig() {
@@ -255,7 +285,9 @@ class TextGenerationService {
    * Système immersif complet
    */
   async generateWithPollinations(messages, character, userProfile, context) {
-    console.log('🚀 Pollinations AI - Génération immersive...');
+    // v5.0.6: Obtenir l'ID utilisateur unique
+    const sessionId = await this.getUserSessionId();
+    console.log('🚀 Pollinations AI v5.0.6 - Session:', sessionId.substring(0, 20) + '...');
     
     const fullMessages = [];
     
@@ -283,9 +315,9 @@ class TextGenerationService {
     const finalInstruction = this.buildFinalInstruction(character, userProfile, context);
     fullMessages.push({ role: 'system', content: finalInstruction });
     
-    console.log(`📡 Pollinations - ${fullMessages.length} messages, Mode: ${context.mode}`);
+    console.log(`📡 Pollinations v5.0.6 - ${fullMessages.length} messages, Mode: ${context.mode}, User: ${sessionId.substring(0, 15)}`);
     
-    // v5.0.6: Température réduite pour COHÉRENCE maximale
+    // v5.0.6: Température réduite pour COHÉRENCE + ID utilisateur unique
     const response = await axios.post(
       this.POLLINATIONS_URL,
       {
@@ -293,12 +325,16 @@ class TextGenerationService {
         messages: fullMessages,
         max_tokens: 200,
         temperature: 0.65, // Plus bas = plus cohérent
-        presence_penalty: 0.3, // Modéré
-        frequency_penalty: 0.4, // Modéré
+        presence_penalty: 0.3,
+        frequency_penalty: 0.4,
+        user: sessionId, // ID utilisateur unique pour Pollinations
         top_p: 0.85, // Plus contrôlé
       },
       {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId, // Header additionnel pour l'ID utilisateur
+        },
         timeout: 35000,
       }
     );

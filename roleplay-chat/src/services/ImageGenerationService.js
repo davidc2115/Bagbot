@@ -2081,6 +2081,7 @@ class ImageGenerationService {
   /**
    * Génère l'image du personnage (profil) - MODE SFW
    * Les images de profil sont TOUJOURS SFW (élégantes mais pas explicites)
+   * v5.0.6: Support complet du genre masculin
    */
   async generateCharacterImage(character, userProfile = null) {
     // Parser l'âge correctement (gère "300 ans (apparence 25)")
@@ -2089,44 +2090,98 @@ class ImageGenerationService {
       throw new Error('Génération d\'images désactivée pour les personnages mineurs');
     }
 
-    console.log(`✨ Génération image PROFIL (SFW) pour ${character.name}`);
+    const isMale = character.gender === 'male';
+    const isFemale = character.gender === 'female';
+    
+    console.log(`✨ Génération image PROFIL (SFW) pour ${character.name} - Genre: ${isMale ? 'HOMME' : isFemale ? 'FEMME' : 'AUTRE'}`);
 
     // Choisir le style (anime ou réaliste)
     const { style, isRealistic } = this.getRandomStyle();
     
     let prompt = style;
     
+    // === GENRE EN PRIORITÉ ABSOLUE ===
+    if (isMale) {
+      prompt += ', MALE, man, masculine, gentleman, male character, male person';
+      if (isRealistic) {
+        prompt += ', handsome real man, male human, masculine features, male model';
+      } else {
+        prompt += ', handsome anime man, male anime character, bishounen, masculine anime, ikemen';
+      }
+    } else if (isFemale) {
+      prompt += ', FEMALE, woman, feminine, lady, female character, female person';
+      if (isRealistic) {
+        prompt += ', beautiful real woman, female human, feminine features, female model';
+      } else {
+        prompt += ', beautiful anime woman, female anime character, feminine anime';
+      }
+    }
+    
     // === CONSTRUIRE UN PROMPT DÉTAILLÉ ===
     prompt += ', ' + this.buildUltraDetailedPrompt(character, isRealistic);
     
-    // === TENUES SFW ÉLÉGANTES POUR PROFIL ===
-    const sfwOutfits = [
-      'wearing elegant casual outfit, fashionable, stylish',
-      'wearing beautiful dress, classy, sophisticated',
-      'wearing smart casual clothes, well-dressed, attractive',
-      'wearing trendy modern outfit, chic fashion',
-      'wearing stylish blouse and pants, elegant',
-      'wearing fashionable sundress, feminine charm',
-      'wearing professional yet attractive attire',
-    ];
-    prompt += `, ${sfwOutfits[Math.floor(Math.random() * sfwOutfits.length)]}`;
+    // === TENUES SFW SELON LE GENRE ===
+    if (isMale) {
+      const maleOutfits = [
+        'wearing elegant suit and tie, well-dressed gentleman',
+        'wearing casual button-up shirt, sleeves rolled up, stylish',
+        'wearing fitted t-shirt showing physique, casual cool',
+        'wearing leather jacket over t-shirt, bad boy style',
+        'wearing professional blazer, smart casual, attractive',
+        'wearing stylish sweater, cozy masculine look',
+        'wearing dress shirt open collar, confident style',
+        'wearing trendy streetwear, modern masculine fashion',
+      ];
+      prompt += `, ${maleOutfits[Math.floor(Math.random() * maleOutfits.length)]}`;
+    } else {
+      const femaleOutfits = [
+        'wearing elegant casual outfit, fashionable, stylish',
+        'wearing beautiful dress, classy, sophisticated',
+        'wearing smart casual clothes, well-dressed, attractive',
+        'wearing trendy modern outfit, chic fashion',
+        'wearing stylish blouse and pants, elegant',
+        'wearing fashionable sundress, feminine charm',
+        'wearing professional yet attractive attire',
+      ];
+      prompt += `, ${femaleOutfits[Math.floor(Math.random() * femaleOutfits.length)]}`;
+    }
     
-    // === POSES SFW NATURELLES ===
-    const sfwPoses = [
-      'natural confident pose, warm genuine smile',
-      'elegant standing pose, friendly expression',
-      'relaxed casual pose, inviting look',
-      'charming pose, attractive smile',
-      'graceful pose, soft natural expression',
-    ];
-    prompt += `, ${sfwPoses[Math.floor(Math.random() * sfwPoses.length)]}`;
+    // === POSES SFW SELON LE GENRE ===
+    if (isMale) {
+      const malePoses = [
+        'confident masculine pose, charming smile',
+        'standing tall with hands in pockets, cool demeanor',
+        'leaning casually against wall, relaxed confident',
+        'arms crossed showing confidence, friendly expression',
+        'natural masculine pose, approachable look',
+        'sitting confidently, relaxed powerful presence',
+      ];
+      prompt += `, ${malePoses[Math.floor(Math.random() * malePoses.length)]}`;
+      prompt += ', handsome, attractive man, masculine charm, approachable';
+      prompt += ', strong features, masculine physique';
+    } else {
+      const femalePoses = [
+        'natural confident pose, warm genuine smile',
+        'elegant standing pose, friendly expression',
+        'relaxed casual pose, inviting look',
+        'charming pose, attractive smile',
+        'graceful pose, soft natural expression',
+      ];
+      prompt += `, ${femalePoses[Math.floor(Math.random() * femalePoses.length)]}`;
+      prompt += ', beautiful, attractive woman, feminine charm, approachable';
+    }
     
-    // Qualités positives SFW
-    prompt += ', beautiful, attractive, charming, approachable';
     prompt += ', tasteful, classy, SFW, safe for work';
     
     // ANATOMIE STRICTE (pour éviter les défauts)
     prompt += ', ' + this.anatomyStrictPrompt;
+    
+    // === NEGATIVE PROMPT POUR LE BON GENRE ===
+    if (isMale) {
+      this.currentNegativeAdditions = 'female, woman, feminine, breasts, cleavage, dress, skirt, lipstick, feminine features';
+    } else if (isFemale) {
+      this.currentNegativeAdditions = 'male, man, masculine, beard, stubble, masculine features';
+    }
     
     // QUALITÉ SPÉCIFIQUE AU STYLE
     if (isRealistic) {
@@ -2140,7 +2195,7 @@ class ImageGenerationService {
       prompt += ', single character, solo, one person, detailed face';
     }
 
-    console.log(`🖼️ Génération image profil SFW (${isRealistic ? 'RÉALISTE' : 'ANIME'})...`);
+    console.log(`🖼️ Génération image profil SFW (${isRealistic ? 'RÉALISTE' : 'ANIME'}) - ${isMale ? 'HOMME' : 'FEMME'}...`);
     return await this.generateImage(prompt);
   }
   
@@ -2487,8 +2542,10 @@ class ImageGenerationService {
 
     const level = Math.max(1, relationLevel || 1);
     const isNSFW = level >= 2; // NSFW seulement à partir du niveau 2
+    const isMale = character.gender === 'male';
+    const isFemale = character.gender === 'female';
     
-    console.log(`🖼️ Génération image niveau ${level} - ${isNSFW ? '🔞 NSFW' : '✨ SFW'}`);
+    console.log(`🖼️ Génération image niveau ${level} - ${isNSFW ? '🔞 NSFW' : '✨ SFW'} - Genre: ${isMale ? 'HOMME' : 'FEMME'}`);
 
     // Choisir le style
     const { style, isRealistic } = this.getRandomStyle();
@@ -2501,6 +2558,23 @@ class ImageGenerationService {
     const sceneElements = this.generateVariedSceneElements();
     
     let prompt = style;
+    
+    // === GENRE EN PRIORITÉ ABSOLUE ===
+    if (isMale) {
+      prompt += ', MALE, man, masculine, male character, male person, gentleman';
+      if (isRealistic) {
+        prompt += ', handsome real man, male human, masculine features, male model, male physique';
+      } else {
+        prompt += ', handsome anime man, male anime character, bishounen, masculine anime, ikemen';
+      }
+    } else if (isFemale) {
+      prompt += ', FEMALE, woman, feminine, female character, female person, lady';
+      if (isRealistic) {
+        prompt += ', beautiful real woman, female human, feminine features, female model';
+      } else {
+        prompt += ', beautiful anime woman, female anime character, feminine anime';
+      }
+    }
     
     // === DESCRIPTION PHYSIQUE ULTRA-DÉTAILLÉE ===
     prompt += ', ' + this.buildUltraDetailedPhysicalPrompt(character, isRealistic);
@@ -2545,111 +2619,106 @@ class ImageGenerationService {
     
     // === SELON LE MODE SFW/NSFW ===
     if (isNSFW) {
-      // === MODE NSFW v5.0.0 - ULTRA VARIÉTÉ MAXIMALE ===
-      console.log(`🔞 Mode NSFW ENHANCED v5.0.0 actif - Niveau ${level}`);
+      // === MODE NSFW v5.0.6 - SUPPORT GENRE MASCULIN ===
+      console.log(`🔞 Mode NSFW v5.0.6 actif - Niveau ${level} - ${isMale ? 'HOMME' : 'FEMME'}`);
       
       // Anatomie détaillée pour NSFW
       prompt += this.buildAnatomyDescription(character, isRealistic);
       
-      // === MEGA VARIÉTÉ DE POSES SEXY/NSFW ===
-      const megaNSFWPoses = [
-        // DEBOUT - Poses sexy
-        'standing confidently with one hand on hip, weight on one leg, seductive stance',
-        'standing against wall, back arched, pushing chest forward provocatively',
-        'standing by window, silhouette visible, turning to look over shoulder',
-        'standing legs apart, hands running through hair, inviting look',
-        'standing nude, stretching arms above head, full body exposed',
-        // ALLONGÉE SUR LE DOS
-        'lying on back on bed, arms stretched above head, legs slightly parted, inviting',
-        'lying on silk sheets, one knee up, hand on thigh, sensual gaze',
-        'lying on back, legs spread wide open, intimate view',
-        'lying on bed, touching own breasts, eyes closed in pleasure',
-        'lying on fur rug by fireplace, nude body glowing, relaxed pose',
-        // ALLONGÉE SUR LE VENTRE
-        'lying on stomach, feet up playfully, butt prominently displayed',
-        'lying face down, looking back over shoulder, rear view focus',
-        'lying on stomach, propped on elbows, cleavage visible, flirty smile',
-        // SUR LE CÔTÉ
-        'lying on side, propped on elbow, curves emphasized, sensual',
-        'lying on side, one leg raised, intimate angle visible',
-        'reclining sideways, hand tracing body curves, seductive',
-        // À GENOUX
-        'kneeling on bed, sitting on heels, hands on thighs, submissive pose',
-        'kneeling upright, back arched, breasts thrust forward, confident',
-        'kneeling on all fours from behind, looking back seductively, rear emphasized',
-        'kneeling with legs apart, hands exploring own body, erotic',
-        // À QUATRE PATTES
-        'on all fours, back arched dramatically, rear fully visible',
-        'on hands and knees from behind, provocative rear view, inviting',
-        'on all fours, looking back with intense gaze, seductive',
-        // ASSISE
-        'sitting on edge of bed, legs spread, leaning back on hands',
-        'sitting cross-legged, topless, confident smile',
-        'sitting in armchair, one leg over armrest, exposed',
-        'sitting on floor, knees up and apart, intimate view',
-        // PENCHÉE
-        'bent over vanity table, rear prominently displayed',
-        'bending forward, cleavage deep and visible, seductive smile',
-        'bent over bed, rear view, looking back invitingly',
-        'leaning forward on elbows, breasts hanging, sensual',
-        // ÉCARTÉE
-        'legs spread wide on bed, nothing hidden, explicit pose',
-        'legs open in chair, fully exposed, confident expression',
-        'straddling position, legs wide apart, dominant pose',
-        // SPÉCIALES
-        'in bathtub, covered in bubbles, wet skin glistening',
-        'stepping out of shower, water droplets on body',
-        'undressing, clothes falling off, caught mid-motion',
-        'stretching like just woke up, nude and natural',
-        'yoga pose, flexible body displayed, sensual',
-      ];
-      const randomPose = megaNSFWPoses[Math.floor(Math.random() * megaNSFWPoses.length)];
+      // === POSES NSFW SELON LE GENRE ===
+      let randomPose;
+      if (isMale) {
+        const maleNSFWPoses = [
+          'standing confidently, muscular body on display, powerful masculine stance',
+          'standing against wall, arms crossed, showing off physique, dominant pose',
+          'lying on back on bed, arms behind head, muscular chest exposed, relaxed',
+          'lying on silk sheets, one arm behind head, masculine body displayed',
+          'lying on stomach, looking back over shoulder, muscular back visible',
+          'lying on side, propped on elbow, masculine physique emphasized',
+          'sitting on edge of bed, legs apart, confident masculine pose',
+          'sitting in armchair, legs spread, dominant relaxed pose',
+          'standing dominant pose, muscular arms flexed, powerful',
+          'leaning against doorframe, casual confident, showing off body',
+          'towel around waist only, post-shower, wet masculine body',
+          'stepping out of shower, water droplets on muscular body',
+          'undressing, shirt coming off, muscular torso revealed',
+          'stretching like just woke up, nude and natural male',
+        ];
+        randomPose = maleNSFWPoses[Math.floor(Math.random() * maleNSFWPoses.length)];
+      } else {
+        const femaleNSFWPoses = [
+          'standing confidently with one hand on hip, weight on one leg, seductive stance',
+          'standing against wall, back arched, pushing chest forward provocatively',
+          'standing by window, silhouette visible, turning to look over shoulder',
+          'lying on back on bed, arms stretched above head, legs slightly parted, inviting',
+          'lying on silk sheets, one knee up, hand on thigh, sensual gaze',
+          'lying on stomach, feet up playfully, butt prominently displayed',
+          'lying face down, looking back over shoulder, rear view focus',
+          'lying on side, propped on elbow, curves emphasized, sensual',
+          'kneeling on bed, sitting on heels, hands on thighs, submissive pose',
+          'kneeling upright, back arched, breasts thrust forward, confident',
+          'on all fours, back arched dramatically, rear fully visible',
+          'sitting on edge of bed, legs spread, leaning back on hands',
+          'sitting cross-legged, topless, confident smile',
+          'bent over vanity table, rear prominently displayed',
+          'in bathtub, covered in bubbles, wet skin glistening',
+          'stepping out of shower, water droplets on body',
+          'undressing, clothes falling off, caught mid-motion',
+        ];
+        randomPose = femaleNSFWPoses[Math.floor(Math.random() * femaleNSFWPoses.length)];
+      }
       prompt += `, ${randomPose}`;
       console.log(`🎭 POSE: ${randomPose.substring(0, 60)}...`);
       
-      // === MEGA VARIÉTÉ DE TENUES SEXY ===
-      const megaOutfits = [
-        // Lingerie
-        'wearing sexy black lace lingerie set, bra and thong',
-        'wearing red satin lingerie, push-up bra, garter belt',
-        'wearing white lace bodysuit, see-through, nipples visible',
-        'wearing sheer babydoll negligee, barely covering anything',
-        'wearing only lace thong, topless, nipples exposed',
-        // Semi-nu
-        'shirt open revealing bare breasts, jeans unzipped',
-        'dress pulled down to waist, breasts exposed',
-        'towel falling off, nude body partially visible',
-        'robe untied and open, nude underneath',
-        'sheet covering lower body only, topless',
-        // Nu
-        'completely nude, naked body fully exposed',
-        'fully naked, nothing hidden at all',
-        'nude with only high heels, elegant nudity',
-        'naked wearing only jewelry, artistic nude',
-        // Provocant habillé
-        'wearing tight mini dress riding up, no underwear visible',
-        'wearing crop top showing underboob, micro shorts',
-        'wearing see-through top, nipples clearly visible',
-        'wearing bikini that barely covers anything',
-        'wearing unbuttoned blouse, cleavage extreme',
-      ];
+      // === TENUES NSFW SELON LE GENRE ===
+      let megaOutfits;
+      if (isMale) {
+        megaOutfits = [
+          'wearing unbuttoned shirt showing muscular chest, jeans',
+          'wearing open robe showing nude body underneath, masculine',
+          'wearing only boxer briefs, muscular body visible',
+          'wearing tight underwear, bulge visible, masculine physique',
+          'shirtless, muscular torso exposed, jeans unzipped',
+          'topless showing defined abs and pecs, towel around waist',
+          'bare chest, muscles glistening, confident pose',
+          'completely nude, naked masculine body fully exposed',
+          'fully naked, nothing hidden, male physique displayed',
+          'wearing only towel loosely wrapped, about to fall',
+          'wearing tank top showing muscles, short shorts',
+          'wearing open leather jacket, bare chest, masculine',
+        ];
+      } else {
+        megaOutfits = [
+          'wearing sexy black lace lingerie set, bra and thong',
+          'wearing red satin lingerie, push-up bra, garter belt',
+          'wearing white lace bodysuit, see-through, nipples visible',
+          'wearing sheer babydoll negligee, barely covering anything',
+          'wearing only lace thong, topless, nipples exposed',
+          'shirt open revealing bare breasts, jeans unzipped',
+          'dress pulled down to waist, breasts exposed',
+          'towel falling off, nude body partially visible',
+          'robe untied and open, nude underneath',
+          'completely nude, naked body fully exposed',
+          'fully naked, nothing hidden at all',
+          'nude with only high heels, elegant nudity',
+        ];
+      }
+      
       // Tenue basée sur le niveau
-      let outfitIndex = Math.min(level - 2, megaOutfits.length - 1);
-      outfitIndex = Math.max(0, outfitIndex);
-      // Ajouter de la variété aléatoire dans la catégorie appropriée
       if (level >= 5) {
-        // Niveaux élevés: tenues nues ou très révélatrices
-        const nudeOutfits = megaOutfits.filter(o => o.includes('nude') || o.includes('naked') || o.includes('topless'));
-        const randomOutfit = nudeOutfits[Math.floor(Math.random() * nudeOutfits.length)];
+        const nudeOutfits = megaOutfits.filter(o => o.includes('nude') || o.includes('naked'));
+        const randomOutfit = nudeOutfits[Math.floor(Math.random() * nudeOutfits.length)] || megaOutfits[megaOutfits.length - 1];
         prompt += `, ${randomOutfit}`;
       } else if (level >= 3) {
-        // Niveaux moyens: lingerie
-        const lingerieOutfits = megaOutfits.filter(o => o.includes('lingerie') || o.includes('bra'));
-        const randomOutfit = lingerieOutfits[Math.floor(Math.random() * lingerieOutfits.length)];
+        const midOutfits = isMale 
+          ? megaOutfits.filter(o => o.includes('shirtless') || o.includes('boxer') || o.includes('towel'))
+          : megaOutfits.filter(o => o.includes('lingerie') || o.includes('bra'));
+        const randomOutfit = midOutfits[Math.floor(Math.random() * midOutfits.length)] || megaOutfits[0];
         prompt += `, ${randomOutfit}`;
       } else {
-        // Niveau 2: provocant
-        const provoOutfits = megaOutfits.filter(o => o.includes('dress') || o.includes('top'));
+        const provoOutfits = isMale
+          ? megaOutfits.filter(o => o.includes('shirt') || o.includes('tank'))
+          : megaOutfits.filter(o => o.includes('dress') || o.includes('top'));
         const randomOutfit = provoOutfits[Math.floor(Math.random() * provoOutfits.length)] || megaOutfits[0];
         prompt += `, ${randomOutfit}`;
       }
@@ -2745,53 +2814,62 @@ class ImageGenerationService {
       // Prompt NSFW explicite RENFORCÉ SELON LE NIVEAU
       prompt += this.buildNSFWPrompt(character, isRealistic);
       
-      // Forcer le contenu NSFW selon le niveau - v5.0.0 ULTRA ENHANCED
-      if (level === 2) {
-        prompt += ', NSFW, sexy, seductive, provocative outfit';
-        prompt += ', revealing clothes, deep cleavage, short skirt, tight form-fitting dress';
-        prompt += ', sexy confident pose, flirtatious look, adult content';
-        console.log('📸 Mode NIVEAU 2: Provocante sexy');
-      } else if (level === 3) {
-        prompt += ', NSFW, sexy lace lingerie, bra barely containing breasts, thong';
-        prompt += ', garter belt, stockings, seductive lingerie pose';
-        prompt += ', adult content, erotic, sensual bedroom scene';
-        console.log('📸 Mode NIVEAU 3: Lingerie chaude');
-      } else if (level === 4) {
-        prompt += ', NSFW, topless, bare breasts exposed, nipples clearly visible';
-        prompt += ', naked from waist up, breasts fully shown, sensual topless pose';
-        prompt += ', adult content, erotic, intimate exposure';
-        console.log('📸 Mode NIVEAU 4: Topless seins nus');
-      } else if (level === 5) {
-        prompt += ', NSFW, fully nude, completely naked body exposed';
-        prompt += ', nipples visible, nude artistic pose, all body visible';
-        prompt += ', erotic artistic nudity, intimate, adult only';
-        console.log('📸 Mode NIVEAU 5: Nu intégral artistique');
-      } else if (level === 6) {
-        prompt += ', NSFW, nude sensual pose, naked body glistening with sweat or oil';
-        prompt += ', legs slightly apart, hands touching own body, self-caressing';
-        prompt += ', explicit adult content, passionate, aroused expression';
-        console.log('📸 Mode NIVEAU 6: Nu sensuel excité');
-      } else if (level === 7) {
-        prompt += ', NSFW, erotic nude pose, legs spread open invitingly';
-        prompt += ', naked on bed, hand between thighs, touching intimately';
-        prompt += ', explicit sexual pose, adult only, uncensored arousal';
-        console.log('📸 Mode NIVEAU 7: Nu érotique ouvert');
-      } else if (level === 8) {
-        prompt += ', NSFW, very explicit nude, legs wide open';
-        prompt += ', fingers touching intimate areas, naked and spread';
-        prompt += ', extreme explicit, masturbation beginning, adult hardcore';
-        console.log('📸 Mode NIVEAU 8: Très explicite masturbation');
-      } else if (level === 9) {
-        prompt += ', NSFW, ultra explicit nude, maximum exposure, nothing hidden';
-        prompt += ', fingers penetrating, orgasmic face, intense pleasure visible';
-        prompt += ', extreme sexual content, explicit masturbation, climax';
-        console.log('📸 Mode NIVEAU 9: Ultra explicite jouissance');
-      } else if (level >= 10) {
-        prompt += ', NSFW, maximum explicit nude, most erotic pose imaginable';
-        prompt += ', extreme penetration visible, toy insertion, squirting';
-        prompt += ', absolute maximum adult content, orgasm captured, nothing censored';
-        prompt += ', most provocative explicit imagery possible';
-        console.log('📸 Mode NIVEAU 10+: Maximum hardcore');
+      // Forcer le contenu NSFW selon le niveau - v5.0.6 avec support GENRE
+      if (isMale) {
+        // === NIVEAUX NSFW MASCULINS ===
+        if (level === 2) {
+          prompt += ', NSFW, sexy, seductive, provocative masculine';
+          prompt += ', tight shirt showing muscles, unbuttoned, confident male pose';
+          console.log('📸 Mode NIVEAU 2: Homme provocant');
+        } else if (level === 3) {
+          prompt += ', NSFW, shirtless muscular torso, tight underwear';
+          prompt += ', showing off male physique, seductive masculine pose';
+          console.log('📸 Mode NIVEAU 3: Homme torse nu');
+        } else if (level === 4) {
+          prompt += ', NSFW, nude male torso, muscular chest and abs exposed';
+          prompt += ', naked from waist up, masculine body displayed';
+          console.log('📸 Mode NIVEAU 4: Homme torse nu sensuel');
+        } else if (level >= 5) {
+          prompt += ', NSFW, fully nude male, completely naked masculine body exposed';
+          prompt += ', nude artistic male pose, all body visible, male physique';
+          prompt += ', erotic artistic male nudity, intimate, adult only';
+          console.log(`📸 Mode NIVEAU ${level}: Homme nu intégral`);
+        }
+      } else {
+        // === NIVEAUX NSFW FÉMININS (original) ===
+        if (level === 2) {
+          prompt += ', NSFW, sexy, seductive, provocative outfit';
+          prompt += ', revealing clothes, deep cleavage, short skirt, tight form-fitting dress';
+          prompt += ', sexy confident pose, flirtatious look, adult content';
+          console.log('📸 Mode NIVEAU 2: Provocante sexy');
+        } else if (level === 3) {
+          prompt += ', NSFW, sexy lace lingerie, bra barely containing breasts, thong';
+          prompt += ', garter belt, stockings, seductive lingerie pose';
+          prompt += ', adult content, erotic, sensual bedroom scene';
+          console.log('📸 Mode NIVEAU 3: Lingerie chaude');
+        } else if (level === 4) {
+          prompt += ', NSFW, topless, bare breasts exposed, nipples clearly visible';
+          prompt += ', naked from waist up, breasts fully shown, sensual topless pose';
+          prompt += ', adult content, erotic, intimate exposure';
+          console.log('📸 Mode NIVEAU 4: Topless seins nus');
+        } else if (level === 5) {
+          prompt += ', NSFW, fully nude, completely naked body exposed';
+          prompt += ', nipples visible, nude artistic pose, all body visible';
+          prompt += ', erotic artistic nudity, intimate, adult only';
+          console.log('📸 Mode NIVEAU 5: Nu intégral artistique');
+        } else if (level >= 6) {
+          prompt += ', NSFW, nude sensual pose, naked body glistening';
+          prompt += ', explicit adult content, passionate, aroused expression';
+          prompt += ', erotic nudity, intimate, adult only';
+          console.log(`📸 Mode NIVEAU ${level}: Nu sensuel`);
+        }
+      }
+      
+      // Negative prompt pour le bon genre
+      if (isMale) {
+        this.currentNegativeAdditions = 'female, woman, feminine, breasts, cleavage, dress, skirt, lipstick, feminine features';
+      } else {
+        this.currentNegativeAdditions = 'male, man, masculine, beard, stubble, masculine features';
       }
       
     } else {
