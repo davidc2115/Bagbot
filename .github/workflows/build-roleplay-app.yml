@@ -6,6 +6,11 @@ on:
       - 'v5.*'      # Boys & Girls versions (v5.x.x)
       - 'v6.*'      # Boys & Girls versions (v6.x.x)
       - 'boys-*'    # Explicit Boys & Girls tags
+    branches:
+      - main        # Also trigger on main for initial testing
+    paths:
+      - 'roleplay-chat/**'
+      - '.github/workflows/build-roleplay-app.yml'
   workflow_dispatch:
     inputs:
       version:
