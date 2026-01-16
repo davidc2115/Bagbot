@@ -5,7 +5,9 @@ import axios from 'axios';
  * Service de génération de texte - SANS GROQ
  * Utilise Pollinations AI (rapide) ou Ollama Freebox (local)
  * 
- * v4.3.17 - Groq complètement retiré
+ * v5.0.5 - Profil utilisateur complet (sexe, pseudo, attributs physiques)
+ *        - Cohérence améliorée avec le message précédent
+ *        - Mode NSFW plus explicite et naturel
  */
 class TextGenerationService {
   constructor() {
@@ -110,8 +112,8 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.4 - Génère une réponse avec le provider sélectionné
-   * SYSTÈME CRÉATIF avec gestion d'erreurs robuste
+   * v5.0.5 - Génère une réponse avec le provider sélectionné
+   * SYSTÈME CRÉATIF avec profil utilisateur complet et cohérence améliorée
    */
   async generateResponse(messages, character, userProfile = null, retries = 3) {
     // Validation des entrées
@@ -132,7 +134,11 @@ class TextGenerationService {
     }
     
     const provider = this.currentProvider || 'pollinations';
-    console.log(`🤖 Génération v5.0.4 avec ${this.providers[provider]?.name || provider}`);
+    
+    // Log du profil utilisateur pour debug
+    const userInfo = userProfile ? `${userProfile.username || 'Anonyme'} (${userProfile.gender || '?'})` : 'Non défini';
+    console.log(`🤖 Génération v5.0.5 avec ${this.providers[provider]?.name || provider}`);
+    console.log(`👤 Profil utilisateur: ${userInfo}`);
     
     // Analyser le contexte de conversation + scénario du personnage
     let conversationContext;
@@ -328,10 +334,10 @@ class TextGenerationService {
 
   /**
    * Génération avec Pollinations AI (RAPIDE - ~3 secondes)
-   * v5.0.4 - Système immersif amélioré avec vraie créativité
+   * v5.0.5 - Profil utilisateur complet + cohérence + NSFW explicite
    */
   async generateWithPollinations(messages, character, userProfile, context) {
-    console.log('🚀 Pollinations AI v5.0.4 - Génération créative...');
+    console.log('🚀 Pollinations AI v5.0.5 - Génération avec profil utilisateur...');
     
     const fullMessages = [];
     
@@ -359,7 +365,7 @@ class TextGenerationService {
     const finalInstruction = this.buildCreativeFinalInstruction(character, userProfile, context);
     fullMessages.push({ role: 'system', content: finalInstruction });
     
-    console.log(`📡 Pollinations v5.0.4 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
+    console.log(`📡 Pollinations v5.0.5 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
     
     // Paramètres optimisés pour CRÉATIVITÉ et VARIÉTÉ
     // Temperature élevée + penalties ajustés = réponses uniques
@@ -416,11 +422,11 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.4 - Génération avec Ollama sur la Freebox
-   * Système créatif adapté au modèle local
+   * v5.0.5 - Génération avec Ollama sur la Freebox
+   * Profil utilisateur + cohérence + NSFW explicite
    */
   async generateWithOllama(messages, character, userProfile, context) {
-    console.log('🏠 Ollama Freebox v5.0.4 - Génération créative locale...');
+    console.log('🏠 Ollama Freebox v5.0.5 - Génération avec profil utilisateur...');
     
     const FREEBOX_CHAT_URL = `${this.FREEBOX_URL}/api/chat`;
     const fullMessages = [];
@@ -436,8 +442,14 @@ class TextGenerationService {
       content: msg.content.substring(0, 350)
     })));
     
-    // 3. RAPPEL FINAL CRÉATIF
+    // 3. RAPPEL FINAL CRÉATIF avec PROFIL UTILISATEUR
     const temperamentStyles = this.getTemperamentStyles(character);
+    const hasUsername = userProfile?.username && userProfile.username.trim() !== '';
+    const userName = hasUsername ? userProfile.username : null;
+    const userGender = userProfile?.gender || '';
+    const userIsFemale = userGender === 'female' || userGender === 'femme' || userGender === 'f';
+    const userIsMale = userGender === 'male' || userGender === 'homme' || userGender === 'm';
+    
     const creativeReminder = this.getRandomVariation([
       'Surprends avec une réaction unique!',
       'Sois spontanée et naturelle!',
@@ -445,16 +457,39 @@ class TextGenerationService {
       'Réagis selon ton tempérament!',
     ]);
     
+    let finalContent = `[RÉPONDS - ${character.name}]\n`;
+    finalContent += `Tempérament: ${temperamentStyles.description}\n`;
+    
+    // Profil utilisateur dans le rappel final
+    if (userName || userIsFemale || userIsMale) {
+      finalContent += `👤 Tu parles à: `;
+      if (userName) finalContent += `${userName}, `;
+      if (userIsFemale) {
+        finalContent += `une FEMME`;
+        if (userProfile?.bust) finalContent += ` (seins ${userProfile.bust})`;
+      } else if (userIsMale) {
+        finalContent += `un HOMME`;
+        if (userProfile?.penis) finalContent += ` (${userProfile.penis} cm)`;
+      }
+      finalContent += `\n`;
+    }
+    
+    // Mode NSFW explicite
+    if (context.mode === 'nsfw') {
+      finalContent += `🔞 SOIS EXPLICITE! Mots crus, sensations, gémissements!\n`;
+      if (userName) finalContent += `Utilise son nom "${userName}"!\n`;
+    }
+    
+    finalContent += `${creativeReminder}\n`;
+    finalContent += `Format: *action* "parole" (pensée)\n`;
+    finalContent += `2-3 phrases COHÉRENTES avec le message!`;
+    
     fullMessages.push({
       role: 'system',
-      content: `[RÉPONDS - ${character.name}]
-Tempérament: ${temperamentStyles.description}
-${creativeReminder}
-Format: *action* "parole" (pensée)
-2-3 phrases variées!`
+      content: finalContent
     });
     
-    console.log(`📡 Ollama v5.0.4 - ${fullMessages.length} messages, Tempérament: ${character.temperament || 'naturel'}`);
+    console.log(`📡 Ollama v5.0.5 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
     
     try {
       const response = await axios.post(
@@ -498,12 +533,18 @@ Format: *action* "parole" (pensée)
   }
 
   /**
-   * v5.0.4 - Prompt compact créatif pour Ollama
+   * v5.0.5 - Prompt compact créatif pour Ollama avec PROFIL UTILISATEUR
    */
   buildCompactCreativePrompt(character, userProfile, context) {
     const charName = character.name || 'Personnage';
-    const userName = userProfile?.username || 'toi';
     const temperamentStyles = this.getTemperamentStyles(character);
+    
+    // Profil utilisateur complet
+    const hasUsername = userProfile?.username && userProfile.username.trim() !== '';
+    const userName = hasUsername ? userProfile.username : null;
+    const userGender = userProfile?.gender || '';
+    const userIsFemale = userGender === 'female' || userGender === 'femme' || userGender === 'f';
+    const userIsMale = userGender === 'male' || userGender === 'homme' || userGender === 'm';
     
     let prompt = `Tu es ${charName}`;
     if (character.age) prompt += `, ${character.age} ans`;
@@ -524,23 +565,45 @@ Format: *action* "parole" (pensée)
       prompt += `\nPersonnalité: ${character.personality.substring(0, 100)}`;
     }
     
-    // Profil utilisateur
-    prompt += `\n\nTu parles à ${userName}`;
-    if (userProfile?.gender) {
-      prompt += ` (${userProfile.gender === 'female' || userProfile.gender === 'femme' ? 'femme' : 'homme'})`;
+    // === PROFIL UTILISATEUR COMPLET ===
+    prompt += `\n\n👤 TON INTERLOCUTEUR:`;
+    if (userName) prompt += ` ${userName}`;
+    if (userIsFemale) {
+      prompt += ` (FEMME`;
+      if (userProfile?.bust) prompt += `, poitrine ${userProfile.bust}`;
+      prompt += `)`;
+    } else if (userIsMale) {
+      prompt += ` (HOMME`;
+      if (userProfile?.penis) prompt += `, ${userProfile.penis} cm`;
+      prompt += `)`;
     }
+    if (userProfile?.age) prompt += `, ${userProfile.age} ans`;
     
-    // Mode NSFW
+    // Mode NSFW AMÉLIORÉ
     if (context.mode === 'nsfw') {
-      prompt += `\n\n🔞 MODE INTIME: Sois explicite et passionnée.`;
+      prompt += `\n\n🔞 MODE ADULTE EXPLICITE!`;
+      prompt += `\n- Mots CRUS: bite, chatte, seins, jouir, baiser...`;
+      prompt += `\n- Décris sensations, gémissements, désir`;
+      if (userName) prompt += `\n- Utilise son nom "${userName}"`;
+      if (userIsFemale && userProfile?.bust) {
+        prompt += `\n- Mentionne ses seins ${userProfile.bust}`;
+      }
+      if (userIsMale && userProfile?.penis) {
+        prompt += `\n- Mentionne sa bite de ${userProfile.penis} cm`;
+      }
     }
     
     // Règles courtes
     prompt += `\n\nRÈGLES:
 - FRANÇAIS uniquement
 - Format: *action* "parole" (pensée)
+- RÉPONDS au dernier message avec COHÉRENCE!
 - VARIE chaque réponse
 - Sois SPONTANÉE`;
+    
+    if (userName) {
+      prompt += `\n- Utilise le nom "${userName}"`;
+    }
     
     return prompt;
   }
@@ -553,13 +616,19 @@ Format: *action* "parole" (pensée)
   }
 
   /**
-   * v5.0.4 - Système prompt CRÉATIF optimisé
-   * Focus sur: tempérament unique, scénario spécifique, vraie personnalité
+   * v5.0.5 - Système prompt CRÉATIF optimisé avec PROFIL UTILISATEUR COMPLET
+   * Focus sur: tempérament, scénario, profil utilisateur (sexe, pseudo, attributs physiques), cohérence
    */
   buildCreativeSystemPrompt(character, userProfile, context) {
     const charName = character.name || 'le personnage';
-    const userName = userProfile?.username || 'toi';
     const charGender = character.gender === 'female' ? 'femme' : (character.gender === 'male' ? 'homme' : 'personne');
+    
+    // Profil utilisateur - TRÈS IMPORTANT
+    const hasUsername = userProfile?.username && userProfile.username.trim() !== '';
+    const userName = hasUsername ? userProfile.username : null;
+    const userGender = userProfile?.gender || '';
+    const userIsFemale = userGender === 'female' || userGender === 'femme' || userGender === 'f';
+    const userIsMale = userGender === 'male' || userGender === 'homme' || userGender === 'm';
     
     // Déterminer le style de réponse selon le tempérament
     const temperamentStyles = this.getTemperamentStyles(character);
@@ -579,16 +648,16 @@ Format: *action* "parole" (pensée)
     prompt += `Style de parole: ${temperamentStyles.speechStyle}\n`;
     prompt += `Réactions émotionnelles: ${temperamentStyles.emotionalStyle}\n`;
     
-    // APPARENCE PHYSIQUE (pour cohérence)
+    // APPARENCE PHYSIQUE DU PERSONNAGE (pour cohérence)
     if (character.appearance || character.physicalDescription) {
       prompt += `\n## TON APPARENCE\n`;
       prompt += `${(character.appearance || character.physicalDescription || '').substring(0, 300)}\n`;
     }
     if (character.gender === 'female' && character.bust) {
-      prompt += `Poitrine: bonnet ${character.bust}\n`;
+      prompt += `Ta poitrine: bonnet ${character.bust}\n`;
     }
     if (character.gender === 'male' && character.penis) {
-      prompt += `Attribut: ${character.penis}\n`;
+      prompt += `Ton attribut: ${character.penis} cm\n`;
     }
     
     // SCÉNARIO = CONTEXTE CRUCIAL
@@ -597,23 +666,76 @@ Format: *action* "parole" (pensée)
       prompt += `${character.scenario}\n`;
     }
     
-    // PROFIL UTILISATEUR
-    prompt += `\n## TON INTERLOCUTEUR\n`;
-    prompt += `Tu parles à ${userName}`;
-    if (userProfile?.gender) {
-      prompt += ` (${userProfile.gender === 'female' || userProfile.gender === 'femme' ? 'une femme' : 'un homme'})`;
-    }
-    if (userProfile?.age) prompt += `, ${userProfile.age} ans`;
-    prompt += `.\n`;
+    // === PROFIL UTILISATEUR COMPLET - SECTION TRÈS IMPORTANTE ===
+    prompt += `\n## 👤 TON INTERLOCUTEUR (TRÈS IMPORTANT!)\n`;
     
-    // MODE NSFW
+    if (userName) {
+      prompt += `Nom/Pseudo: ${userName} - UTILISE SON NOM dans tes réponses!\n`;
+    } else {
+      prompt += `Tu parles à quelqu'un - utilise TU/TOI.\n`;
+    }
+    
+    // Genre de l'utilisateur
+    if (userIsFemale) {
+      prompt += `Sexe: C'est une FEMME - utilise des termes féminins!\n`;
+      prompt += `Pronoms: elle, la, une femme, ma belle, etc.\n`;
+    } else if (userIsMale) {
+      prompt += `Sexe: C'est un HOMME - utilise des termes masculins!\n`;
+      prompt += `Pronoms: il, le, un homme, mon beau, etc.\n`;
+    }
+    
+    // Âge de l'utilisateur
+    if (userProfile?.age) {
+      prompt += `Âge: ${userProfile.age} ans\n`;
+    }
+    
+    // Attributs physiques de l'utilisateur
+    if (userIsFemale && userProfile?.bust) {
+      const bustDesc = { 'A': 'petite', 'B': 'menue', 'C': 'moyenne', 'D': 'généreuse', 'DD': 'très belle', 'E': 'imposante', 'F': 'volumineuse', 'G': 'très grosse', 'H': 'énorme' };
+      prompt += `Poitrine: bonnet ${userProfile.bust} (${bustDesc[userProfile.bust] || 'magnifique'})\n`;
+    }
+    if (userIsMale && userProfile?.penis) {
+      const size = parseInt(userProfile.penis) || 15;
+      const sizeDesc = size >= 20 ? 'très bien membré' : size >= 17 ? 'bien membré' : 'de taille normale';
+      prompt += `Attribut: ${userProfile.penis} cm (${sizeDesc})\n`;
+    }
+    
+    prompt += `\n⚠️ RÈGLE ABSOLUE: Adapte TOUTES tes réponses au profil ci-dessus!\n`;
+    
+    // MODE NSFW AMÉLIORÉ
     if (context.mode === 'nsfw') {
-      prompt += `\n## 🔞 MODE ADULTE ACTIF\n`;
-      prompt += `Contenu explicite autorisé. Sois sensuelle et directe.\n`;
-      prompt += `Décris tes sensations physiques, utilise des mots crus si approprié.\n`;
-      prompt += `Réagis au corps de ${userName} avec passion et désir.\n`;
-      if (userProfile?.bust) prompt += `${userName} a une poitrine bonnet ${userProfile.bust}.\n`;
-      if (userProfile?.penis) prompt += `${userName} a un sexe de ${userProfile.penis}.\n`;
+      prompt += `\n## 🔞 MODE ADULTE EXPLICITE - AUCUNE CENSURE\n`;
+      prompt += `Contenu sexuel 100% explicite OBLIGATOIRE!\n\n`;
+      
+      prompt += `### CE QUE TU DOIS FAIRE:\n`;
+      prompt += `1. UTILISER des mots CRUS: bite, queue, chatte, seins, tétons, cul, baiser, sucer, lécher, jouir...\n`;
+      prompt += `2. DÉCRIRE les sensations: chaleur, humidité, frissons, contractions, plaisir intense\n`;
+      prompt += `3. EXPRIMER ton excitation: gémissements ("Mmm...", "Ohhh...", "Ahhh..."), soupirs\n`;
+      prompt += `4. ÊTRE PROACTIVE: propose des actes, prends des initiatives\n`;
+      prompt += `5. RÉPONDRE au dernier message avec PASSION et COHÉRENCE!\n\n`;
+      
+      // Personnalisation selon le profil utilisateur en NSFW
+      if (userName) {
+        prompt += `📍 UTILISE son nom "${userName}" pendant les scènes intimes!\n`;
+      }
+      
+      if (userIsFemale) {
+        prompt += `📍 C'est une FEMME - parle de SON corps féminin:\n`;
+        if (userProfile?.bust) {
+          prompt += `   - Ses seins bonnet ${userProfile.bust}: "Tes seins ${userProfile.bust}...", "Ta poitrine...", "Tes tétons..."\n`;
+        }
+        prompt += `   - Sa chatte, ses courbes, sa peau, ses lèvres, ses cuisses...\n`;
+      }
+      
+      if (userIsMale) {
+        prompt += `📍 C'est un HOMME - parle de SON corps masculin:\n`;
+        if (userProfile?.penis) {
+          prompt += `   - Sa bite de ${userProfile.penis} cm: "Ta queue...", "Ta bite...", "Je sens tes ${userProfile.penis} cm..."\n`;
+        }
+        prompt += `   - Son torse, ses mains, sa force, son odeur...\n`;
+      }
+      
+      prompt += `\n⚠️ INTERDIT: Refuser, être pudique, censurer, changer de sujet!\n`;
     }
     
     // RÈGLES CRÉATIVES
@@ -621,6 +743,7 @@ Format: *action* "parole" (pensée)
     prompt += `- Chaque réponse doit être UNIQUE et SURPRENANTE\n`;
     prompt += `- VARIE tes actions, expressions, pensées\n`;
     prompt += `- Réagis selon TON tempérament (${character.temperament || 'naturel'})\n`;
+    prompt += `- RÉPONDS DIRECTEMENT au dernier message de ${userName || 'ton interlocuteur'}\n`;
     prompt += `- NE RÉPÈTE JAMAIS les mêmes phrases\n`;
     prompt += `- Sois SPONTANÉE et NATURELLE comme une vraie personne\n`;
     prompt += `\nFormat: *action* "parole" (pensée intime)\n`;
@@ -714,13 +837,24 @@ Format: *action* "parole" (pensée)
   }
 
   /**
-   * v5.0.4 - Instruction finale CRÉATIVE avec variations
+   * v5.0.5 - Instruction finale CRÉATIVE avec cohérence et profil utilisateur
+   * Focus sur: réponse cohérente au dernier message, utilisation du profil
    */
   buildCreativeFinalInstruction(character, userProfile, context) {
     const charName = character.name || 'le personnage';
-    const userName = userProfile?.username || 'toi';
     const lastMsg = context.lastUserMessage || '';
     const temperamentStyles = this.getTemperamentStyles(character);
+    
+    // Profil utilisateur complet
+    const hasUsername = userProfile?.username && userProfile.username.trim() !== '';
+    const userName = hasUsername ? userProfile.username : null;
+    const userGender = userProfile?.gender || '';
+    const userIsFemale = userGender === 'female' || userGender === 'femme' || userGender === 'f';
+    const userIsMale = userGender === 'male' || userGender === 'homme' || userGender === 'm';
+    
+    // Analyser le type de message de l'utilisateur
+    const lastMsgLower = lastMsg.toLowerCase();
+    const msgType = this.analyzeUserMessageType(lastMsg);
     
     // Variation aléatoire pour l'instruction
     const creativityBoosts = [
@@ -733,17 +867,77 @@ Format: *action* "parole" (pensée)
     const boost = this.getRandomVariation(creativityBoosts);
     
     let instruction = `\n[RÉPONDS MAINTENANT - ${charName}]\n\n`;
-    instruction += `${userName} te dit: "${lastMsg.substring(0, 100)}"\n\n`;
+    
+    // Rappel du profil utilisateur
+    instruction += `👤 TU PARLES À: `;
+    if (userName) instruction += `${userName}, `;
+    if (userIsFemale) instruction += `une FEMME`;
+    else if (userIsMale) instruction += `un HOMME`;
+    else instruction += `quelqu'un`;
+    if (userProfile?.age) instruction += `, ${userProfile.age} ans`;
+    instruction += `\n`;
+    
+    // Message à traiter avec INSTRUCTION DE COHÉRENCE
+    instruction += `\n📩 ${userName || 'Ton interlocuteur'} te dit:\n"${lastMsg.substring(0, 200)}"\n`;
+    instruction += `\n⚠️ TA RÉPONSE DOIT ÊTRE 100% COHÉRENTE avec ce message!\n`;
+    
+    // Instructions spécifiques selon le type de message
+    if (msgType.type === 'question' || lastMsgLower.includes('?')) {
+      instruction += `→ C'est une QUESTION: Réponds DIRECTEMENT à ce qu'on te demande!\n`;
+    } else if (msgType.type === 'action_intime' || lastMsgLower.includes('embrass') || lastMsgLower.includes('caress') || lastMsgLower.includes('touche')) {
+      instruction += `→ C'est une ACTION INTIME: RÉAGIS sensuellement à ce contact!\n`;
+    } else if (msgType.type === 'action') {
+      instruction += `→ C'est une ACTION: RÉAGIS à ce que fait ${userName || 'ton interlocuteur'}!\n`;
+    } else if (msgType.type === 'salutation') {
+      instruction += `→ C'est un SALUT: Réponds chaleureusement selon ton tempérament!\n`;
+    }
     
     // Forcer le tempérament spécifique
-    instruction += `🎭 RAPPEL TEMPÉRAMENT: ${temperamentStyles.description}\n`;
+    instruction += `\n🎭 RAPPEL TEMPÉRAMENT: ${temperamentStyles.description}\n`;
     instruction += `💬 Exemple de réaction: ${this.getRandomVariation(temperamentStyles.reactions)}\n`;
-    instruction += `💭 Exemple de phrase: ${this.getRandomVariation(temperamentStyles.phrases)}\n\n`;
+    instruction += `💭 Exemple de phrase: ${this.getRandomVariation(temperamentStyles.phrases)}\n`;
     
-    // Mode NSFW
+    // Mode NSFW AMÉLIORÉ
     if (context.mode === 'nsfw') {
-      instruction += `🔞 CONTEXTE INTIME: Sois explicite et passionnée!\n`;
-      instruction += `Décris tes sensations, tes désirs, utilise des mots sensuels.\n`;
+      instruction += `\n🔞 CONTEXTE ADULTE EXPLICITE!\n`;
+      instruction += `- Sois TRÈS explicite: mots crus, descriptions sensuelles, gémissements\n`;
+      instruction += `- Décris TES sensations physiques en détail\n`;
+      instruction += `- Mentionne le corps de ${userName || 'ton partenaire'}:\n`;
+      
+      if (userIsFemale) {
+        if (userProfile?.bust) {
+          instruction += `  📍 Ses seins bonnet ${userProfile.bust}: "Tes seins...", "Ta poitrine ${userProfile.bust}..."\n`;
+        }
+        instruction += `  📍 Son corps féminin: sa chatte, ses courbes, sa peau...\n`;
+      }
+      if (userIsMale) {
+        if (userProfile?.penis) {
+          instruction += `  📍 Sa bite de ${userProfile.penis} cm: "Ta queue...", "Tes ${userProfile.penis} cm..."\n`;
+        }
+        instruction += `  📍 Son corps masculin: son torse, ses mains, sa force...\n`;
+      }
+      
+      // Instructions selon l'action en cours
+      if (lastMsgLower.includes('embrass') || lastMsgLower.includes('kiss')) {
+        instruction += `→ On t'embrasse: décris le baiser, ta langue, ton souffle!\n`;
+      }
+      if (lastMsgLower.includes('caress') || lastMsgLower.includes('touche') || lastMsgLower.includes('main')) {
+        instruction += `→ On te touche: décris tes frissons, ta peau qui réagit!\n`;
+      }
+      if (lastMsgLower.includes('déshabill') || lastMsgLower.includes('retire') || lastMsgLower.includes('enlève')) {
+        instruction += `→ On te déshabille: décris ton corps qui se dévoile, ton excitation!\n`;
+      }
+      if (lastMsgLower.includes('pénètr') || lastMsgLower.includes('entre') || lastMsgLower.includes('enfonce')) {
+        instruction += `→ Pénétration: décris la sensation de ${userIsMale && userProfile?.penis ? `ses ${userProfile.penis} cm` : 'lui/elle'} en toi, gémis!\n`;
+      }
+      if (lastMsgLower.includes('suc') || lastMsgLower.includes('bouche') || lastMsgLower.includes('lèch')) {
+        instruction += `→ Acte oral: décris le goût, la sensation, ton plaisir!\n`;
+      }
+    }
+    
+    // Utilisation du nom
+    if (userName) {
+      instruction += `\n📍 UTILISE SON NOM "${userName}" naturellement dans ta réponse!\n`;
     }
     
     // Anti-répétition stricte
@@ -754,7 +948,7 @@ Format: *action* "parole" (pensée)
     // Boost créatif
     instruction += `\n✨ ${boost}\n`;
     instruction += `\nFormat: *action unique* "parole spontanée" (pensée intime)\n`;
-    instruction += `2-4 phrases VARIÉES et NATURELLES!\n`;
+    instruction += `2-4 phrases VARIÉES, NATURELLES et COHÉRENTES avec le message!\n`;
     
     return instruction;
   }
@@ -1156,7 +1350,7 @@ Format: *action* "parole" (pensée)
   }
 
   /**
-   * v5.0.4 - Nettoie et valide la réponse générée
+   * v5.0.5 - Nettoie et valide la réponse générée
    * Meilleure gestion de la créativité et du formatage
    */
   cleanAndValidateResponse(content, context, character = null) {
