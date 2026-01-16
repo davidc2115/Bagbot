@@ -341,7 +341,6 @@ export default function ConversationScreen({ route, navigation }) {
     const userMessage = {
       role: 'user',
       content: inputText.trim(),
-      timestamp: new Date().toISOString(),
     };
 
     const updatedMessages = [...messages, userMessage];
@@ -350,56 +349,24 @@ export default function ConversationScreen({ route, navigation }) {
     setIsLoading(true);
 
     try {
-      // Mise à jour de la relation
-      let newRelationship = relationship;
-      try {
-        newRelationship = updateRelationship(userMessage.content);
-        setRelationship(newRelationship);
-      } catch (relError) {
-        console.warn('⚠️ Erreur mise à jour relation:', relError.message);
-      }
+      const newRelationship = updateRelationship(userMessage.content);
+      setRelationship(newRelationship);
 
-      // Génération de la réponse avec timeout et retry intégrés
-      console.log(`💬 Génération réponse pour ${character.name}...`);
-      
-      let response;
-      try {
-        response = await TextGenerationService.generateResponse(
-          updatedMessages,
-          character,
-          userProfile
-        );
-      } catch (genError) {
-        console.error('❌ Erreur génération:', genError.message);
-        // Réponse de secours si la génération échoue complètement
-        const fallbackResponses = [
-          `*te regarde* "Désolée, tu peux répéter ?" (j'ai perdu le fil)`,
-          `*sourit* "Excuse-moi, j'étais distraite..." (hmm)`,
-          `*penche la tête* "Pardon ?" (je n'ai pas compris)`,
-        ];
-        response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
-      }
-
-      // Vérifier que la réponse est valide
-      if (!response || typeof response !== 'string' || response.length < 5) {
-        response = `*te regarde* "..." (hmm)`;
-      }
+      const response = await TextGenerationService.generateResponse(
+        updatedMessages,
+        character,
+        userProfile
+      );
 
       const assistantMessage = {
         role: 'assistant',
         content: response,
-        timestamp: new Date().toISOString(),
       };
 
       const finalMessages = [...updatedMessages, assistantMessage];
       setMessages(finalMessages);
       
-      // Sauvegarde avec gestion d'erreur
-      try {
-        await saveConversation(finalMessages, newRelationship);
-      } catch (saveError) {
-        console.warn('⚠️ Erreur sauvegarde conversation:', saveError.message);
-      }
+      await saveConversation(finalMessages, newRelationship);
 
       // Gagner de l'XP pour le message envoyé (par personnage)
       try {
@@ -413,32 +380,30 @@ export default function ConversationScreen({ route, navigation }) {
         await LevelService.recordCharacterInteraction(character.id);
         
         // Mettre à jour l'état du niveau
-        if (xpResult) {
-          setUserLevel({
-            ...userLevel,
-            level: xpResult.level,
-            title: xpResult.title,
-            totalXP: xpResult.totalXP,
-            progress: xpResult.progress,
-          });
+        setUserLevel({
+          ...userLevel,
+          level: xpResult.level,
+          title: xpResult.title,
+          totalXP: xpResult.totalXP,
+          progress: xpResult.progress,
+        });
+        
+        // Si level up, afficher l'animation et générer l'image récompense
+        if (xpResult.leveledUp) {
+          setLevelUpInfo(xpResult);
+          setShowLevelUp(true);
           
-          // Si level up, afficher l'animation et générer l'image récompense
-          if (xpResult.leveledUp) {
-            setLevelUpInfo(xpResult);
-            setShowLevelUp(true);
-            
-            // Générer l'image de récompense si disponible
-            if (xpResult.reward && xpResult.reward.type === 'image') {
-              generateLevelUpRewardImage(xpResult.reward, xpResult.newLevel);
-            }
-            
-            setTimeout(() => setShowLevelUp(false), 5000);
+          // Générer l'image de récompense si disponible
+          if (xpResult.reward && xpResult.reward.type === 'image') {
+            generateLevelUpRewardImage(xpResult.reward, xpResult.newLevel);
           }
           
-          console.log(`✅ +${xpGained} XP avec ${character.name} → Niveau ${xpResult.level} "${xpResult.title}" (${xpResult.progress}%)`);
+          setTimeout(() => setShowLevelUp(false), 5000);
         }
+        
+        console.log(`✅ +${xpGained} XP avec ${character.name} → Niveau ${xpResult.level} "${xpResult.title}" (${xpResult.progress}%)`);
       } catch (xpError) {
-        console.warn('⚠️ Erreur XP (non bloquant):', xpError.message);
+        console.error('❌ Erreur XP:', xpError);
       }
 
       // Scroll vers le bas seulement si l'utilisateur ne scroll pas manuellement
@@ -448,20 +413,7 @@ export default function ConversationScreen({ route, navigation }) {
         }, 100);
       }
     } catch (error) {
-      console.error('❌ Erreur sendMessage:', error);
-      // Afficher un message d'erreur plus convivial
-      const errorMessage = error.message?.includes('timeout') 
-        ? 'La connexion a pris trop de temps. Réessayez.'
-        : error.message?.includes('network')
-        ? 'Erreur réseau. Vérifiez votre connexion.'
-        : 'Une erreur est survenue. Réessayez.';
-      
-      Alert.alert('Oups !', errorMessage, [
-        { text: 'OK', onPress: () => {} },
-        { text: 'Réessayer', onPress: () => sendMessage() },
-      ]);
-      
-      // Restaurer les messages sans le message utilisateur
+      Alert.alert('Erreur', error.message);
       setMessages(messages);
     } finally {
       setIsLoading(false);

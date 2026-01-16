@@ -205,8 +205,7 @@ class CustomCharacterService {
 
   /**
    * Récupère les personnages de l'utilisateur connecté uniquement
-   * Version optimisée: retourne les données locales IMMÉDIATEMENT
-   * La sync serveur se fait en arrière-plan
+   * Synchronise automatiquement depuis le serveur si possible
    */
   async getCustomCharacters() {
     try {
@@ -214,58 +213,24 @@ class CustomCharacterService {
       const data = await AsyncStorage.getItem(key);
       let localChars = data ? JSON.parse(data) : [];
       
-      console.log(`📂 ${localChars.length} personnages locaux chargés`);
-      
-      // Sync serveur en ARRIÈRE-PLAN (non bloquant)
-      // Ne pas attendre le résultat
+      // Essayer de synchroniser depuis le serveur
       const user = AuthService.getCurrentUser();
       if (user?.id) {
-        this.syncFromServerBackground().catch(e => {
-          console.log('⚠️ Sync arrière-plan échouée:', e.message);
-        });
+        try {
+          const merged = await this.syncFromServer();
+          if (merged && merged.length > 0) {
+            console.log('✅ Personnages synchronisés depuis le serveur');
+            localChars = merged;
+          }
+        } catch (e) {
+          console.log('Sync serveur échoué:', e.message);
+        }
       }
       
       return localChars;
     } catch (error) {
       console.error('Error getting custom characters:', error);
       return [];
-    }
-  }
-
-  /**
-   * Sync depuis le serveur en arrière-plan (non bloquant)
-   */
-  async syncFromServerBackground() {
-    try {
-      const user = AuthService.getCurrentUser();
-      if (!user?.id) return;
-
-      // Timeout court pour ne pas bloquer
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const response = await axios.get(
-        `${this.FREEBOX_URL}/api/user-characters/${user.id}`,
-        { timeout: 5000 }
-      );
-      
-      clearTimeout(timeoutId);
-
-      if (response.data?.success && response.data.characters) {
-        const key = this.getUserStorageKey();
-        const localData = await AsyncStorage.getItem(key);
-        const localChars = localData ? JSON.parse(localData) : [];
-        const serverChars = response.data.characters;
-
-        // Fusionner : garder le plus récent
-        const merged = this.mergeCharacters(localChars, serverChars);
-        await AsyncStorage.setItem(key, JSON.stringify(merged));
-        
-        console.log(`✅ Sync arrière-plan: ${merged.length} personnages`);
-      }
-    } catch (error) {
-      // Silencieux - c'est en arrière-plan
-      console.log('⚠️ Sync arrière-plan:', error.message);
     }
   }
 
@@ -421,43 +386,11 @@ class CustomCharacterService {
 
   /**
    * Récupère tous les personnages publics du serveur
-   * Version optimisée avec timeout et cache
    */
   async getPublicCharacters() {
     try {
-      // Essayer d'abord le cache local
-      const cachedData = await AsyncStorage.getItem('cached_public_characters');
-      const cachedTime = await AsyncStorage.getItem('cached_public_characters_time');
-      const cacheAge = cachedTime ? (Date.now() - parseInt(cachedTime)) : Infinity;
-      
-      // Si cache de moins de 5 minutes, l'utiliser
-      if (cachedData && cacheAge < 5 * 60 * 1000) {
-        console.log('📦 Utilisation cache personnages publics');
-        return JSON.parse(cachedData);
-      }
-
-      // Sinon, essayer le serveur avec timeout
-      try {
-        await SyncService.init();
-        
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 5000)
-        );
-        
-        const publicChars = await Promise.race([
-          SyncService.getPublicCharacters(),
-          timeoutPromise
-        ]);
-        
-        return publicChars || [];
-      } catch (serverError) {
-        console.log('⚠️ Serveur non disponible, utilisation du cache');
-        // Retourner le cache même s'il est vieux
-        if (cachedData) {
-          return JSON.parse(cachedData);
-        }
-        return [];
-      }
+      await SyncService.init();
+      return await SyncService.getPublicCharacters();
     } catch (error) {
       console.error('Error getting public characters:', error);
       return [];

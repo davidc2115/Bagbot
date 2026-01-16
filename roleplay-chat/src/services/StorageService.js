@@ -78,19 +78,7 @@ class StorageService {
   async getAllConversations() {
     try {
       const userId = await this.getCurrentUserId();
-      
-      // Timeout de sécurité pour getAllKeys
-      const keysPromise = AsyncStorage.getAllKeys();
-      const timeoutPromise = new Promise((resolve) => 
-        setTimeout(() => resolve([]), 5000)
-      );
-      
-      const keys = await Promise.race([keysPromise, timeoutPromise]);
-      
-      if (!keys || keys.length === 0) {
-        console.log('📚 Aucune clé trouvée');
-        return [];
-      }
+      const keys = await AsyncStorage.getAllKeys();
       
       // Filtrer les conversations de l'utilisateur courant
       const userConvPrefix = `conv_${userId}_`;
@@ -98,44 +86,18 @@ class StorageService {
       
       console.log(`📚 Chargement de ${conversationKeys.length} conversations pour ${userId}`);
       
-      if (conversationKeys.length === 0) {
-        // Essayer aussi l'ancien format pour la migration
-        const oldConvKeys = keys.filter(key => key.startsWith('conversation_'));
-        if (oldConvKeys.length > 0) {
-          console.log(`📚 Anciennes conversations trouvées: ${oldConvKeys.length}`);
-          // Charger les anciennes conversations
-          const oldConversations = await AsyncStorage.multiGet(oldConvKeys);
-          const results = oldConversations
-            .map(([key, value]) => {
-              try {
-                const data = JSON.parse(value);
-                return {
-                  ...data,
-                  characterId: data.characterId || key.replace('conversation_', '')
-                };
-              } catch {
-                return null;
-              }
-            })
-            .filter(conv => conv !== null);
-          return results.sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0));
-        }
-        return [];
-      }
-      
       const conversations = await AsyncStorage.multiGet(conversationKeys);
       
       return conversations
         .map(([key, value]) => {
           try {
-            const data = JSON.parse(value);
-            return data;
+            return JSON.parse(value);
           } catch {
             return null;
           }
         })
-        .filter(conv => conv !== null && conv.messages && conv.messages.length > 0)
-        .sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0));
+        .filter(conv => conv !== null)
+        .sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
     } catch (error) {
       console.error('Error loading all conversations:', error);
       return [];

@@ -40,61 +40,33 @@ export default function CreateCharacterScreen({ navigation, route }) {
   const [isPublic, setIsPublic] = useState(characterToEdit?.isPublic || false);
   const [serverOnline, setServerOnline] = useState(null);
   const [isPremium, setIsPremium] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
-  // Référence pour éviter les memory leaks
-  const isMounted = React.useRef(true);
-
-  // Vérifier le statut premium au montage - NON BLOQUANT
+  // Vérifier le statut premium au montage
   React.useEffect(() => {
-    isMounted.current = true;
-    
-    // Afficher le formulaire IMMÉDIATEMENT, vérifier premium en arrière-plan
-    setIsInitializing(false);
-    
-    // Vérification premium en arrière-plan (non bloquant)
     checkPremiumStatus();
-    
-    return () => {
-      isMounted.current = false;
-    };
   }, []);
 
   const checkPremiumStatus = async () => {
     try {
-      // Vérifier d'abord localement (instantané)
+      // Vérifier si admin (toujours premium)
       const user = AuthService.getCurrentUser();
       const isAdmin = user?.is_admin || user?.email?.toLowerCase() === 'douvdouv21@gmail.com';
       
       if (isAdmin) {
         console.log('👑 Admin détecté - Premium automatique');
-        if (isMounted.current) setIsPremium(true);
+        setIsPremium(true);
         return;
       }
       
-      // Statut local
       const local = AuthService.isPremium();
-      if (isMounted.current) setIsPremium(local);
-      
-      // Vérification serveur en arrière-plan avec timeout court
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        
-        const server = await AuthService.checkPremiumStatus();
-        clearTimeout(timeoutId);
-        
-        if (isMounted.current) setIsPremium(server);
-      } catch (timeoutError) {
-        console.log('⚠️ Vérification premium: utilisation du statut local');
-      }
+      setIsPremium(local);
+      const server = await AuthService.checkPremiumStatus();
+      setIsPremium(server);
     } catch (error) {
-      console.log('⚠️ Erreur vérification premium:', error.message);
-      // Fallback silencieux
+      // Fallback: vérifier si admin
       const user = AuthService.getCurrentUser();
       const isAdmin = user?.is_admin || user?.email?.toLowerCase() === 'douvdouv21@gmail.com';
-      if (isMounted.current) setIsPremium(isAdmin || AuthService.isPremium());
+      setIsPremium(isAdmin || AuthService.isPremium());
     }
   };
 
@@ -180,10 +152,7 @@ export default function CreateCharacterScreen({ navigation, route }) {
       return;
     }
 
-    if (isSaving) return;
-
     try {
-      setIsSaving(true);
       const character = {
         name,
         age: parseInt(age),
@@ -245,10 +214,7 @@ export default function CreateCharacterScreen({ navigation, route }) {
         ]);
       }
     } catch (error) {
-      console.error('❌ Erreur sauvegarde personnage:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le personnage');
-    } finally {
-      setIsSaving(false);
+      Alert.alert('Erreur', 'Impossible de sauvegarder le personnage');
     }
   };
 
@@ -462,21 +428,10 @@ export default function CreateCharacterScreen({ navigation, route }) {
         )}
       </View>
 
-      <TouchableOpacity 
-        style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
-        onPress={handleSave}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <View style={styles.savingContainer}>
-            <ActivityIndicator size="small" color="#fff" />
-            <Text style={styles.saveButtonText}> Enregistrement...</Text>
-          </View>
-        ) : (
-          <Text style={styles.saveButtonText}>
-            {isEditing ? '💾 Sauvegarder' : isPublic ? '🌐 Créer et Partager' : '✨ Créer'}
-          </Text>
-        )}
+      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+        <Text style={styles.saveButtonText}>
+          {isEditing ? '💾 Sauvegarder' : isPublic ? '🌐 Créer et Partager' : '✨ Créer'}
+        </Text>
       </TouchableOpacity>
 
       <View style={{ height: 40 }} />
@@ -704,25 +659,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#d97706',
     fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: '#6366f1',
-    fontWeight: '500',
-  },
-  saveButtonDisabled: {
-    backgroundColor: '#a5b4fc',
-  },
-  savingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

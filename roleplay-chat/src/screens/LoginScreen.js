@@ -22,25 +22,13 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState(null);
 
-  const [checkingServer, setCheckingServer] = useState(true);
-
   useEffect(() => {
     checkServer();
   }, []);
 
   const checkServer = async () => {
-    setCheckingServer(true);
-    console.log('🔄 [LoginScreen] Vérification du serveur...');
-    try {
-      const online = await AuthService.checkServerHealth();
-      console.log('📊 [LoginScreen] Résultat:', online ? 'EN LIGNE' : 'HORS LIGNE');
-      setServerOnline(online);
-    } catch (err) {
-      console.log('❌ [LoginScreen] Erreur:', err?.message);
-      setServerOnline(false);
-    } finally {
-      setCheckingServer(false);
-    }
+    const online = await AuthService.checkServerHealth();
+    setServerOnline(online);
   };
 
   const handleEmailAuth = async () => {
@@ -195,36 +183,13 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
         </View>
 
         {/* Statut serveur */}
-        <TouchableOpacity 
-          onPress={checkServer} 
-          disabled={checkingServer}
-          style={[
-            styles.serverStatus, 
-            { backgroundColor: checkingServer ? '#f3f4f6' : (serverOnline ? '#dcfce7' : '#fef2f2') }
-          ]}
-        >
-          {checkingServer ? (
-            <View style={styles.serverStatusRow}>
-              <ActivityIndicator size="small" color="#6b7280" />
-              <Text style={[styles.serverStatusText, { color: '#6b7280', marginLeft: 8 }]}>
-                Vérification du serveur...
-              </Text>
-            </View>
-          ) : serverOnline ? (
-            <Text style={[styles.serverStatusText, { color: '#166534' }]}>
-              🟢 Serveur en ligne (appuyer pour vérifier)
+        {serverOnline !== null && (
+          <View style={[styles.serverStatus, { backgroundColor: serverOnline ? '#dcfce7' : '#fef2f2' }]}>
+            <Text style={[styles.serverStatusText, { color: serverOnline ? '#166534' : '#991b1b' }]}>
+              {serverOnline ? '🟢 Serveur en ligne' : '🔴 Serveur hors ligne'}
             </Text>
-          ) : (
-            <View>
-              <Text style={[styles.serverStatusText, { color: '#991b1b' }]}>
-                🔴 Serveur hors ligne - Appuyer pour réessayer
-              </Text>
-              <Text style={[styles.serverStatusSubText, { color: '#dc2626', marginTop: 4 }]}>
-                Vérifiez votre connexion Wi-Fi/4G
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          </View>
+        )}
 
         {/* Formulaire Email */}
         <View style={styles.form}>
@@ -363,25 +328,14 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   serverStatus: {
-    padding: 12,
-    borderRadius: 10,
+    padding: 10,
+    borderRadius: 8,
     marginBottom: 20,
-    alignItems: 'center',
-    minHeight: 50,
-    justifyContent: 'center',
-  },
-  serverStatusRow: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
   serverStatusText: {
     fontSize: 14,
     fontWeight: '500',
-    textAlign: 'center',
-  },
-  serverStatusSubText: {
-    fontSize: 12,
-    textAlign: 'center',
   },
   form: {
     backgroundColor: '#fff',

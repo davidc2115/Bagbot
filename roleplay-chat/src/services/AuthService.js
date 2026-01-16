@@ -425,39 +425,12 @@ class AuthService {
 
   /**
    * Vérifie si le serveur est accessible
-   * v5.0.6 - Logs détaillés pour diagnostic
    */
   async checkServerHealth() {
-    const startTime = Date.now();
-    console.log('🔍 [AuthService] Vérification serveur:', this.baseUrl);
-    
     try {
-      const response = await axios.get(`${this.baseUrl}/health`, { 
-        timeout: 10000, // 10 secondes
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      const elapsed = Date.now() - startTime;
-      const isOk = response.data?.status === 'ok';
-      console.log(`✅ [AuthService] Serveur répond en ${elapsed}ms - status: ${response.data?.status}`);
-      
-      return isOk;
+      const response = await axios.get(`${this.baseUrl}/health`, { timeout: 5000 });
+      return response.data.status === 'ok';
     } catch (error) {
-      const elapsed = Date.now() - startTime;
-      const errMsg = error?.message || 'Erreur inconnue';
-      const errCode = error?.code || '';
-      
-      console.log(`❌ [AuthService] Échec connexion en ${elapsed}ms`);
-      console.log(`❌ [AuthService] Erreur: ${errMsg}`);
-      console.log(`❌ [AuthService] Code: ${errCode}`);
-      
-      if (error?.response) {
-        console.log(`❌ [AuthService] HTTP Status: ${error.response.status}`);
-      }
-      
       return false;
     }
   }

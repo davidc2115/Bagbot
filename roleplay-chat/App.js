@@ -323,7 +323,7 @@ export default function App() {
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingEmoji}>💋</Text>
         <Text style={styles.loadingTitle}>Boys & Girls</Text>
-        <Text style={styles.versionText}>v5.0.5</Text>
+        <Text style={styles.versionText}>v5.0.6</Text>
         <ActivityIndicator size="large" color="#C9A227" style={{ marginTop: 20 }} />
         <Text style={styles.loadingText}>Chargement...</Text>
       </View>
