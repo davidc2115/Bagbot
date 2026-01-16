@@ -4,13 +4,14 @@ on:
   push:
     tags:
       - 'v5.*'      # Boys & Girls versions (v5.x.x)
+      - 'v6.*'      # Boys & Girls versions (v6.x.x)
       - 'boys-*'    # Explicit Boys & Girls tags
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g., 5.0.5)'
+        description: 'Version number (e.g., 6.0.0)'
         required: true
-        default: '5.0.5'
+        default: '6.0.0'
 
 jobs:
   build:
@@ -97,10 +98,12 @@ jobs:
               --title "Boys & Girls v$VERSION" \
               --notes "## Boys & Girls v$VERSION
 
-### Nouveautés
-- Profil utilisateur complet (sexe, pseudo, attributs physiques)
-- Cohérence améliorée avec les messages précédents
-- Mode NSFW plus explicite et naturel
+### Nouveautés v6.0.0
+- **Cohérence NSFW absolue**: Le mode NSFW ne s'active plus automatiquement
+- Les réponses restent cohérentes avec les messages de l'utilisateur
+- Nouveau mode 'nsfw_soft' pour contextes intimes sans forcer le contenu sexuel
+- Corrections génération d'images (termes visuels améliorés)
+- ID utilisateur unique pour Pollinations AI
 
 📱 **Télécharger**: Boys-and-Girls-v$VERSION-android.apk
 🔄 **Après installation**: Redémarrer l'application"
