@@ -21,14 +21,20 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState(null);
+  const [checkingServer, setCheckingServer] = useState(false);
 
   useEffect(() => {
     checkServer();
   }, []);
 
   const checkServer = async () => {
-    const online = await AuthService.checkServerHealth();
-    setServerOnline(online);
+    setCheckingServer(true);
+    try {
+      const online = await AuthService.checkServerHealth();
+      setServerOnline(online);
+    } finally {
+      setCheckingServer(false);
+    }
   };
 
   const handleEmailAuth = async () => {
@@ -62,10 +68,29 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
           onLoginSuccess(result.user);
         }
       } else {
-        Alert.alert('Erreur', result.error || 'Une erreur est survenue');
+        // Afficher un message d'erreur plus clair
+        const errorInfo = AuthService.getConnectionErrorMessage({ message: result.error });
+        Alert.alert(
+          errorInfo.title,
+          errorInfo.message,
+          errorInfo.canRetry 
+            ? [
+                { text: 'Réessayer', onPress: () => handleEmailAuth() },
+                { text: 'OK' }
+              ]
+            : [{ text: 'OK' }]
+        );
       }
     } catch (error) {
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+      const errorInfo = AuthService.getConnectionErrorMessage(error);
+      Alert.alert(
+        errorInfo.title,
+        errorInfo.message,
+        [
+          { text: 'Réessayer', onPress: () => handleEmailAuth() },
+          { text: 'OK' }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -183,13 +208,40 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
         </View>
 
         {/* Statut serveur */}
-        {serverOnline !== null && (
-          <View style={[styles.serverStatus, { backgroundColor: serverOnline ? '#dcfce7' : '#fef2f2' }]}>
-            <Text style={[styles.serverStatusText, { color: serverOnline ? '#166534' : '#991b1b' }]}>
-              {serverOnline ? '🟢 Serveur en ligne' : '🔴 Serveur hors ligne'}
+        <TouchableOpacity 
+          onPress={checkServer} 
+          disabled={checkingServer}
+          style={[
+            styles.serverStatus, 
+            { backgroundColor: checkingServer ? '#f3f4f6' : (serverOnline ? '#dcfce7' : '#fef2f2') }
+          ]}
+        >
+          {checkingServer ? (
+            <View style={styles.serverStatusRow}>
+              <ActivityIndicator size="small" color="#6b7280" />
+              <Text style={[styles.serverStatusText, { color: '#6b7280', marginLeft: 8 }]}>
+                Vérification du serveur...
+              </Text>
+            </View>
+          ) : serverOnline === null ? (
+            <Text style={[styles.serverStatusText, { color: '#6b7280' }]}>
+              🔄 Appuie pour vérifier le serveur
             </Text>
-          </View>
-        )}
+          ) : serverOnline ? (
+            <Text style={[styles.serverStatusText, { color: '#166534' }]}>
+              🟢 Serveur en ligne
+            </Text>
+          ) : (
+            <View style={styles.serverStatusColumn}>
+              <Text style={[styles.serverStatusText, { color: '#991b1b' }]}>
+                🔴 Serveur hors ligne
+              </Text>
+              <Text style={[styles.serverStatusSubText, { color: '#b91c1c' }]}>
+                Appuie pour réessayer • La connexion par email reste possible
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         {/* Formulaire Email */}
         <View style={styles.form}>
@@ -328,14 +380,29 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   serverStatus: {
-    padding: 10,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 10,
     marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  serverStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serverStatusColumn: {
     alignItems: 'center',
   },
   serverStatusText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  serverStatusSubText: {
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: 'center',
   },
   form: {
     backgroundColor: '#fff',

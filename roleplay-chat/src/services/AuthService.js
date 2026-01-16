@@ -3,11 +3,9 @@ import axios from 'axios';
 import { Linking } from 'react-native';
 
 /**
- * Service d'Authentification v5.0.7
+ * Service d'Authentification
  * - Email/Mot de passe
  * - OAuth Discord & Google
- * - Gestion améliorée des erreurs de connexion
- * - Mode hors-ligne avec données locales
  */
 class AuthService {
   constructor() {
@@ -16,76 +14,6 @@ class AuthService {
     this.token = null;
     this.user = null;
     this.ADMIN_EMAIL = 'douvdouv21@gmail.com';
-    
-    // v5.0.7: État de connexion
-    this.isServerOnline = null;
-    this.lastServerCheck = 0;
-    this.offlineMode = false;
-    
-    // Timeouts configurables
-    this.TIMEOUT_SHORT = 5000;  // 5 secondes pour les vérifications
-    this.TIMEOUT_NORMAL = 10000; // 10 secondes pour les opérations
-    this.TIMEOUT_LONG = 30000;  // 30 secondes pour les gros transferts
-  }
-  
-  /**
-   * v5.0.7 - Génère un message d'erreur clair pour l'utilisateur
-   */
-  getErrorMessage(error) {
-    const msg = error?.message?.toLowerCase() || '';
-    const code = error?.code || '';
-    
-    if (msg.includes('network') || msg.includes('internet') || code === 'ERR_NETWORK') {
-      return {
-        title: '📵 Pas de connexion Internet',
-        message: 'Vérifie ta connexion Wi-Fi ou données mobiles.',
-        canRetry: true,
-        isOffline: true
-      };
-    }
-    
-    if (msg.includes('timeout') || code === 'ECONNABORTED') {
-      return {
-        title: '⏱️ Serveur trop lent',
-        message: 'Le serveur met trop de temps à répondre. Réessaie.',
-        canRetry: true,
-        isOffline: false
-      };
-    }
-    
-    if (msg.includes('econnrefused') || code === 'ECONNREFUSED') {
-      return {
-        title: '🔧 Serveur hors ligne',
-        message: 'Le serveur est temporairement indisponible. Réessaie plus tard.',
-        canRetry: true,
-        isOffline: true
-      };
-    }
-    
-    if (error?.response?.status === 401) {
-      return {
-        title: '🔑 Session expirée',
-        message: 'Ta session a expiré. Reconnecte-toi.',
-        canRetry: false,
-        isOffline: false
-      };
-    }
-    
-    if (error?.response?.status >= 500) {
-      return {
-        title: '🔧 Erreur serveur',
-        message: 'Le serveur rencontre un problème. Réessaie plus tard.',
-        canRetry: true,
-        isOffline: false
-      };
-    }
-    
-    return {
-      title: '❌ Erreur de connexion',
-      message: error?.response?.data?.error || error?.message || 'Une erreur est survenue.',
-      canRetry: true,
-      isOffline: false
-    };
   }
 
   /**
@@ -163,47 +91,22 @@ class AuthService {
   }
 
   /**
-   * v5.0.7 - Initialise le service avec support mode hors-ligne
+   * Initialise le service et vérifie le token existant
    */
   async init() {
     try {
-      console.log('🚀 Initialisation AuthService v5.0.7...');
-      
       const savedToken = await AsyncStorage.getItem('auth_token');
       if (savedToken) {
         this.token = savedToken;
-        
-        // Vérifier d'abord si le serveur est en ligne
-        const serverOnline = await this.checkServerHealth();
-        
-        if (serverOnline) {
-          const isValid = await this.verifyToken();
-          if (!isValid) {
-            console.log('⚠️ Token invalide, déconnexion...');
-            await this.logout();
-          } else {
-            // Sauvegarder pour le mode hors-ligne
-            await this.saveOfflineData();
-          }
-        } else {
-          // Mode hors-ligne: charger les données locales
-          console.log('📴 Serveur hors-ligne, tentative mode local...');
-          const offlineSuccess = await this.enableOfflineMode();
-          if (offlineSuccess) {
-            console.log('✅ Mode hors-ligne activé avec succès');
-            return true;
-          } else {
-            console.log('⚠️ Pas de données locales disponibles');
-          }
+        const isValid = await this.verifyToken();
+        if (!isValid) {
+          await this.logout();
         }
       }
       return this.isLoggedIn();
     } catch (error) {
       console.error('❌ Erreur init AuthService:', error);
-      
-      // En cas d'erreur, essayer le mode hors-ligne
-      const offlineSuccess = await this.enableOfflineMode();
-      return offlineSuccess;
+      return false;
     }
   }
 
@@ -277,78 +180,28 @@ class AuthService {
   // ==================== CONNEXION ====================
 
   /**
-   * v5.0.7 - Connexion par email/mot de passe avec gestion hors-ligne
+   * Connexion par email/mot de passe
    */
   async login(email, password) {
     try {
-      // Vérifier d'abord la connexion serveur
-      const serverOnline = await this.checkServerHealth();
-      
-      if (!serverOnline) {
-        // Essayer le mode hors-ligne
-        const offlineSuccess = await this.enableOfflineMode();
-        if (offlineSuccess && this.user?.email === email) {
-          console.log('📴 Connexion hors-ligne avec données locales');
-          return { 
-            success: true, 
-            user: this.user, 
-            offline: true,
-            message: 'Connecté en mode hors-ligne. Certaines fonctionnalités peuvent être limitées.'
-          };
-        }
-        
-        const errorInfo = this.getErrorMessage({ code: 'ECONNREFUSED' });
-        return { 
-          success: false, 
-          error: errorInfo.message,
-          title: errorInfo.title,
-          canRetry: errorInfo.canRetry,
-          isOffline: true
-        };
-      }
-      
       const response = await axios.post(
         `${this.baseUrl}/auth/login`,
         { email, password },
-        { headers: this.getHeaders(), timeout: this.TIMEOUT_NORMAL }
+        { headers: this.getHeaders(), timeout: 10000 }
       );
 
       if (response.data.success) {
         this.token = response.data.token;
         this.user = response.data.user;
-        this.offlineMode = false;
         await AsyncStorage.setItem('auth_token', this.token);
-        
-        // Sauvegarder pour le mode hors-ligne
-        await this.saveOfflineData();
-        
         console.log('✅ Connexion réussie');
         return { success: true, user: this.user };
       }
       throw new Error(response.data.error || 'Erreur de connexion');
     } catch (error) {
-      const errorInfo = this.getErrorMessage(error);
-      console.error('❌ Erreur connexion:', errorInfo.message);
-      
-      // Si erreur réseau, proposer le mode hors-ligne
-      if (errorInfo.isOffline) {
-        const offlineSuccess = await this.enableOfflineMode();
-        if (offlineSuccess) {
-          return {
-            success: true,
-            user: this.user,
-            offline: true,
-            message: 'Serveur indisponible. Connexion en mode hors-ligne.'
-          };
-        }
-      }
-      
-      return { 
-        success: false, 
-        error: errorInfo.message,
-        title: errorInfo.title,
-        canRetry: errorInfo.canRetry
-      };
+      const message = error.response?.data?.error || error.message;
+      console.error('❌ Erreur connexion:', message);
+      return { success: false, error: message };
     }
   }
 
@@ -571,91 +424,67 @@ class AuthService {
   // ==================== UTILITAIRES ====================
 
   /**
-   * v5.0.7 - Vérifie si le serveur est accessible avec gestion d'erreurs améliorée
+   * Vérifie si le serveur est accessible
+   * v5.0.6 - Timeout augmenté et meilleure gestion des erreurs
    */
   async checkServerHealth() {
-    const now = Date.now();
-    
-    // Cache le résultat pendant 30 secondes
-    if (this.isServerOnline !== null && (now - this.lastServerCheck) < 30000) {
-      return this.isServerOnline;
-    }
-    
     try {
-      console.log('🔍 Vérification connexion serveur...');
+      console.log('🔍 Vérification serveur Freebox...');
       const response = await axios.get(`${this.baseUrl}/health`, { 
-        timeout: this.TIMEOUT_SHORT,
+        timeout: 15000, // 15 secondes pour réseaux lents
         validateStatus: (status) => status < 500
       });
-      
-      this.isServerOnline = response.data?.status === 'ok';
-      this.lastServerCheck = now;
-      this.offlineMode = !this.isServerOnline;
-      
-      if (this.isServerOnline) {
-        console.log('✅ Serveur en ligne');
-      } else {
-        console.log('⚠️ Serveur répond mais statut non-ok');
-      }
-      
-      return this.isServerOnline;
+      const isOnline = response.data?.status === 'ok';
+      console.log(isOnline ? '✅ Serveur Freebox en ligne' : '⚠️ Serveur répond mais statut non-ok');
+      return isOnline;
     } catch (error) {
-      this.isServerOnline = false;
-      this.lastServerCheck = now;
-      this.offlineMode = true;
-      
-      const errorInfo = this.getErrorMessage(error);
-      console.log(`❌ Serveur hors ligne: ${errorInfo.message}`);
-      
+      const errMsg = error?.message || '';
+      if (errMsg.includes('timeout') || errMsg.includes('ECONNABORTED')) {
+        console.log('⏱️ Timeout - Le serveur met trop de temps à répondre');
+      } else if (errMsg.includes('Network') || errMsg.includes('ECONNREFUSED')) {
+        console.log('📵 Erreur réseau - Serveur inaccessible');
+      } else {
+        console.log('❌ Erreur vérification serveur:', errMsg);
+      }
       return false;
     }
   }
   
   /**
-   * v5.0.7 - Active le mode hors-ligne avec données locales
+   * Retourne un message d'erreur utilisateur-friendly
    */
-  async enableOfflineMode() {
-    this.offlineMode = true;
-    console.log('📴 Mode hors-ligne activé');
+  getConnectionErrorMessage(error) {
+    const errMsg = (error?.message || '').toLowerCase();
+    const errCode = error?.code || '';
     
-    // Charger les données locales si disponibles
-    try {
-      const savedUser = await AsyncStorage.getItem('offline_user_data');
-      if (savedUser) {
-        this.user = JSON.parse(savedUser);
-        console.log('👤 Données utilisateur locales chargées');
-        return true;
-      }
-    } catch (error) {
-      console.error('Erreur chargement données locales:', error);
+    if (errMsg.includes('timeout') || errCode === 'ECONNABORTED') {
+      return {
+        title: '⏱️ Connexion lente',
+        message: 'Le serveur met du temps à répondre. Vérifie ta connexion internet et réessaie.',
+        canRetry: true
+      };
     }
     
-    return false;
-  }
-  
-  /**
-   * v5.0.7 - Sauvegarde les données utilisateur pour le mode hors-ligne
-   */
-  async saveOfflineData() {
-    if (this.user) {
-      try {
-        await AsyncStorage.setItem('offline_user_data', JSON.stringify(this.user));
-        console.log('💾 Données utilisateur sauvegardées pour hors-ligne');
-      } catch (error) {
-        console.error('Erreur sauvegarde données locales:', error);
-      }
+    if (errMsg.includes('network') || errCode === 'ERR_NETWORK') {
+      return {
+        title: '📵 Pas de connexion',
+        message: 'Vérifie ta connexion Wi-Fi ou données mobiles.',
+        canRetry: true
+      };
     }
-  }
-  
-  /**
-   * v5.0.7 - Retourne l'état de connexion actuel
-   */
-  getConnectionStatus() {
+    
+    if (errMsg.includes('econnrefused') || errCode === 'ECONNREFUSED') {
+      return {
+        title: '🔧 Serveur temporairement indisponible',
+        message: 'Le serveur est peut-être en maintenance. Réessaie dans quelques minutes.',
+        canRetry: true
+      };
+    }
+    
     return {
-      isOnline: this.isServerOnline === true,
-      isOffline: this.offlineMode,
-      lastCheck: this.lastServerCheck,
-      serverUrl: this.baseUrl
+      title: '❌ Erreur de connexion',
+      message: error?.response?.data?.error || errMsg || 'Une erreur est survenue.',
+      canRetry: true
     };
   }
 }
