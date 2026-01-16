@@ -41,9 +41,11 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
 
-  const DISCORD_INVITE = 'https://discord.gg/9KHCqSmz';
-  const CURRENT_VERSION = '5.0.1';
-  const GITHUB_RELEASES_URL = 'https://api.github.com/repos/YOUR_USERNAME/roleplay-chat/releases/latest';
+  const DISCORD_INVITE = 'https://discord.gg/W52qQtNqFt';
+  const CURRENT_VERSION = '5.0.4';
+  const GITHUB_REPO = 'davidc2115/Bagbot';
+  const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+  const DIRECT_APK_URL = 'https://github.com/davidc2115/Bagbot/releases/latest';
 
   useEffect(() => {
     loadUserData();
@@ -376,7 +378,7 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         
         const githubResponse = await fetch(
-          'https://api.github.com/repos/davidc2115/Naruto-chabot/releases/latest',
+          GITHUB_RELEASES_URL,
           { 
             headers: { 'Accept': 'application/vnd.github.v3+json' },
             signal: controller.signal
@@ -389,15 +391,19 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
           const release = await githubResponse.json();
           const latestVersion = release.tag_name?.replace('v', '') || release.name?.replace('v', '');
           
-          // Trouver l'APK natif dans les assets
+          // Trouver l'APK dans les assets (chercher Boys-Girls ou roleplay)
           const apkAsset = release.assets?.find(a => 
-            a.name.endsWith('.apk') && a.name.includes('native')
+            a.name.endsWith('.apk') && (
+              a.name.toLowerCase().includes('boys') ||
+              a.name.toLowerCase().includes('girls') ||
+              a.name.toLowerCase().includes('roleplay')
+            )
           ) || release.assets?.find(a => a.name.endsWith('.apk'));
           
           directDownloadUrl = apkAsset?.browser_download_url;
           const changelog = release.body;
           
-          if (latestVersion && directDownloadUrl) {
+          if (latestVersion) {
             compareVersions(latestVersion, directDownloadUrl, changelog);
             foundVersion = true;
             return;
@@ -409,22 +415,14 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
       
       // Aucune source n'a fonctionné - proposer téléchargement direct
       if (!foundVersion) {
-        // Construire l'URL directe basée sur la version actuelle +1
-        const versionParts = CURRENT_VERSION.split('.');
-        const nextMinor = parseInt(versionParts[2] || 0) + 1;
-        const guessedVersion = `${versionParts[0]}.${versionParts[1]}.${nextMinor}`;
-        
         Alert.alert(
           '📥 Télécharger la dernière version',
-          `Version actuelle: ${CURRENT_VERSION}\n\n📱 Instructions:\n1. Cliquez pour ouvrir la page GitHub\n2. Téléchargez le fichier APK\n3. Installez-le sur votre appareil`,
+          `Version actuelle: ${CURRENT_VERSION}\n\n📱 Instructions:\n1. Cliquez pour ouvrir la page GitHub\n2. Téléchargez le fichier APK le plus récent\n3. Installez-le sur votre appareil`,
           [
             { text: 'Annuler', style: 'cancel' },
             { 
               text: '🌐 Ouvrir GitHub', 
-              onPress: () => {
-                // Ouvrir la page des releases (plus fiable)
-                Linking.openURL('https://github.com/davidc2115/Naruto-chabot/releases/latest');
-              }
+              onPress: () => Linking.openURL(DIRECT_APK_URL)
             }
           ]
         );
@@ -434,12 +432,12 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
       console.error('Erreur vérification mise à jour:', error);
       Alert.alert(
         '📥 Télécharger',
-        `Impossible de vérifier les mises à jour.\n\nTélécharger la dernière version ?`,
+        `Impossible de vérifier les mises à jour automatiquement.\n\nVoulez-vous ouvrir la page de téléchargement ?`,
         [
           { text: 'Annuler', style: 'cancel' },
           { 
-            text: '📥 Télécharger', 
-            onPress: () => Linking.openURL('https://github.com/davidc2115/Naruto-chabot/releases/latest')
+            text: '🌐 Ouvrir GitHub', 
+            onPress: () => Linking.openURL(DIRECT_APK_URL)
           }
         ]
       );
@@ -473,38 +471,18 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
     });
     
     if (needsUpdate) {
-      // Construire l'URL finale
-      let finalUrl = downloadUrl;
-      if (!downloadUrl || !downloadUrl.endsWith('.apk')) {
-        finalUrl = `https://github.com/davidc2115/Naruto-chabot/releases/download/v${latestVersion}/roleplay-chat-v${latestVersion}-native.apk`;
-      }
+      // URL de la page des releases (plus fiable)
+      const releasePageUrl = `https://github.com/${GITHUB_REPO}/releases/tag/v${latestVersion}`;
+      const finalUrl = downloadUrl || releasePageUrl;
       
       Alert.alert(
         '🆕 Mise à jour disponible !',
-        `Version ${latestVersion} disponible\n(actuelle: ${CURRENT_VERSION})\n\n📱 Instructions:\n1. Cliquez "Ouvrir dans le navigateur"\n2. Le téléchargement commencera\n3. Ouvrez le fichier APK téléchargé\n4. Installez la mise à jour`,
+        `Version ${latestVersion} disponible\n(actuelle: ${CURRENT_VERSION})\n\n${changelog ? `📝 Notes:\n${changelog.substring(0, 200)}...\n\n` : ''}📱 Instructions:\n1. Cliquez "Télécharger"\n2. Ouvrez le fichier APK téléchargé\n3. Installez la mise à jour`,
         [
           { text: 'Plus tard', style: 'cancel' },
           { 
-            text: '📋 Copier le lien', 
-            onPress: async () => {
-              try {
-                const Clipboard = require('react-native').Clipboard || require('@react-native-clipboard/clipboard').default;
-                if (Clipboard && Clipboard.setString) {
-                  Clipboard.setString(finalUrl);
-                  Alert.alert('✅ Lien copié !', 'Collez ce lien dans votre navigateur Chrome pour télécharger l\'APK.');
-                }
-              } catch (e) {
-                // Fallback si Clipboard non disponible
-                Alert.alert('Lien APK', finalUrl);
-              }
-            }
-          },
-          { 
-            text: '🌐 Ouvrir navigateur', 
-            onPress: () => {
-              // Ouvrir la page des releases (plus fiable que le lien direct)
-              Linking.openURL(`https://github.com/davidc2115/Naruto-chabot/releases/tag/v${latestVersion}`);
-            }
+            text: '📥 Télécharger', 
+            onPress: () => Linking.openURL(finalUrl)
           }
         ]
       );
