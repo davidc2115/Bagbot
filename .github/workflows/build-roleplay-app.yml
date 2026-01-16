@@ -3,10 +3,8 @@ name: Build Boys & Girls Roleplay APK
 on:
   push:
     tags:
-      - 'v5.*.*'   # Boys & Girls versions (v5.x.x)
-      - 'roleplay-*' # Explicit roleplay tags
-    paths:
-      - 'roleplay-chat/**'
+      - 'v5.*'      # Boys & Girls versions (v5.x.x)
+      - 'boys-*'    # Explicit Boys & Girls tags
   workflow_dispatch:
     inputs:
       version:
