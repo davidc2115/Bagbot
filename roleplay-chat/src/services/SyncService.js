@@ -2,9 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 /**
- * Service de Synchronisation avec le serveur Freebox
+ * Service de Synchronisation v5.0.7
  * - Sync des données utilisateur
  * - Gestion des personnages publics
+ * - Mode hors-ligne avec cache local
  */
 class SyncService {
   constructor() {
@@ -13,6 +14,30 @@ class SyncService {
     this.userId = null;
     this.lastSync = null;
     this.autoSyncInterval = null;
+    
+    // v5.0.7: État de connexion
+    this.isServerOnline = null;
+    this.offlineMode = false;
+    this.lastServerCheck = 0;
+  }
+  
+  /**
+   * v5.0.7 - Génère un message d'erreur clair
+   */
+  getErrorMessage(error) {
+    const msg = error?.message?.toLowerCase() || '';
+    
+    if (msg.includes('network') || msg.includes('internet')) {
+      return 'Pas de connexion Internet. Vérifie ta connexion.';
+    }
+    if (msg.includes('timeout')) {
+      return 'Le serveur met trop de temps à répondre.';
+    }
+    if (msg.includes('econnrefused')) {
+      return 'Serveur temporairement indisponible.';
+    }
+    
+    return error?.message || 'Erreur de synchronisation';
   }
 
   /**
@@ -67,20 +92,41 @@ class SyncService {
   }
 
   /**
-   * Vérifie si le serveur est accessible
+   * v5.0.7 - Vérifie si le serveur est accessible avec cache
    */
   async checkServerHealth() {
+    const now = Date.now();
+    
+    // Cache le résultat pendant 30 secondes
+    if (this.isServerOnline !== null && (now - this.lastServerCheck) < 30000) {
+      return this.isServerOnline;
+    }
+    
     try {
       // Essayer d'abord /health puis /api/health
       let response;
       try {
-        response = await axios.get(`${this.baseUrl}/health`, { timeout: 5000 });
+        response = await axios.get(`${this.baseUrl}/health`, { 
+          timeout: 5000,
+          validateStatus: (status) => status < 500
+        });
       } catch {
-        response = await axios.get(`${this.baseUrl}/api/health`, { timeout: 5000 });
+        response = await axios.get(`${this.baseUrl}/api/health`, { 
+          timeout: 5000,
+          validateStatus: (status) => status < 500
+        });
       }
-      return response.data.status === 'ok';
+      
+      this.isServerOnline = response.data?.status === 'ok';
+      this.lastServerCheck = now;
+      this.offlineMode = !this.isServerOnline;
+      
+      return this.isServerOnline;
     } catch (error) {
-      console.error('❌ Serveur inaccessible:', error.message);
+      console.error('❌ Serveur inaccessible:', this.getErrorMessage(error));
+      this.isServerOnline = false;
+      this.lastServerCheck = now;
+      this.offlineMode = true;
       return false;
     }
   }
