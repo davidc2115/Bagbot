@@ -425,67 +425,41 @@ class AuthService {
 
   /**
    * Vérifie si le serveur est accessible
-   * v5.0.6 - Timeout augmenté et meilleure gestion des erreurs
+   * v5.0.6 - Logs détaillés pour diagnostic
    */
   async checkServerHealth() {
+    const startTime = Date.now();
+    console.log('🔍 [AuthService] Vérification serveur:', this.baseUrl);
+    
     try {
-      console.log('🔍 Vérification serveur Freebox...');
       const response = await axios.get(`${this.baseUrl}/health`, { 
-        timeout: 15000, // 15 secondes pour réseaux lents
-        validateStatus: (status) => status < 500
+        timeout: 10000, // 10 secondes
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
       });
-      const isOnline = response.data?.status === 'ok';
-      console.log(isOnline ? '✅ Serveur Freebox en ligne' : '⚠️ Serveur répond mais statut non-ok');
-      return isOnline;
+      
+      const elapsed = Date.now() - startTime;
+      const isOk = response.data?.status === 'ok';
+      console.log(`✅ [AuthService] Serveur répond en ${elapsed}ms - status: ${response.data?.status}`);
+      
+      return isOk;
     } catch (error) {
-      const errMsg = error?.message || '';
-      if (errMsg.includes('timeout') || errMsg.includes('ECONNABORTED')) {
-        console.log('⏱️ Timeout - Le serveur met trop de temps à répondre');
-      } else if (errMsg.includes('Network') || errMsg.includes('ECONNREFUSED')) {
-        console.log('📵 Erreur réseau - Serveur inaccessible');
-      } else {
-        console.log('❌ Erreur vérification serveur:', errMsg);
+      const elapsed = Date.now() - startTime;
+      const errMsg = error?.message || 'Erreur inconnue';
+      const errCode = error?.code || '';
+      
+      console.log(`❌ [AuthService] Échec connexion en ${elapsed}ms`);
+      console.log(`❌ [AuthService] Erreur: ${errMsg}`);
+      console.log(`❌ [AuthService] Code: ${errCode}`);
+      
+      if (error?.response) {
+        console.log(`❌ [AuthService] HTTP Status: ${error.response.status}`);
       }
+      
       return false;
     }
-  }
-  
-  /**
-   * Retourne un message d'erreur utilisateur-friendly
-   */
-  getConnectionErrorMessage(error) {
-    const errMsg = (error?.message || '').toLowerCase();
-    const errCode = error?.code || '';
-    
-    if (errMsg.includes('timeout') || errCode === 'ECONNABORTED') {
-      return {
-        title: '⏱️ Connexion lente',
-        message: 'Le serveur met du temps à répondre. Vérifie ta connexion internet et réessaie.',
-        canRetry: true
-      };
-    }
-    
-    if (errMsg.includes('network') || errCode === 'ERR_NETWORK') {
-      return {
-        title: '📵 Pas de connexion',
-        message: 'Vérifie ta connexion Wi-Fi ou données mobiles.',
-        canRetry: true
-      };
-    }
-    
-    if (errMsg.includes('econnrefused') || errCode === 'ECONNREFUSED') {
-      return {
-        title: '🔧 Serveur temporairement indisponible',
-        message: 'Le serveur est peut-être en maintenance. Réessaie dans quelques minutes.',
-        canRetry: true
-      };
-    }
-    
-    return {
-      title: '❌ Erreur de connexion',
-      message: error?.response?.data?.error || errMsg || 'Une erreur est survenue.',
-      canRetry: true
-    };
   }
 }
 

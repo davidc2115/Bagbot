@@ -68,34 +68,19 @@ class SyncService {
 
   /**
    * Vérifie si le serveur est accessible
-   * v5.0.6 - Timeout augmenté pour réseaux lents
    */
   async checkServerHealth() {
     try {
-      console.log('🔍 Vérification serveur de sync...');
       // Essayer d'abord /health puis /api/health
       let response;
       try {
-        response = await axios.get(`${this.baseUrl}/health`, { 
-          timeout: 15000, // 15 secondes pour réseaux lents
-          validateStatus: (status) => status < 500
-        });
+        response = await axios.get(`${this.baseUrl}/health`, { timeout: 5000 });
       } catch {
-        response = await axios.get(`${this.baseUrl}/api/health`, { 
-          timeout: 15000,
-          validateStatus: (status) => status < 500
-        });
+        response = await axios.get(`${this.baseUrl}/api/health`, { timeout: 5000 });
       }
-      const isOnline = response.data?.status === 'ok';
-      console.log(isOnline ? '✅ Serveur de sync accessible' : '⚠️ Serveur répond mais statut non-ok');
-      return isOnline;
+      return response.data.status === 'ok';
     } catch (error) {
-      const errMsg = error?.message || '';
-      if (errMsg.includes('timeout') || errMsg.includes('ECONNABORTED')) {
-        console.log('⏱️ Timeout serveur de sync - réseau lent');
-      } else {
-        console.log('❌ Serveur de sync inaccessible:', errMsg.substring(0, 50));
-      }
+      console.error('❌ Serveur inaccessible:', error.message);
       return false;
     }
   }

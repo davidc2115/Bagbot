@@ -21,7 +21,8 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState(null);
-  const [checkingServer, setCheckingServer] = useState(false);
+
+  const [checkingServer, setCheckingServer] = useState(true);
 
   useEffect(() => {
     checkServer();
@@ -29,9 +30,14 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
 
   const checkServer = async () => {
     setCheckingServer(true);
+    console.log('🔄 [LoginScreen] Vérification du serveur...');
     try {
       const online = await AuthService.checkServerHealth();
+      console.log('📊 [LoginScreen] Résultat:', online ? 'EN LIGNE' : 'HORS LIGNE');
       setServerOnline(online);
+    } catch (err) {
+      console.log('❌ [LoginScreen] Erreur:', err?.message);
+      setServerOnline(false);
     } finally {
       setCheckingServer(false);
     }
@@ -68,29 +74,10 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
           onLoginSuccess(result.user);
         }
       } else {
-        // Afficher un message d'erreur plus clair
-        const errorInfo = AuthService.getConnectionErrorMessage({ message: result.error });
-        Alert.alert(
-          errorInfo.title,
-          errorInfo.message,
-          errorInfo.canRetry 
-            ? [
-                { text: 'Réessayer', onPress: () => handleEmailAuth() },
-                { text: 'OK' }
-              ]
-            : [{ text: 'OK' }]
-        );
+        Alert.alert('Erreur', result.error || 'Une erreur est survenue');
       }
     } catch (error) {
-      const errorInfo = AuthService.getConnectionErrorMessage(error);
-      Alert.alert(
-        errorInfo.title,
-        errorInfo.message,
-        [
-          { text: 'Réessayer', onPress: () => handleEmailAuth() },
-          { text: 'OK' }
-        ]
-      );
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
@@ -223,21 +210,17 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
                 Vérification du serveur...
               </Text>
             </View>
-          ) : serverOnline === null ? (
-            <Text style={[styles.serverStatusText, { color: '#6b7280' }]}>
-              🔄 Appuie pour vérifier le serveur
-            </Text>
           ) : serverOnline ? (
             <Text style={[styles.serverStatusText, { color: '#166534' }]}>
-              🟢 Serveur en ligne
+              🟢 Serveur en ligne (appuyer pour vérifier)
             </Text>
           ) : (
-            <View style={styles.serverStatusColumn}>
+            <View>
               <Text style={[styles.serverStatusText, { color: '#991b1b' }]}>
-                🔴 Serveur hors ligne
+                🔴 Serveur hors ligne - Appuyer pour réessayer
               </Text>
-              <Text style={[styles.serverStatusSubText, { color: '#b91c1c' }]}>
-                Appuie pour réessayer • La connexion par email reste possible
+              <Text style={[styles.serverStatusSubText, { color: '#dc2626', marginTop: 4 }]}>
+                Vérifiez votre connexion Wi-Fi/4G
               </Text>
             </View>
           )}
@@ -384,24 +367,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 20,
     alignItems: 'center',
-    justifyContent: 'center',
     minHeight: 50,
+    justifyContent: 'center',
   },
   serverStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serverStatusColumn: {
-    alignItems: 'center',
   },
   serverStatusText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   serverStatusSubText: {
-    fontSize: 11,
-    marginTop: 4,
+    fontSize: 12,
     textAlign: 'center',
   },
   form: {
