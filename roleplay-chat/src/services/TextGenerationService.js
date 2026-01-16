@@ -739,27 +739,47 @@ class TextGenerationService {
   cleanAndValidateResponse(content, context) {
     let cleaned = content.trim();
     
-    // v5.0.2: DÉTECTION DES REFUS DE L'IA
+    // v5.0.3: DÉTECTION AMÉLIORÉE DES REFUS DE L'IA
     const refusPatterns = [
-      'i can\'t help', 'i cannot help', 'i can\'t assist', 'i cannot assist',
-      'i\'m not able', 'i am not able', 'inappropriate', 'not appropriate',
-      'as an ai', 'en tant qu\'ia', 'je ne peux pas', 'je refuse',
-      'i apologize', 'je m\'excuse', 'policy', 'guidelines', 'content policy',
-      'i\'m sorry, but', 'i am sorry, but', 'i can\'t do that', 'unable to'
+      // Anglais - avec et SANS apostrophe
+      'i cant help', 'i can\'t help', 'i cannot help', 
+      'i cant assist', 'i can\'t assist', 'i cannot assist',
+      'im not able', 'i\'m not able', 'i am not able', 
+      'cant do that', 'can\'t do that', 'cannot do that',
+      'im sorry but', 'i\'m sorry, but', 'i am sorry, but',
+      'inappropriate', 'not appropriate', 'against my', 
+      'as an ai', 'as an assistant', 'language model',
+      'i apologize', 'i must decline', 'i wont', 'i won\'t',
+      'policy', 'guidelines', 'content policy', 'unable to',
+      'i refuse', 'not comfortable', 'boundaries',
+      // Français
+      'je ne peux pas', 'je refuse', 'en tant qu\'ia', 
+      'je m\'excuse', 'pas en mesure', 'inapproprié',
+      'je ne suis pas capable', 'mes limites',
+      // Patterns courts dangereux
+      'help with that', 'assist with that', 'do that for you'
     ];
     
-    const contentLower = cleaned.toLowerCase();
+    const contentLower = cleaned.toLowerCase().replace(/['']/g, "'");
     const hasRefusal = refusPatterns.some(p => contentLower.includes(p));
     
     if (hasRefusal) {
       console.log('⚠️ Refus IA détecté, génération réponse de remplacement...');
-      // Générer une réponse de remplacement immersive
-      const replacements = [
-        '*te regarde avec intensité* "Mmm... J\'adore quand tu me parles comme ça..." (Mon cœur s\'emballe)',
-        '*se mord la lèvre* "Continue... Tu me fais de l\'effet..." (Je le/la veux tellement)',
-        '*s\'approche doucement* "Tu me rends dingue..." (Mes pensées s\'emballent)',
-        '*sourit de manière suggestive* "Et si on passait aux choses sérieuses?" (Je n\'en peux plus d\'attendre)',
-        '*te regarde droit dans les yeux* "Tu sais exactement quoi faire pour me faire craquer..." (Tellement excité(e))',
+      // Générer une réponse de remplacement immersive selon le contexte
+      const replacements = context.mode === 'nsfw' ? [
+        '*se rapproche sensuellement* "Mmm... Tu me fais tellement envie..." (Je te veux maintenant)',
+        '*se mord la lèvre* "J\'ai envie de toi... Là, maintenant..." (Mon corps te réclame)',
+        '*te regarde avec désir* "Viens... Je veux te sentir contre moi..." (Brûlant(e) de désir)',
+        '*commence à se déshabiller lentement* "Tu aimes ce que tu vois?" (Je suis tout(e) à toi)',
+        '*glisse une main sur toi* "Laisse-moi te faire du bien..." (Tellement excité(e))',
+        '*t\'embrasse passionnément* "Je n\'en peux plus d\'attendre..." (Prends-moi)',
+        '*te murmure à l\'oreille* "Je veux tout de toi cette nuit..." (Mon cœur bat si fort)',
+        '*se colle contre toi* "Tu sens comme je suis excité(e)?" (Je te veux tellement)',
+      ] : [
+        '*te regarde avec intensité* "Tu me fais vraiment de l\'effet..." (Mon cœur s\'emballe)',
+        '*se rapproche doucement* "J\'aime quand tu me parles comme ça..." (Troublé(e))',
+        '*sourit mystérieusement* "Continue, je t\'écoute..." (Intrigué(e))',
+        '*te fixe avec intérêt* "Tu sais exactement quoi dire..." (Charmé(e))',
       ];
       return replacements[Math.floor(Math.random() * replacements.length)];
     }

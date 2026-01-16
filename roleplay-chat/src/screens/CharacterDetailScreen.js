@@ -204,8 +204,8 @@ const generateDetailedDescription = (character) => {
     parts.push('parsemée de taches de rousseur');
   }
   
-  // POITRINE pour femmes (TRÈS DÉTAILLÉ)
-  if (character.gender === 'female') {
+  // POITRINE pour femmes ET non-binaires avec poitrine (TRÈS DÉTAILLÉ)
+  if (character.gender === 'female' || character.gender === 'other') {
     const bust = character.bust || extractAttribute(character, 'bust');
     if (bust) {
       const bustDescFr = {
@@ -219,7 +219,8 @@ const generateDetailedDescription = (character) => {
         'G': 'une poitrine énorme et majestueuse (bonnet G)',
         'H': 'une poitrine massive et imposante (bonnet H)'
       };
-      parts.push(`Elle possède ${bustDescFr[bust] || `une poitrine bonnet ${bust}`}`);
+      const pronoun = character.gender === 'female' ? 'Elle' : 'Iel';
+      parts.push(`${pronoun} possède ${bustDescFr[bust] || `une poitrine bonnet ${bust}`}`);
     }
     
     // Fesses
@@ -251,8 +252,8 @@ const generateDetailedDescription = (character) => {
     }
   }
   
-  // PÉNIS pour hommes (DÉTAILLÉ)
-  if (character.gender === 'male') {
+  // PÉNIS pour hommes ET non-binaires avec pénis (DÉTAILLÉ)
+  if (character.gender === 'male' || character.gender === 'other') {
     const penis = character.penis || extractAttribute(character, 'male');
     if (penis) {
       const size = parseInt(penis);
@@ -261,7 +262,8 @@ const generateDetailedDescription = (character) => {
       else if (size >= 19) sizeDesc = 'généreusement doté';
       else if (size >= 16) sizeDesc = 'bien membré';
       else sizeDesc = 'de taille moyenne';
-      parts.push(`Il est ${sizeDesc} (${penis} cm)`);
+      const pronoun = character.gender === 'male' ? 'Il' : 'Iel';
+      parts.push(`${pronoun} est ${sizeDesc} (${penis} cm)`);
     }
     
     // Corps masculin
@@ -623,8 +625,8 @@ export default function CharacterDetailScreen({ route, navigation }) {
                 character.gender === 'female' ? 'Femme' :
                 'Non-binaire'
               }
-              {character.gender === 'female' && character.bust && ` • Bonnet ${character.bust}`}
-              {character.gender === 'male' && character.penis && ` • ${character.penis}`}
+              {(character.gender === 'female' || character.gender === 'other') && character.bust && ` • Bonnet ${character.bust}`}
+              {(character.gender === 'male' || character.gender === 'other') && character.penis && ` • ${character.penis}`}
             </Text>
           </View>
           {isPremium && (
@@ -684,14 +686,14 @@ export default function CharacterDetailScreen({ route, navigation }) {
             <Text style={styles.attributeDetail}>
               • Yeux : {character.eyeColor || extractAttribute(character, 'eyes') || 'Non spécifié'}
             </Text>
-            {/* Poitrine pour femmes - TRÈS DÉTAILLÉ */}
-            {character.gender === 'female' && (
+            {/* Poitrine - femmes et non-binaires avec poitrine */}
+            {(character.gender === 'female' || (character.gender === 'other' && (character.bust || extractAttribute(character, 'bust')))) && (
               <Text style={styles.attributeDetail}>
                 • Poitrine : Bonnet {character.bust || character.bustSize || extractAttribute(character, 'bust') || 'C'}
               </Text>
             )}
-            {/* Pénis pour hommes - DÉTAILLÉ */}
-            {character.gender === 'male' && (character.penis || character.maleSize || extractAttribute(character, 'male')) && (
+            {/* Pénis - hommes et non-binaires avec pénis */}
+            {(character.gender === 'male' || (character.gender === 'other' && (character.penis || extractAttribute(character, 'male')))) && (character.penis || character.maleSize || extractAttribute(character, 'male')) && (
               <Text style={styles.attributeDetail}>
                 • Attribut : {character.penis || character.maleSize || extractAttribute(character, 'male')} cm
               </Text>

@@ -3043,6 +3043,28 @@ class ImageGenerationService {
     // Construction du prompt final - STRUCTURE CLAIRE
     let finalPrompt = '';
     
+    // v5.0.3: EXTRACTION PRIORITAIRE DU TYPE DE CORPS
+    const promptLower = cleanPrompt.toLowerCase();
+    let bodyTypePrefix = '';
+    
+    // Détecter et PRIORISER le type de corps (ronde, généreuse, curvy, etc.)
+    if (promptLower.includes('very curvy') || promptLower.includes('très ronde') || promptLower.includes('very plump') || promptLower.includes('bbw')) {
+      bodyTypePrefix = 'BBW plus size, very curvy thick plump body, chubby full figured, soft round belly, wide hips, thick thighs, ';
+      console.log('💪 Body type détecté: TRÈS RONDE/BBW');
+    } else if (promptLower.includes('curvy plump') || promptLower.includes('ronde') || promptLower.includes('chubby') || promptLower.includes('plump body')) {
+      bodyTypePrefix = 'curvy chubby plump body, soft rounded figure, thick curves, belly, wide hips, ';
+      console.log('💪 Body type détecté: RONDE/CHUBBY');
+    } else if (promptLower.includes('voluptuous') || promptLower.includes('voluptu') || promptLower.includes('généreuse') || promptLower.includes('generous curves')) {
+      bodyTypePrefix = 'voluptuous curvy body, generous curves, full figured, hourglass shape, ';
+      console.log('💪 Body type détecté: VOLUPTUEUSE/GÉNÉREUSE');
+    } else if (promptLower.includes('thick') || promptLower.includes('pulpeuse') || promptLower.includes('curvy')) {
+      bodyTypePrefix = 'thick curvy body, pronounced curves, full hips, ';
+      console.log('💪 Body type détecté: THICK/CURVY');
+    } else if (promptLower.includes('maternal') || promptLower.includes('maternelle') || promptLower.includes('mommy')) {
+      bodyTypePrefix = 'soft maternal curvy body, motherly figure, womanly curves, ';
+      console.log('💪 Body type détecté: MATERNELLE');
+    }
+    
     // 1. Qualité de base
     finalPrompt = qualityCore + ', ';
     
@@ -3055,31 +3077,36 @@ class ImageGenerationService {
     // 4. Sujet unique
     finalPrompt += 'single person, solo, one character only, ';
     
+    // 5. TYPE DE CORPS EN PRIORITÉ (si détecté)
+    if (bodyTypePrefix) {
+      finalPrompt += bodyTypePrefix;
+    }
+    
     if (isNSFW) {
       console.log(`🔞 MODE NSFW - Niveau ${nsfwLevel} (${isAnime ? 'Anime' : 'Réaliste'})`);
       
-      // Ajouter le contenu NSFW selon le niveau
+      // Ajouter le contenu NSFW selon le niveau - AVEC type de corps
       if (nsfwLevel >= 5) {
-        finalPrompt += 'nude woman, full body visible, artistic nude photography, ';
+        finalPrompt += (bodyTypePrefix ? '' : 'beautiful ') + 'nude woman, full body visible, artistic nude photography, ';
         finalPrompt += cleanPrompt + ', ';
         finalPrompt += 'naked body, sensual pose, intimate, erotic art';
       } else if (nsfwLevel >= 4) {
-        finalPrompt += 'topless woman, artistic nude, ';
+        finalPrompt += (bodyTypePrefix ? '' : 'beautiful ') + 'topless woman, artistic nude, ';
         finalPrompt += cleanPrompt + ', ';
         finalPrompt += 'bare chest, sensual, elegant nude';
       } else if (nsfwLevel >= 3) {
-        finalPrompt += 'woman in lingerie, underwear model, ';
+        finalPrompt += (bodyTypePrefix ? '' : 'beautiful ') + 'woman in lingerie, underwear model, ';
         finalPrompt += cleanPrompt + ', ';
         finalPrompt += 'sexy lingerie, bra and panties, seductive';
       } else {
-        finalPrompt += 'sexy woman, revealing outfit, ';
+        finalPrompt += (bodyTypePrefix ? '' : 'beautiful ') + 'sexy woman, revealing outfit, ';
         finalPrompt += cleanPrompt + ', ';
         finalPrompt += 'provocative pose, cleavage, attractive';
       }
       
     } else {
       console.log(`✨ Mode SFW (${isAnime ? 'Anime' : 'Réaliste'})`);
-      finalPrompt += 'beautiful woman, elegant, ';
+      finalPrompt += (bodyTypePrefix ? '' : 'beautiful ') + 'woman, elegant, ';
       finalPrompt += cleanPrompt + ', ';
       finalPrompt += 'tasteful, stylish, attractive';
     }

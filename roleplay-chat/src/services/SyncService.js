@@ -445,16 +445,22 @@ class SyncService {
       const cachedTime = await AsyncStorage.getItem('cached_public_characters_time');
       const cacheAge = cachedTime ? (Date.now() - parseInt(cachedTime)) : Infinity;
       
-      // Si le cache a plus de 2 minutes, forcer le refresh
-      if (cacheAge > 2 * 60 * 1000) {
-        console.log('🔄 Cache personnages publics expiré, refresh...');
-        return await this.getPublicCharacters();
-      }
-      
+      // v5.0.3: OPTIMISÉ - Cache de 5 minutes au lieu de 2
+      // Retourner le cache immédiatement si disponible
       const cached = await AsyncStorage.getItem('cached_public_characters');
       if (cached) {
-        return JSON.parse(cached);
+        const parsedCache = JSON.parse(cached);
+        
+        // Si le cache a plus de 5 minutes, refresh en arrière-plan
+        if (cacheAge > 5 * 60 * 1000) {
+          console.log('🔄 Cache expiré, refresh en arrière-plan...');
+          // Refresh en arrière-plan sans bloquer
+          this.getPublicCharacters().catch(() => {});
+        }
+        
+        return parsedCache;
       }
+      
       // Si pas de cache, charger depuis le serveur
       return await this.getPublicCharacters();
     } catch (error) {

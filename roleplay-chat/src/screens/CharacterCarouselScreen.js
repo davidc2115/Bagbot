@@ -137,40 +137,61 @@ export default function CharacterCarouselScreen({ navigation }) {
 
   const loadAllCharacters = async () => {
     try {
-      // Rafraîchir les personnages publics depuis le serveur
-      const SyncService = require('../services/SyncService').default;
-      await SyncService.init();
-      await SyncService.getPublicCharacters(); // Force le refresh du cache
-      
-      // Utiliser getAllVisibleCharacters pour inclure les personnages publics des autres utilisateurs
-      const customChars = await CustomCharacterService.getAllVisibleCharacters();
-      
-      // Combiner les personnages de la base + customs/publics et mélanger aléatoirement
-      const combined = [...enhancedCharacters, ...customChars];
-      const shuffled = shuffleArray(combined);
+      // v5.0.3: OPTIMISÉ - Charger les personnages de base IMMÉDIATEMENT
+      const shuffled = shuffleArray([...enhancedCharacters]);
       setAllCharacters(shuffled);
-      await loadGalleryImages(shuffled);
+      
+      // Charger les images en arrière-plan (non bloquant)
+      loadGalleryImagesAsync(shuffled);
+      
+      // Charger les personnages custom/publics en arrière-plan
+      setTimeout(async () => {
+        try {
+          const customChars = await CustomCharacterService.getAllVisibleCharacters();
+          if (customChars && customChars.length > 0) {
+            const combined = [...enhancedCharacters, ...customChars];
+            const newShuffled = shuffleArray(combined);
+            setAllCharacters(newShuffled);
+            loadGalleryImagesAsync(newShuffled);
+          }
+        } catch (e) {
+          // Silencieux - personnages de base déjà chargés
+        }
+      }, 100);
+      
     } catch (error) {
       console.error('Erreur chargement personnages:', error);
-      // Fallback: charger seulement les personnages de base
       const shuffled = shuffleArray([...enhancedCharacters]);
       setAllCharacters(shuffled);
     }
   };
 
-  const loadGalleryImages = async (chars) => {
+  const loadGalleryImagesAsync = async (chars) => {
+    // v5.0.3: OPTIMISÉ - Charger les images en parallèle par lots
+    const BATCH_SIZE = 15;
     const images = {};
-    for (const char of chars) {
-      if (char.imageUrl) {
-        images[char.id] = char.imageUrl;
-      } else {
-        const gallery = await GalleryService.getGallery(char.id);
-        if (gallery && gallery.length > 0) {
-          images[char.id] = gallery[0];
+    
+    for (let i = 0; i < chars.length; i += BATCH_SIZE) {
+      const batch = chars.slice(i, i + BATCH_SIZE);
+      
+      await Promise.all(batch.map(async (char) => {
+        try {
+          if (char.imageUrl) {
+            images[char.id] = char.imageUrl;
+          } else {
+            const gallery = await GalleryService.getGallery(char.id);
+            if (gallery && gallery.length > 0) {
+              images[char.id] = gallery[0];
+            }
+          }
+        } catch (e) {
+          // Ignorer les erreurs individuelles
         }
-      }
+      }));
+      
+      // Mettre à jour progressivement l'UI
+      setCharacterImages(prev => ({ ...prev, ...images }));
     }
-    setCharacterImages(images);
   };
 
   // Filtrer par recherche texte (nom OU tags) ET par tags sélectionnés

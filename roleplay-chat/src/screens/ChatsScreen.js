@@ -27,33 +27,47 @@ export default function ChatsScreen({ navigation }) {
   }, [navigation]);
 
   const loadData = async () => {
-    // Charger tous les personnages (de base + personnalisés + publics)
-    const customChars = await CustomCharacterService.getCustomCharacters();
-    
-    // Aussi charger les personnages publics des autres utilisateurs
-    let publicChars = [];
-    try {
-      publicChars = await CustomCharacterService.getPublicCharacters();
-    } catch (e) {
-      console.log('Erreur chargement personnages publics:', e.message);
-    }
-    
-    // Combiner tous les personnages (éviter les doublons par ID)
+    // v5.0.3: OPTIMISÉ - Charger d'abord les personnages de base immédiatement
     const allChars = [...enhancedCharacters];
     const seenIds = new Set(allChars.map(c => c.id));
     
-    for (const char of [...customChars, ...publicChars]) {
-      if (!seenIds.has(char.id)) {
-        allChars.push(char);
-        seenIds.add(char.id);
-      }
-    }
-    
-    setAllCharacters(allChars);
-    
-    // Charger les conversations
+    // Charger les conversations en parallèle (priorité)
     const allConversations = await StorageService.getAllConversations();
     setConversations(allConversations);
+    setAllCharacters(allChars);
+    
+    // Charger personnages custom en arrière-plan (sans bloquer)
+    try {
+      const customChars = await CustomCharacterService.getCustomCharacters();
+      for (const char of customChars) {
+        if (!seenIds.has(char.id)) {
+          allChars.push(char);
+          seenIds.add(char.id);
+        }
+      }
+      setAllCharacters([...allChars]);
+    } catch (e) {
+      console.log('⚠️ Erreur personnages custom:', e.message);
+    }
+    
+    // Charger personnages publics en arrière-plan (très basse priorité)
+    setTimeout(async () => {
+      try {
+        const publicChars = await CustomCharacterService.getAllVisibleCharacters();
+        const updatedChars = [...enhancedCharacters];
+        const updatedIds = new Set(updatedChars.map(c => c.id));
+        
+        for (const char of publicChars) {
+          if (!updatedIds.has(char.id)) {
+            updatedChars.push(char);
+            updatedIds.add(char.id);
+          }
+        }
+        setAllCharacters(updatedChars);
+      } catch (e) {
+        // Silencieux - pas critique
+      }
+    }, 500);
   };
 
   const deleteConversation = async (characterId) => {
