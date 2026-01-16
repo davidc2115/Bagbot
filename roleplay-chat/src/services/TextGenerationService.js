@@ -5,15 +5,23 @@ import axios from 'axios';
  * Service de génération de texte - SANS GROQ
  * Utilise Pollinations AI (rapide) ou Ollama Freebox (local)
  * 
- * v5.0.5 - Profil utilisateur complet (sexe, pseudo, attributs physiques)
- *        - Cohérence améliorée avec le message précédent
- *        - Mode NSFW plus explicite et naturel
+ * v5.0.6 - COHÉRENCE AMÉLIORÉE: Réponses directes au message utilisateur
+ *        - ID utilisateur unique pour chaque requête Pollinations
+ *        - Température réduite pour plus de cohérence
+ *        - Configuration intégrée dans l'APK
+ *        - Support serveurs alternatifs
  */
 class TextGenerationService {
   constructor() {
-    // URLs des serveurs
+    // URLs des serveurs - Configuration intégrée
     this.FREEBOX_URL = 'http://88.174.155.230:33437';
     this.POLLINATIONS_URL = 'https://text.pollinations.ai/openai';
+    
+    // Serveurs alternatifs (fallback)
+    this.ALTERNATIVE_SERVERS = [
+      { name: 'Pollinations', url: 'https://text.pollinations.ai/openai', type: 'openai' },
+      { name: 'Freebox Ollama', url: 'http://88.174.155.230:33437/api/chat', type: 'ollama' },
+    ];
     
     // Providers disponibles (SANS GROQ)
     this.providers = {
@@ -32,9 +40,38 @@ class TextGenerationService {
     // Provider par défaut: Pollinations (plus rapide)
     this.currentProvider = 'pollinations';
     
+    // ID utilisateur unique pour les requêtes (généré au premier usage)
+    this.userSessionId = null;
+    
     // Pour compatibilité avec l'ancien code
     this.apiKeys = { groq: [] };
     this.currentKeyIndex = { groq: 0 };
+  }
+  
+  /**
+   * Génère ou récupère un ID de session utilisateur unique
+   */
+  async getUserSessionId() {
+    if (this.userSessionId) return this.userSessionId;
+    
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      let sessionId = await AsyncStorage.getItem('user_session_id');
+      
+      if (!sessionId) {
+        // Générer un nouvel ID unique
+        sessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+        await AsyncStorage.setItem('user_session_id', sessionId);
+        console.log('🆔 Nouvel ID session créé:', sessionId);
+      }
+      
+      this.userSessionId = sessionId;
+      return sessionId;
+    } catch (error) {
+      // Fallback: ID temporaire basé sur le timestamp
+      this.userSessionId = 'temp_' + Date.now();
+      return this.userSessionId;
+    }
   }
 
   async loadConfig() {
@@ -112,7 +149,7 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.5 - Génère une réponse avec le provider sélectionné
+   * v5.0.6 - Génère une réponse avec le provider sélectionné
    * SYSTÈME CRÉATIF avec profil utilisateur complet et cohérence améliorée
    */
   async generateResponse(messages, character, userProfile = null, retries = 3) {
@@ -137,8 +174,12 @@ class TextGenerationService {
     
     // Log du profil utilisateur pour debug
     const userInfo = userProfile ? `${userProfile.username || 'Anonyme'} (${userProfile.gender || '?'})` : 'Non défini';
-    console.log(`🤖 Génération v5.0.5 avec ${this.providers[provider]?.name || provider}`);
+    console.log(`🤖 Génération v5.0.6 avec ${this.providers[provider]?.name || provider}`);
     console.log(`👤 Profil utilisateur: ${userInfo}`);
+    
+    // Log du dernier message pour debug cohérence
+    const lastMsg = messages[messages.length - 1]?.content || '';
+    console.log(`💬 Dernier message user: "${lastMsg.substring(0, 80)}..."`)
     
     // Analyser le contexte de conversation + scénario du personnage
     let conversationContext;
@@ -334,18 +375,24 @@ class TextGenerationService {
 
   /**
    * Génération avec Pollinations AI (RAPIDE - ~3 secondes)
-   * v5.0.5 - Profil utilisateur complet + cohérence + NSFW explicite
+   * v5.0.6 - COHÉRENCE AMÉLIORÉE + ID utilisateur unique
    */
   async generateWithPollinations(messages, character, userProfile, context) {
-    console.log('🚀 Pollinations AI v5.0.5 - Génération avec profil utilisateur...');
+    // Obtenir l'ID utilisateur unique
+    const sessionId = await this.getUserSessionId();
+    console.log('🚀 Pollinations AI v5.0.6 - Session:', sessionId.substring(0, 15) + '...');
     
     const fullMessages = [];
     
-    // 1. SYSTEM PROMPT CRÉATIF ET CONCIS (optimisé pour créativité)
+    // 1. SYSTEM PROMPT avec instruction de COHÉRENCE STRICTE
     const systemPrompt = this.buildCreativeSystemPrompt(character, userProfile, context);
     fullMessages.push({ role: 'system', content: systemPrompt });
     
-    // 2. CONTEXTE MÉMOIRE si conversation longue (résumé intelligent)
+    // 2. INSTRUCTION DE COHÉRENCE STRICTE (TRÈS IMPORTANT)
+    const coherenceInstruction = this.buildCoherenceInstruction(context.lastUserMessage, character);
+    fullMessages.push({ role: 'system', content: coherenceInstruction });
+    
+    // 3. CONTEXTE MÉMOIRE si conversation longue (résumé intelligent)
     if (context.isLongConversation && messages.length > 10) {
       const memorySummary = this.buildMemorySummary(messages.slice(0, -8), character);
       if (memorySummary) {
@@ -353,25 +400,25 @@ class TextGenerationService {
       }
     }
     
-    // 3. MESSAGES RÉCENTS (6 derniers pour bon contexte + espace créatif)
+    // 4. MESSAGES RÉCENTS (4-6 derniers pour contexte)
     const recentCount = context.isVeryLongConversation ? 4 : 6;
     const recentMessages = messages.slice(-recentCount);
     fullMessages.push(...recentMessages.map(msg => ({
       role: msg.role,
-      content: msg.content.substring(0, 600)
+      content: msg.content.substring(0, 500)
     })));
     
-    // 4. INSTRUCTION FINALE CRÉATIVE avec variations
-    const finalInstruction = this.buildCreativeFinalInstruction(character, userProfile, context);
+    // 5. RAPPEL FINAL avec le MESSAGE EXACT à répondre
+    const finalInstruction = this.buildFinalCoherenceReminder(context.lastUserMessage, character, userProfile, context);
     fullMessages.push({ role: 'system', content: finalInstruction });
     
-    console.log(`📡 Pollinations v5.0.5 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
+    console.log(`📡 Pollinations v5.0.6 - ${fullMessages.length} msgs, Mode: ${context.mode}`);
+    console.log(`💬 Dernier msg user: "${context.lastUserMessage?.substring(0, 50)}..."`);
     
-    // Paramètres optimisés pour CRÉATIVITÉ et VARIÉTÉ
-    // Temperature élevée + penalties ajustés = réponses uniques
-    const temperature = 0.92 + (Math.random() * 0.08); // 0.92-1.0 pour variété
-    const presencePenalty = 0.6 + (Math.random() * 0.2); // 0.6-0.8 anti-répétition
-    const frequencyPenalty = 0.5 + (Math.random() * 0.2); // 0.5-0.7 vocabulaire varié
+    // v5.0.6: TEMPÉRATURE RÉDUITE pour plus de COHÉRENCE (0.7-0.8)
+    const temperature = 0.70 + (Math.random() * 0.10); // 0.70-0.80 pour cohérence
+    const presencePenalty = 0.3 + (Math.random() * 0.2); // 0.3-0.5 modéré
+    const frequencyPenalty = 0.3 + (Math.random() * 0.2); // 0.3-0.5 modéré
     
     try {
       const response = await axios.post(
@@ -379,14 +426,18 @@ class TextGenerationService {
         {
           model: 'openai',
           messages: fullMessages,
-          max_tokens: 250, // Plus de contenu pour richesse
+          max_tokens: 200,
           temperature: temperature,
           presence_penalty: presencePenalty,
           frequency_penalty: frequencyPenalty,
-          top_p: 0.95, // Plus de diversité
+          top_p: 0.90,
+          user: sessionId, // ID utilisateur unique
         },
         {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionId, // Header additionnel
+          },
           timeout: 40000,
         }
       );
@@ -394,7 +445,7 @@ class TextGenerationService {
       const content = response.data?.choices?.[0]?.message?.content;
       if (!content) throw new Error('Réponse Pollinations vide');
       
-      console.log('✅ Pollinations réponse créative reçue');
+      console.log('✅ Pollinations réponse cohérente reçue');
       return this.cleanAndValidateResponse(content, context, character);
     } catch (error) {
       console.error('❌ Erreur Pollinations:', error.message);
@@ -405,9 +456,10 @@ class TextGenerationService {
           this.POLLINATIONS_URL,
           {
             model: 'openai',
-            messages: fullMessages.slice(0, -1), // Sans l'instruction finale pour réduire
-            max_tokens: 180,
-            temperature: 0.85,
+            messages: fullMessages.slice(0, -1),
+            max_tokens: 150,
+            temperature: 0.7,
+            user: sessionId,
           },
           {
             headers: { 'Content-Type': 'application/json' },
@@ -420,13 +472,61 @@ class TextGenerationService {
       throw error;
     }
   }
+  
+  /**
+   * v5.0.6 - Instruction de COHÉRENCE STRICTE
+   * Force le modèle à répondre DIRECTEMENT au message utilisateur
+   */
+  buildCoherenceInstruction(lastUserMessage, character) {
+    const charName = character?.name || 'le personnage';
+    const msg = lastUserMessage || '';
+    
+    return `⚠️ RÈGLE ABSOLUE DE COHÉRENCE - TU DOIS RESPECTER CECI:
+
+Le message de l'utilisateur est: "${msg.substring(0, 200)}"
+
+TU DOIS:
+1. RÉPONDRE DIRECTEMENT à CE message spécifique
+2. NE PAS changer de sujet
+3. NE PAS ignorer ce que l'utilisateur dit
+4. RÉAGIR de façon logique et naturelle
+
+Si l'utilisateur pose une QUESTION → RÉPONDS à la question
+Si l'utilisateur fait une ACTION → RÉAGIS à cette action
+Si l'utilisateur dit quelque chose → RÉPONDS à ce qu'il dit
+
+Ta réponse DOIT être en rapport DIRECT avec: "${msg.substring(0, 100)}"`;
+  }
+  
+  /**
+   * v5.0.6 - Rappel final avec le message EXACT
+   */
+  buildFinalCoherenceReminder(lastUserMessage, character, userProfile, context) {
+    const charName = character?.name || 'le personnage';
+    const userName = userProfile?.username || 'l\'utilisateur';
+    const msg = lastUserMessage || '';
+    
+    let reminder = `\n[RÉPONDS MAINTENANT en tant que ${charName}]\n\n`;
+    reminder += `📩 ${userName} te dit: "${msg}"\n\n`;
+    reminder += `⚠️ TA RÉPONSE DOIT:\n`;
+    reminder += `- Être en rapport DIRECT avec ce message\n`;
+    reminder += `- Réagir à ce que ${userName} dit/fait\n`;
+    reminder += `- Utiliser le format: *action* "parole" (pensée)\n`;
+    reminder += `- 2-3 phrases cohérentes et naturelles\n`;
+    
+    if (context.mode === 'nsfw') {
+      reminder += `\n🔞 Mode adulte: Sois explicite si approprié\n`;
+    }
+    
+    return reminder;
+  }
 
   /**
-   * v5.0.5 - Génération avec Ollama sur la Freebox
+   * v5.0.6 - Génération avec Ollama sur la Freebox
    * Profil utilisateur + cohérence + NSFW explicite
    */
   async generateWithOllama(messages, character, userProfile, context) {
-    console.log('🏠 Ollama Freebox v5.0.5 - Génération avec profil utilisateur...');
+    console.log('🏠 Ollama Freebox v5.0.6 - Génération avec profil utilisateur...');
     
     const FREEBOX_CHAT_URL = `${this.FREEBOX_URL}/api/chat`;
     const fullMessages = [];
@@ -489,7 +589,7 @@ class TextGenerationService {
       content: finalContent
     });
     
-    console.log(`📡 Ollama v5.0.5 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
+    console.log(`📡 Ollama v5.0.6 - ${fullMessages.length} messages, Mode: ${context.mode}, Tempérament: ${character.temperament || 'naturel'}`);
     
     try {
       const response = await axios.post(
@@ -533,7 +633,7 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.5 - Prompt compact créatif pour Ollama avec PROFIL UTILISATEUR
+   * v5.0.6 - Prompt compact créatif pour Ollama avec PROFIL UTILISATEUR
    */
   buildCompactCreativePrompt(character, userProfile, context) {
     const charName = character.name || 'Personnage';
@@ -616,7 +716,7 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.5 - Système prompt CRÉATIF optimisé avec PROFIL UTILISATEUR COMPLET
+   * v5.0.6 - Système prompt CRÉATIF optimisé avec PROFIL UTILISATEUR COMPLET
    * Focus sur: tempérament, scénario, profil utilisateur (sexe, pseudo, attributs physiques), cohérence
    */
   buildCreativeSystemPrompt(character, userProfile, context) {
@@ -837,7 +937,7 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.5 - Instruction finale CRÉATIVE avec cohérence et profil utilisateur
+   * v5.0.6 - Instruction finale CRÉATIVE avec cohérence et profil utilisateur
    * Focus sur: réponse cohérente au dernier message, utilisation du profil
    */
   buildCreativeFinalInstruction(character, userProfile, context) {
@@ -1350,7 +1450,7 @@ class TextGenerationService {
   }
 
   /**
-   * v5.0.5 - Nettoie et valide la réponse générée
+   * v5.0.6 - Nettoie et valide la réponse générée
    * Meilleure gestion de la créativité et du formatage
    */
   cleanAndValidateResponse(content, context, character = null) {

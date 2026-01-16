@@ -42,7 +42,7 @@ export default function UserSettingsScreen({ navigation, onLogout }) {
   const [updateInfo, setUpdateInfo] = useState(null);
 
   const DISCORD_INVITE = 'https://discord.gg/W52qQtNqFt';
-  const CURRENT_VERSION = '5.0.5';
+  const CURRENT_VERSION = '5.0.6';
   const GITHUB_REPO = 'davidc2115/Bagbot';
   const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
   const DIRECT_APK_URL = 'https://github.com/davidc2115/Bagbot/releases/latest';
