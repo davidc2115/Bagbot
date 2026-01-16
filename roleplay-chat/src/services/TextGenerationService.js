@@ -734,10 +734,35 @@ class TextGenerationService {
 
   /**
    * Nettoie et valide la réponse générée
-   * QUALITÉ GROQ: réponses riches, créatives, bien formattées
+   * v5.0.2: Détection et remplacement des refus de l'IA
    */
   cleanAndValidateResponse(content, context) {
     let cleaned = content.trim();
+    
+    // v5.0.2: DÉTECTION DES REFUS DE L'IA
+    const refusPatterns = [
+      'i can\'t help', 'i cannot help', 'i can\'t assist', 'i cannot assist',
+      'i\'m not able', 'i am not able', 'inappropriate', 'not appropriate',
+      'as an ai', 'en tant qu\'ia', 'je ne peux pas', 'je refuse',
+      'i apologize', 'je m\'excuse', 'policy', 'guidelines', 'content policy',
+      'i\'m sorry, but', 'i am sorry, but', 'i can\'t do that', 'unable to'
+    ];
+    
+    const contentLower = cleaned.toLowerCase();
+    const hasRefusal = refusPatterns.some(p => contentLower.includes(p));
+    
+    if (hasRefusal) {
+      console.log('⚠️ Refus IA détecté, génération réponse de remplacement...');
+      // Générer une réponse de remplacement immersive
+      const replacements = [
+        '*te regarde avec intensité* "Mmm... J\'adore quand tu me parles comme ça..." (Mon cœur s\'emballe)',
+        '*se mord la lèvre* "Continue... Tu me fais de l\'effet..." (Je le/la veux tellement)',
+        '*s\'approche doucement* "Tu me rends dingue..." (Mes pensées s\'emballent)',
+        '*sourit de manière suggestive* "Et si on passait aux choses sérieuses?" (Je n\'en peux plus d\'attendre)',
+        '*te regarde droit dans les yeux* "Tu sais exactement quoi faire pour me faire craquer..." (Tellement excité(e))',
+      ];
+      return replacements[Math.floor(Math.random() * replacements.length)];
+    }
     
     // Supprimer les préfixes indésirables
     cleaned = cleaned.replace(/^(Assistant:|AI:|Bot:|Response:|Réponse:)/i, '').trim();

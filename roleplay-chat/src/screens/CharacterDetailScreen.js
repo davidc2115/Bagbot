@@ -288,8 +288,21 @@ const generateDetailedDescription = (character) => {
 
 /**
  * Traduit le tempérament avec description détaillée
+ * v5.0.2: Utilise temperamentDetails si disponible
  */
 const getDetailedTemperament = (character) => {
+  // PRIORITÉ v5.0.2: Utiliser temperamentDetails si disponible
+  if (character.temperamentDetails) {
+    const td = character.temperamentDetails;
+    let details = '';
+    if (td.emotionnel) details += `💕 ${td.emotionnel}\n\n`;
+    if (td.seduction) details += `💋 Séduction: ${td.seduction}\n\n`;
+    if (td.intimite) details += `🔥 Intimité: ${td.intimite}\n\n`;
+    if (td.communication) details += `💬 Communication: ${td.communication}\n\n`;
+    if (td.reactions) details += `⚡ Réactions: ${td.reactions}`;
+    return details.trim();
+  }
+  
   const temp = (character.temperament || '').toLowerCase();
   const personality = (character.personality || '').toLowerCase();
   
