@@ -2545,142 +2545,253 @@ class ImageGenerationService {
     
     // === SELON LE MODE SFW/NSFW ===
     if (isNSFW) {
-      // === MODE NSFW (niveau 2+) - VARIÉTÉ MAXIMALE ===
-      console.log(`🔞 Mode NSFW actif - Niveau ${level}`);
+      // === MODE NSFW v5.0.0 - ULTRA VARIÉTÉ MAXIMALE ===
+      console.log(`🔞 Mode NSFW ENHANCED v5.0.0 actif - Niveau ${level}`);
       
       // Anatomie détaillée pour NSFW
       prompt += this.buildAnatomyDescription(character, isRealistic);
       
-      // === ANGLE/TYPE DE PHOTO NSFW VARIÉ ===
-      const nsfwAngles = [
-        // Corps entier
-        'full body shot showing entire figure from head to toe, naked or lingerie',
-        'full body frontal nude, entire body visible, standing pose',
-        'full body view lying on bed, complete figure shown',
-        'full length shot, whole body exposed, sensual pose',
-        // Vues de face
-        'frontal view, breasts fully visible, sexy confident pose',
-        'front facing camera, nude body, seductive expression',
-        'facing viewer, topless or nude, inviting pose',
-        // Vues de profil
-        'side profile showing breast and butt curves',
-        'profile view, breast silhouette, elegant nude',
-        'three-quarter angle, curves emphasized',
-        // Vues de dos
-        'back view, full butt visible, looking over shoulder',
-        'rear view on all fours, butt emphasized, arched back',
-        'from behind, nude back and butt, seductive glance back',
-        // Zooms intimes
-        'close-up on breasts, nipples visible, sensual',
-        'zoom on butt and hips, rear focus',
-        'upper body shot, bare breasts prominent',
-        // Poses provocantes
-        'lying on bed with legs spread, inviting',
-        'on knees, looking up seductively',
-        'bent over, rear view, provocative',
-        'straddling position, dominant pose',
+      // === MEGA VARIÉTÉ DE POSES SEXY/NSFW ===
+      const megaNSFWPoses = [
+        // DEBOUT - Poses sexy
+        'standing confidently with one hand on hip, weight on one leg, seductive stance',
+        'standing against wall, back arched, pushing chest forward provocatively',
+        'standing by window, silhouette visible, turning to look over shoulder',
+        'standing legs apart, hands running through hair, inviting look',
+        'standing nude, stretching arms above head, full body exposed',
+        // ALLONGÉE SUR LE DOS
+        'lying on back on bed, arms stretched above head, legs slightly parted, inviting',
+        'lying on silk sheets, one knee up, hand on thigh, sensual gaze',
+        'lying on back, legs spread wide open, intimate view',
+        'lying on bed, touching own breasts, eyes closed in pleasure',
+        'lying on fur rug by fireplace, nude body glowing, relaxed pose',
+        // ALLONGÉE SUR LE VENTRE
+        'lying on stomach, feet up playfully, butt prominently displayed',
+        'lying face down, looking back over shoulder, rear view focus',
+        'lying on stomach, propped on elbows, cleavage visible, flirty smile',
+        // SUR LE CÔTÉ
+        'lying on side, propped on elbow, curves emphasized, sensual',
+        'lying on side, one leg raised, intimate angle visible',
+        'reclining sideways, hand tracing body curves, seductive',
+        // À GENOUX
+        'kneeling on bed, sitting on heels, hands on thighs, submissive pose',
+        'kneeling upright, back arched, breasts thrust forward, confident',
+        'kneeling on all fours from behind, looking back seductively, rear emphasized',
+        'kneeling with legs apart, hands exploring own body, erotic',
+        // À QUATRE PATTES
+        'on all fours, back arched dramatically, rear fully visible',
+        'on hands and knees from behind, provocative rear view, inviting',
+        'on all fours, looking back with intense gaze, seductive',
+        // ASSISE
+        'sitting on edge of bed, legs spread, leaning back on hands',
+        'sitting cross-legged, topless, confident smile',
+        'sitting in armchair, one leg over armrest, exposed',
+        'sitting on floor, knees up and apart, intimate view',
+        // PENCHÉE
+        'bent over vanity table, rear prominently displayed',
+        'bending forward, cleavage deep and visible, seductive smile',
+        'bent over bed, rear view, looking back invitingly',
+        'leaning forward on elbows, breasts hanging, sensual',
+        // ÉCARTÉE
+        'legs spread wide on bed, nothing hidden, explicit pose',
+        'legs open in chair, fully exposed, confident expression',
+        'straddling position, legs wide apart, dominant pose',
+        // SPÉCIALES
+        'in bathtub, covered in bubbles, wet skin glistening',
+        'stepping out of shower, water droplets on body',
+        'undressing, clothes falling off, caught mid-motion',
+        'stretching like just woke up, nude and natural',
+        'yoga pose, flexible body displayed, sensual',
       ];
-      const randomAngle = nsfwAngles[Math.floor(Math.random() * nsfwAngles.length)];
+      const randomPose = megaNSFWPoses[Math.floor(Math.random() * megaNSFWPoses.length)];
+      prompt += `, ${randomPose}`;
+      console.log(`🎭 POSE: ${randomPose.substring(0, 60)}...`);
+      
+      // === MEGA VARIÉTÉ DE TENUES SEXY ===
+      const megaOutfits = [
+        // Lingerie
+        'wearing sexy black lace lingerie set, bra and thong',
+        'wearing red satin lingerie, push-up bra, garter belt',
+        'wearing white lace bodysuit, see-through, nipples visible',
+        'wearing sheer babydoll negligee, barely covering anything',
+        'wearing only lace thong, topless, nipples exposed',
+        // Semi-nu
+        'shirt open revealing bare breasts, jeans unzipped',
+        'dress pulled down to waist, breasts exposed',
+        'towel falling off, nude body partially visible',
+        'robe untied and open, nude underneath',
+        'sheet covering lower body only, topless',
+        // Nu
+        'completely nude, naked body fully exposed',
+        'fully naked, nothing hidden at all',
+        'nude with only high heels, elegant nudity',
+        'naked wearing only jewelry, artistic nude',
+        // Provocant habillé
+        'wearing tight mini dress riding up, no underwear visible',
+        'wearing crop top showing underboob, micro shorts',
+        'wearing see-through top, nipples clearly visible',
+        'wearing bikini that barely covers anything',
+        'wearing unbuttoned blouse, cleavage extreme',
+      ];
+      // Tenue basée sur le niveau
+      let outfitIndex = Math.min(level - 2, megaOutfits.length - 1);
+      outfitIndex = Math.max(0, outfitIndex);
+      // Ajouter de la variété aléatoire dans la catégorie appropriée
+      if (level >= 5) {
+        // Niveaux élevés: tenues nues ou très révélatrices
+        const nudeOutfits = megaOutfits.filter(o => o.includes('nude') || o.includes('naked') || o.includes('topless'));
+        const randomOutfit = nudeOutfits[Math.floor(Math.random() * nudeOutfits.length)];
+        prompt += `, ${randomOutfit}`;
+      } else if (level >= 3) {
+        // Niveaux moyens: lingerie
+        const lingerieOutfits = megaOutfits.filter(o => o.includes('lingerie') || o.includes('bra'));
+        const randomOutfit = lingerieOutfits[Math.floor(Math.random() * lingerieOutfits.length)];
+        prompt += `, ${randomOutfit}`;
+      } else {
+        // Niveau 2: provocant
+        const provoOutfits = megaOutfits.filter(o => o.includes('dress') || o.includes('top'));
+        const randomOutfit = provoOutfits[Math.floor(Math.random() * provoOutfits.length)] || megaOutfits[0];
+        prompt += `, ${randomOutfit}`;
+      }
+      
+      // === MEGA VARIÉTÉ D'ANGLES DE CAMÉRA NSFW ===
+      const megaCameraAngles = [
+        // CORPS ENTIER
+        'full body shot from head to toe, entire figure visible',
+        'wide shot showing complete naked body',
+        // FACE
+        'frontal view, full body facing camera, breasts and body visible',
+        'front view, standing facing viewer, nipples visible',
+        // PROFIL
+        'side profile showing curve of breasts and butt',
+        'profile view emphasizing body silhouette',
+        // DOS / FESSES
+        'rear view from behind, full butt visible, looking over shoulder',
+        'back view, focus on butt and back, seductive glance',
+        'from behind bent over, rear prominently featured',
+        // ZOOMS INTIMES
+        'close-up on chest, breasts and nipples prominent',
+        'zoom on butt and hips, rear close-up',
+        'focus between legs, intimate close-up view',
+        'upper body focus, bare breasts filling frame',
+        // ANGLES SPÉCIAUX
+        'from above looking down at naked body, voyeuristic',
+        'low angle looking up, dramatic perspective',
+        'dutch angle, artistic nude composition',
+        'POV angle, personal intimate perspective',
+        'mirror reflection showing front and back simultaneously',
+      ];
+      const randomAngle = megaCameraAngles[Math.floor(Math.random() * megaCameraAngles.length)];
       prompt += `, ${randomAngle}`;
       console.log(`📷 ANGLE: ${randomAngle.substring(0, 50)}...`);
       
-      // === POSITION NSFW VARIÉE ===
-      const nsfwPositions = [
-        'standing nude, confident sexy pose, hand on hip',
-        'lying on bed on back, legs slightly spread, inviting',
-        'lying on stomach, butt raised, looking back seductively',
-        'sitting on edge of bed, legs open, topless',
-        'kneeling on bed, breasts visible, sensual pose',
-        'on all fours, rear view, arched back',
-        'leaning against wall, nude, provocative stance',
-        'in bathtub, wet skin, sensual relaxed',
-        'by window, nude silhouette, natural light',
-        'on leather couch, legs spread, confident',
-        'stretching on bed, full body exposed',
-        'bending over, rear fully visible',
+      // === MEGA VARIÉTÉ DE LIEUX INTIMES ===
+      const megaLocations = [
+        // Chambre
+        'in luxurious bedroom, silk sheets, romantic lighting',
+        'on king-size bed with satin pillows, intimate atmosphere',
+        'in hotel room with city view at night, ambient lights',
+        'on bed covered with rose petals, romantic setting',
+        // Salle de bain
+        'in marble bathroom, steam and warm lighting',
+        'in bubble bath, wet skin glistening',
+        'in glass shower, water streaming over body',
+        'by bathroom mirror, steamy atmosphere',
+        // Piscine
+        'by infinity pool at sunset, wet body shimmering',
+        'in jacuzzi with bubbles, relaxed and sensual',
+        'poolside on lounger, tropical setting',
+        // Intérieur élégant
+        'on leather couch in penthouse, city lights behind',
+        'by fireplace, warm flickering glow on skin',
+        'on fur rug, luxurious intimate setting',
+        'in walk-in closet with mirrors, multiple angles',
+        // Extérieur privé
+        'on private balcony at night, city below',
+        'on yacht deck at sunset, ocean breeze',
+        'in garden gazebo, fairy lights, magical atmosphere',
       ];
-      const randomPosition = nsfwPositions[Math.floor(Math.random() * nsfwPositions.length)];
-      prompt += `, ${randomPosition}`;
-      console.log(`🎭 POSITION: ${randomPosition.substring(0, 50)}...`);
+      const randomLocation = megaLocations[Math.floor(Math.random() * megaLocations.length)];
+      prompt += `, ${randomLocation}`;
       
-      // Lieu intime
-      prompt += `, ${sceneElements.location}`;
-      prompt += `, ${sceneElements.lighting}`;
+      // === ÉCLAIRAGE SÉDUISANT ===
+      const sexyLighting = [
+        'soft romantic candlelight creating warm shadows',
+        'golden hour sunset light, magical glow on skin',
+        'neon pink and blue light, modern aesthetic',
+        'dim ambient lighting, mysterious and intimate',
+        'moonlight through sheer curtains, ethereal',
+        'studio lighting highlighting body curves',
+        'firelight dancing on naked skin, warm tones',
+        'backlit silhouette, dramatic and artistic',
+      ];
+      const randomLighting = sexyLighting[Math.floor(Math.random() * sexyLighting.length)];
+      prompt += `, ${randomLighting}`;
       
-      // === CARACTÉRISTIQUES CORPORELLES SPÉCIFIQUES ===
-      const bodyFeatures = this.extractBodyFeatures(character);
-      if (bodyFeatures) {
-        prompt += `, ${bodyFeatures}`;
-        console.log(`💪 CORPS: ${bodyFeatures.substring(0, 80)}...`);
-      }
-      
-      // === TENUE NSFW BASÉE SUR LE NIVEAU ===
-      const levelOutfit = this.getOutfitByLevel(level);
-      prompt += `, ${levelOutfit}`;
-      console.log(`👗 TENUE niveau ${level}: ${levelOutfit.substring(0, 60)}...`);
-      
-      // Ambiance sensuelle
-      prompt += `, ${sceneElements.mood}`;
+      // === EXPRESSION ET REGARD ===
+      const sexyExpressions = [
+        'intense seductive gaze, bedroom eyes, lips slightly parted',
+        'playful teasing smile, mischievous expression',
+        'confident dominant expression, knowing smirk',
+        'innocent look but seductive pose, contrast',
+        'eyes closed in pleasure, sensual expression',
+        'looking directly at viewer, inviting stare',
+        'biting lower lip, flirtatious, aroused',
+        'orgasmic expression, ecstasy visible',
+      ];
+      const randomExpression = sexyExpressions[Math.floor(Math.random() * sexyExpressions.length)];
+      prompt += `, ${randomExpression}`;
       
       // Prompt NSFW explicite RENFORCÉ SELON LE NIVEAU
       prompt += this.buildNSFWPrompt(character, isRealistic);
       
-      // Forcer le contenu NSFW selon le niveau - CHAQUE NIVEAU A SON STYLE
+      // Forcer le contenu NSFW selon le niveau - v5.0.0 ULTRA ENHANCED
       if (level === 2) {
-        // Niveau 2: Provocante
         prompt += ', NSFW, sexy, seductive, provocative outfit';
-        prompt += ', revealing clothes, cleavage visible, short skirt, tight dress';
-        prompt += ', sexy pose, flirtatious, adult content';
-        console.log('📸 Mode NIVEAU 2: Provocante');
+        prompt += ', revealing clothes, deep cleavage, short skirt, tight form-fitting dress';
+        prompt += ', sexy confident pose, flirtatious look, adult content';
+        console.log('📸 Mode NIVEAU 2: Provocante sexy');
       } else if (level === 3) {
-        // Niveau 3: Lingerie
-        prompt += ', NSFW, sexy lingerie, bra and panties, lace underwear';
-        prompt += ', in underwear, revealing lingerie, seductive pose';
-        prompt += ', adult content, erotic, sensual';
-        console.log('📸 Mode NIVEAU 3: Lingerie');
+        prompt += ', NSFW, sexy lace lingerie, bra barely containing breasts, thong';
+        prompt += ', garter belt, stockings, seductive lingerie pose';
+        prompt += ', adult content, erotic, sensual bedroom scene';
+        console.log('📸 Mode NIVEAU 3: Lingerie chaude');
       } else if (level === 4) {
-        // Niveau 4: Topless
-        prompt += ', NSFW, topless, bare breasts, nipples visible';
-        prompt += ', naked from waist up, exposed chest, sensual nude';
-        prompt += ', adult content, erotic, intimate';
-        console.log('📸 Mode NIVEAU 4: Topless');
+        prompt += ', NSFW, topless, bare breasts exposed, nipples clearly visible';
+        prompt += ', naked from waist up, breasts fully shown, sensual topless pose';
+        prompt += ', adult content, erotic, intimate exposure';
+        console.log('📸 Mode NIVEAU 4: Topless seins nus');
       } else if (level === 5) {
-        // Niveau 5: Nu artistique
-        prompt += ', NSFW, fully nude, completely naked, artistic nudity';
-        prompt += ', naked body fully exposed, nipples visible, sensual pose';
-        prompt += ', erotic, intimate, adult only';
-        console.log('📸 Mode NIVEAU 5: Nu artistique');
+        prompt += ', NSFW, fully nude, completely naked body exposed';
+        prompt += ', nipples visible, nude artistic pose, all body visible';
+        prompt += ', erotic artistic nudity, intimate, adult only';
+        console.log('📸 Mode NIVEAU 5: Nu intégral artistique');
       } else if (level === 6) {
-        // Niveau 6: Nu sensuel
-        prompt += ', NSFW, nude sensual pose, naked body glistening';
-        prompt += ', legs slightly parted, hands exploring body, erotic';
-        prompt += ', explicit adult content, passionate, intimate exposure';
-        console.log('📸 Mode NIVEAU 6: Nu sensuel');
+        prompt += ', NSFW, nude sensual pose, naked body glistening with sweat or oil';
+        prompt += ', legs slightly apart, hands touching own body, self-caressing';
+        prompt += ', explicit adult content, passionate, aroused expression';
+        console.log('📸 Mode NIVEAU 6: Nu sensuel excité');
       } else if (level === 7) {
-        // Niveau 7: Nu érotique
-        prompt += ', NSFW, erotic nude pose, legs spread invitingly';
-        prompt += ', naked on bed, hand between thighs, provocative';
-        prompt += ', explicit, sexual pose, adult only, uncensored';
-        console.log('📸 Mode NIVEAU 7: Nu érotique');
+        prompt += ', NSFW, erotic nude pose, legs spread open invitingly';
+        prompt += ', naked on bed, hand between thighs, touching intimately';
+        prompt += ', explicit sexual pose, adult only, uncensored arousal';
+        console.log('📸 Mode NIVEAU 7: Nu érotique ouvert');
       } else if (level === 8) {
-        // Niveau 8: Très explicite
         prompt += ', NSFW, very explicit nude, legs wide open';
-        prompt += ', touching intimately, naked spread on bed, nothing hidden';
-        prompt += ', extreme explicit, masturbation pose, adult content';
-        console.log('📸 Mode NIVEAU 8: Très explicite');
+        prompt += ', fingers touching intimate areas, naked and spread';
+        prompt += ', extreme explicit, masturbation beginning, adult hardcore';
+        console.log('📸 Mode NIVEAU 8: Très explicite masturbation');
       } else if (level === 9) {
-        // Niveau 9: Ultra explicite
-        prompt += ', NSFW, ultra explicit nude, maximum exposure';
-        prompt += ', fingers inside, orgasmic expression, most intimate pose';
-        prompt += ', extreme sexual content, explicit masturbation, uncensored';
-        console.log('📸 Mode NIVEAU 9: Ultra explicite');
+        prompt += ', NSFW, ultra explicit nude, maximum exposure, nothing hidden';
+        prompt += ', fingers penetrating, orgasmic face, intense pleasure visible';
+        prompt += ', extreme sexual content, explicit masturbation, climax';
+        console.log('📸 Mode NIVEAU 9: Ultra explicite jouissance');
       } else if (level >= 10) {
-        // Niveau 10+: Maximum explicite
-        prompt += ', NSFW, maximum explicit nude, ultimate erotic exposure';
-        prompt += ', most provocative pose possible, extreme intimacy';
-        prompt += ', explicit self-pleasure, toy penetration visible, orgasm';
-        prompt += ', absolute maximum adult content, nothing censored';
-        console.log('📸 Mode NIVEAU 10+: Maximum explicite');
+        prompt += ', NSFW, maximum explicit nude, most erotic pose imaginable';
+        prompt += ', extreme penetration visible, toy insertion, squirting';
+        prompt += ', absolute maximum adult content, orgasm captured, nothing censored';
+        prompt += ', most provocative explicit imagery possible';
+        console.log('📸 Mode NIVEAU 10+: Maximum hardcore');
       }
       
     } else {

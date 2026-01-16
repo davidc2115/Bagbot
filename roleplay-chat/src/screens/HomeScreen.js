@@ -37,35 +37,53 @@ export default function HomeScreen({ navigation }) {
   }, [searchQuery, selectedFilter, allCharacters]);
 
   const loadAllCharacters = async () => {
-    // Migrer les anciens personnages si nécessaire
-    await CustomCharacterService.migrateOldCharacters();
+    // Charger les personnages de base IMMÉDIATEMENT (sans attendre)
+    setAllCharacters([...enhancedCharacters]);
     
-    // Récupérer uniquement les personnages de l'utilisateur + publics des autres
-    const customChars = await CustomCharacterService.getAllVisibleCharacters();
+    // Puis charger les personnages custom en arrière-plan
+    try {
+      await CustomCharacterService.migrateOldCharacters();
+      const customChars = await CustomCharacterService.getAllVisibleCharacters();
+      
+      if (customChars && customChars.length > 0) {
+        setAllCharacters([...enhancedCharacters, ...customChars]);
+      }
+    } catch (error) {
+      console.log('⚠️ Erreur chargement personnages custom:', error.message);
+    }
     
-    // Combiner les personnages de base (avec NSFW) avec les personnages personnalisés
-    const combined = [...enhancedCharacters, ...customChars];
-    setAllCharacters(combined);
-    
-    // Charger les images de galerie pour tous les personnages
-    await loadGalleryImages(combined);
+    // Charger les images en arrière-plan SANS BLOQUER
+    loadGalleryImagesBackground();
   };
 
-  const loadGalleryImages = async (chars) => {
+  const loadGalleryImagesBackground = async () => {
+    // Charger les images en lots de 10 pour éviter de bloquer
+    const charsWithCustomImages = allCharacters.filter(c => c.imageUrl || c.isCustom);
+    
     const images = {};
-    for (const char of chars) {
-      // Si le personnage custom a déjà une imageUrl, on l'utilise
-      if (char.imageUrl) {
-        images[char.id] = char.imageUrl;
-      } else {
-        // Sinon, on charge la première image de la galerie
-        const gallery = await GalleryService.getGallery(char.id);
-        if (gallery && gallery.length > 0) {
-          images[char.id] = gallery[0]; // Première image de la galerie
+    const BATCH_SIZE = 10;
+    
+    for (let i = 0; i < charsWithCustomImages.length; i += BATCH_SIZE) {
+      const batch = charsWithCustomImages.slice(i, i + BATCH_SIZE);
+      
+      await Promise.all(batch.map(async (char) => {
+        try {
+          if (char.imageUrl) {
+            images[char.id] = char.imageUrl;
+          } else if (char.isCustom) {
+            const gallery = await GalleryService.getGallery(char.id);
+            if (gallery && gallery.length > 0) {
+              images[char.id] = gallery[0];
+            }
+          }
+        } catch (e) {
+          // Ignorer les erreurs individuelles
         }
-      }
+      }));
+      
+      // Mettre à jour progressivement
+      setCharacterImages(prev => ({ ...prev, ...images }));
     }
-    setCharacterImages(images);
   };
 
   const filterCharacters = () => {

@@ -323,6 +323,7 @@ export default function App() {
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingEmoji}>💋</Text>
         <Text style={styles.loadingTitle}>Boys & Girls</Text>
+        <Text style={styles.versionText}>v5.0.0</Text>
         <ActivityIndicator size="large" color="#C9A227" style={{ marginTop: 20 }} />
         <Text style={styles.loadingText}>Chargement...</Text>
       </View>
@@ -477,6 +478,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D4AF37',
     fontWeight: '600',
+  },
+  versionText: {
+    fontSize: 16,
+    color: '#8B6914',
+    fontWeight: '500',
+    marginTop: 5,
   },
   profileSetupContainer: {
     flex: 1,
