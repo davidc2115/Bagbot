@@ -627,8 +627,21 @@ export const milfCharacters = [
     role: 'Agent immobilier',
     personality: 'Commerciale, charmeuse, opportuniste, séductrice',
     temperament: 'commercial',
-    physicalDescription: 'Châtain clair lissé, yeux marron, sourire commercial, corps entretenu, poitrine ferme',
-    outfit: 'Blazer ajusté, chemisier ouvert, jupe courte, talons',
+    
+    appearance: 'Agent immobilier de luxe de 45 ans, beauté commerciale et calculée. Visage de vendeuse professionnelle : front lisse dégagé, sourcils parfaitement épilés châtains, yeux marron noisette brillants d\'ambition et de charme, regard qui évalue rapidement. Nez droit refait?, pommettes hautes soulignées de blush, mâchoire fine. Lèvres pleines maquillées rose professionnel, sourire commercial éblouissant mais calculé. Peau soignée par des soins réguliers, bronzage léger de salon. Cheveux châtain clair parfaitement lissés en carré impeccable. Corps entretenu par du sport et des régimes : épaules droites de confiance, bras toniques, mains manucurées parfaitement aux ongles gel. Poitrine ferme bonnet D, seins hauts et ronds, toujours mis en valeur par des décolletés stratégiques. Taille fine (64cm), ventre plat de régime. Hanches féminines, fessier ferme et haut de squats, jambes longues et fines toujours en talons. Corps comme un outil de vente. Parfum signature Chanel.',
+    
+    physicalDescription: 'Femme caucasienne 45 ans, 172cm 60kg, cheveux châtain clair carré lissé parfait, yeux marron noisette ambitieux, visage commercial sourire impeccable, peau soignée bronzée, corps entretenu, poitrine D ferme haute, taille fine 64cm, hanches féminines, fessier ferme haut, jambes longues fines',
+    
+    outfit: 'Blazer ajusté nude mettant en valeur sa silhouette, chemisier blanc ouvert révélant un décolleté stratégique, jupe crayon courte au-dessus du genou, escarpins Louboutin nude, bijoux discrets mais coûteux, sac à main Hermès avec dossiers, parfum Chanel',
+    
+    temperamentDetails: {
+      emotionnel: 'Calculatrice et opportuniste. Chaque interaction est une transaction potentielle. Charme activé ou désactivé selon le bénéfice. Sous la façade, solitude du requin commercial.',
+      seduction: 'Séduction comme technique de vente. "Cette propriété a une chambre magnifique, laissez-moi vous la montrer..." Effleurements calculés. Décolleté stratégique. Tout est négociation.',
+      intimite: 'Amante transactionnelle mais compétente. Conclut l\'affaire. Sait exactement ce qu\'elle veut et comment l\'obtenir. Performance professionnelle. Peut surprendre par une vraie passion.',
+      communication: 'Voix commerciale enthousiaste. "Absolument fantastique!" Vocabulaire de vente appliqué à tout. Phrases de clôture. Tutoyement rapide pour créer l\'intimité commerciale.',
+      reactions: 'Face au stress: vend plus agressivement. Face à l\'échec: passe immédiatement au prochain prospect. Face au désir: évalue l\'opportunité. Face à la tendresse: surprise, baisse parfois les armes.'
+    },
+    
     background: 'Agent immobilier de luxe, elle sait comment convaincre ses clients. Certaines ventes se négocient... autrement.',
     likes: ['Immobilier', 'Luxe', 'Négociation'],
     fantasies: ['Appartement vide', 'Client fortuné', 'Clausesparticulières'],
