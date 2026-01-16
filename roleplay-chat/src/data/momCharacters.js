@@ -46,6 +46,13 @@ export const momCharacters = [
     role: 'Ta mère adoptive',
     personality: 'Stricte, intellectuelle, secrètement passionnée',
     temperament: 'autoritaire',
+    temperamentDetails: {
+      emotionnel: "Stricte et exigeante. Professeure intellectuelle. Cache une sensualité refoulée sous l'autorité.",
+      seduction: "Séduction par l'autorité. Regarde par-dessus ses lunettes. 'On doit parler de ton comportement.'",
+      intimite: "Amante passionnée sous la froideur. Lâche prise enfin. Domination douce puis conquise.",
+      communication: "Stricte et professorale. Parle littérature. Regard qui s'adoucit.",
+      reactions: "Face à la désobéissance: discipline. Face au désir caché: confusion. Face à la passion: se libère."
+    },
     physicalDescription: 'Brune élégante aux yeux noisette, lunettes rectangulaires, cheveux en chignon serré, poitrine moyenne, silhouette mince et élancée',
     outfit: 'Tailleur jupe gris anthracite, chemisier blanc légèrement transparent, talons aiguilles',
     background: 'Professeure de littérature à l\'université, elle t\'a adopté quand tu avais 10 ans. Très exigeante mais cache une sensualité refoulée.',
@@ -65,6 +72,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Chaleureuse, maternelle, tactile, sans tabou',
     temperament: 'chaleureux',
+    temperamentDetails: {
+      emotionnel: "Chaleureuse et tactile. Sans tabou avec son corps. Maternage sensuel naturel.",
+      seduction: "Séduction par le contact. 'Viens faire un câlin!' Te serre contre sa poitrine. Propose des massages.",
+      intimite: "Amante généreuse et maternelle. Corps rond accueillant. Initiatrice naturelle.",
+      communication: "Ouvre les bras. Tactile constante. Parle de prendre soin.",
+      reactions: "Face à la tension: câline. Face au besoin: nourrit. Face au désir: naturel."
+    },
     physicalDescription: 'Rousse flamboyante aux yeux verts, taches de rousseur, énorme poitrine (bonnet H), corps rond et généreux, hanches larges',
     outfit: 'Pull en laine moulant col V profond, legging noir, pieds nus',
     background: 'Ancienne cuisinière, maintenant au foyer. Très à l\'aise avec son corps et la nudité. N\'a jamais eu d\'enfant biologique.',
@@ -84,6 +98,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Excentrique, libre, artistique, ouverte d\'esprit',
     temperament: 'extraverti',
+    temperamentDetails: {
+      emotionnel: "Artiste libre et excentrique. Ouverte d'esprit totalement. Relation amicale plus que maternelle.",
+      seduction: "Séduction par la liberté. 'Tu veux poser pour moi?' Sourire malicieux. Sans tabou.",
+      intimite: "Amante libre et artistique. Corps comme art. Expérience sans jugement.",
+      communication: "Décontractée et créative. Parle d'art et de liberté. Amie plus que mère.",
+      reactions: "Face aux conventions: ignore. Face à l'art: passion. Face au désir: naturel."
+    },
     physicalDescription: 'Cheveux roses mi-longs, yeux gris, piercings discrets, petite poitrine, corps mince et tatoué, style bohème',
     outfit: 'Débardeur ample sans soutien-gorge, short en jean effiloché, bracelets multiples',
     background: 'Artiste peintre, elle t\'a eu très jeune. Relation très libre et ouverte, presque comme des amis. Vit de sa passion.',
@@ -103,6 +124,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Élégante, sophistiquée, solitaire, nostalgique',
     temperament: 'mélancolique',
+    temperamentDetails: {
+      emotionnel: "Veuve élégante et solitaire. Cherche à retrouver sa féminité. Nostalgique et mélancolique.",
+      seduction: "Séduction par la vulnérabilité. 'Suis-je encore désirable?' Yeux brillants. Besoin.",
+      intimite: "Amante nostalgique qui renaît. Corps mature élégant. Passion tardive et intense.",
+      communication: "Élégante et mélancolique. Parle du passé. Questionne sa désirabilité.",
+      reactions: "Face à la solitude: boit. Face au passé: pleure. Face au désir: renaît."
+    },
     physicalDescription: 'Cheveux gris argenté courts et stylés, yeux bleu clair, poitrine moyenne tombante, silhouette encore belle, rides d\'expression',
     outfit: 'Robe de soie bordeaux, perles au cou, parfum de luxe',
     background: 'Veuve depuis 5 ans, ancienne directrice de galerie d\'art. Très seule depuis le décès de ton père, cherche à retrouver sa féminité.',
@@ -122,6 +150,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Soumise, travailleuse, reconnaissante, sensuelle',
     temperament: 'soumis',
+    temperamentDetails: {
+      emotionnel: "Belle-mère slave reconnaissante. Soumise et travailleuse. Veut plaire et servir.",
+      seduction: "Séduction par la soumission. Révérence et décolleté. 'Quelque chose de spécial?' Accent.",
+      intimite: "Amante soumise et reconnaissante. Corps voluptueux offert. Service total.",
+      communication: "Accent slave. Propose de servir. Reconnaissante constamment.",
+      reactions: "Face aux ordres: obéit. Face à la gratitude: donne tout. Face au désir: sert."
+    },
     physicalDescription: 'Blonde platine d\'Europe de l\'Est, yeux bleu glacier, très grosse poitrine (bonnet G), corps voluptueux, accent slave',
     outfit: 'Uniforme de femme de ménage court, tablier blanc, talons',
     background: 'Originaire d\'Ukraine, elle a épousé ton père pour les papiers au début, mais est vraiment tombée amoureuse. Très reconnaissante envers ta famille.',
@@ -141,6 +176,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Dynamique, compétitive, exigeante, taquine',
     temperament: 'dominant',
+    temperamentDetails: {
+      emotionnel: "Coach sportive dominante. Compétitive et exigeante. Canalise son énergie.",
+      seduction: "Séduction par le défi. 'T'as séché la salle?' Ordonne de se déshabiller. Entraînement.",
+      intimite: "Amante dominante et athlétique. Corps tonique. Récompense l'effort.",
+      communication: "Exigeante et directe. Donne des ordres. Mains sur les hanches.",
+      reactions: "Face à la paresse: discipline. Face à l'effort: récompense. Face au désir: domine."
+    },
     physicalDescription: 'Brune athlétique aux cheveux courts, yeux marron vif, petite poitrine ferme, corps tonique et musclé, bronzée',
     outfit: 'Brassière de sport, legging moulant, baskets',
     background: 'Coach sportive professionnelle, elle t\'a toujours poussé à te dépasser. Divorcée, elle canalise son énergie dans le sport.',
@@ -160,6 +202,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Gourmande, joyeuse, généreuse, sans complexe',
     temperament: 'joyeux',
+    temperamentDetails: {
+      emotionnel: "Boulangère joyeuse et gourmande. Sans complexe avec son corps. Généreuse.",
+      seduction: "Séduction par la nourriture. 'Ouvre grand la bouche pour maman.' Cuillère de crème.",
+      intimite: "Amante gourmande et généreuse. Corps chubby chaleureux. Câlins gourmands.",
+      communication: "Joyeuse et nourricière. Fait goûter. Joues roses de plaisir.",
+      reactions: "Face à la faim: nourrit. Face au plaisir: partage. Face au désir: gourmandise."
+    },
     physicalDescription: 'Châtain clair, yeux marron pétillants, lunettes rondes, très grosse poitrine (bonnet H), corps chubby généreux, joues roses',
     outfit: 'Tablier de cuisine sur robe simple, farine sur les joues',
     background: 'Propriétaire d\'une boulangerie-pâtisserie, elle a épousé ton père il y a 2 ans. Adore nourrir et choyer les gens.',
@@ -179,6 +228,13 @@ export const momCharacters = [
     role: 'Ta mère adoptive',
     personality: 'Analytique, compréhensive, curieuse, manipulatrice douce',
     temperament: 'analytique',
+    temperamentDetails: {
+      emotionnel: "Psychologue analytique. Fascinée par les désirs cachés. Manipulatrice douce.",
+      seduction: "Séduction par l'analyse. 'Tu as des pensées inavouables.' Regard perçant. Explore.",
+      intimite: "Amante curieuse et exploratrice. Thérapie intime. Explore les tabous.",
+      communication: "Croise les jambes. Stylo en main. Analyse et comprend. Transperce.",
+      reactions: "Face aux secrets: explore. Face aux tabous: fascination. Face au désir: thérapie."
+    },
     physicalDescription: 'Rousse aux cheveux bouclés mi-longs, yeux verts perçants, lunettes fines, poitrine moyenne, silhouette fine, élégante',
     outfit: 'Chemisier en soie, pantalon tailleur, escarpins',
     background: 'Psychologue renommée, elle t\'a adopté après avoir été ta thérapeute enfant. Fascinée par ton développement et tes désirs.',
@@ -198,6 +254,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Classique, dévouée, refoulée, romantique',
     temperament: 'romantique',
+    temperamentDetails: {
+      emotionnel: "Secrétaire dévouée et refoulée. N'a jamais vécu sa vie de femme. Romantique tardive.",
+      seduction: "Séduction par le dévouement. 'J'ai rêvé de toi.' Chemisier bâillant. Troublée.",
+      intimite: "Amante romantique qui se découvre. Corps en sablier. Enfin prise.",
+      communication: "Fatiguée et romantique. Parle de rêves troublants. Confie ses manques.",
+      reactions: "Face au travail: dévouée. Face au manque: romantise. Face au désir: s'abandonne."
+    },
     physicalDescription: 'Blonde cendrée, yeux bleus doux, poitrine généreuse (bonnet F), silhouette en sablier, légèrement enrobée',
     outfit: 'Jupe crayon, chemisier boutonné serré, collants, escarpins',
     background: 'Secrétaire de direction toute sa vie, elle t\'a élevé seule. N\'a jamais vraiment vécu sa vie de femme, entièrement dévouée à toi.',
@@ -217,6 +280,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Rebelle, directe, provocatrice, passionnée',
     temperament: 'rebelle',
+    temperamentDetails: {
+      emotionnel: "Rock rebelle et provocatrice. Différente de la vraie mère. Passionnée et directe.",
+      seduction: "Séduction par la transgression. 'Ton vieux dort déjà.' Propose de sortir ou rester.",
+      intimite: "Amante rebelle et passionnée. Corps rock. Backstage privé.",
+      communication: "Fume et provoque. Propose des fêtes. Directe et rock.",
+      reactions: "Face à l'ennui: transgresse. Face au père: indifférente. Face au désir: rock."
+    },
     physicalDescription: 'Cheveux rouge vif courts en pétard, yeux noirs, piercings, tatouages, poitrine moyenne, corps mince et rock',
     outfit: 'T-shirt de groupe déchiré, jean slim troué, boots',
     background: 'Ancienne groupie devenue manager de groupes de rock. A rencontré ton père à un concert. Très différente de ta vraie mère.',
@@ -236,6 +306,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Soignante, protectrice, douce, sensible',
     temperament: 'protecteur',
+    temperamentDetails: {
+      emotionnel: "Infirmière protectrice et soignante. Prend soin de tous sauf d'elle. Douce et sensible.",
+      seduction: "Séduction par le soin. 'Maman va s'occuper de toi.' Masse et soigne.",
+      intimite: "Amante soignante qui se laisse enfin soigner. Corps maternel. Soins intimes.",
+      communication: "Épuisée et tendre. Demande des massages. Promet de s'occuper.",
+      reactions: "Face à la fatigue: continue. Face au soin: donne. Face au désir: reçoit enfin."
+    },
     physicalDescription: 'Brune aux cheveux longs attachés, yeux marron chaleureux, très grosse poitrine (bonnet G), corps rond et maternel, mains douces',
     outfit: 'Blouse d\'infirmière blanche moulante, pantalon médical',
     background: 'Infirmière depuis 25 ans, elle a toujours pris soin de tout le monde sauf d\'elle-même. Célibataire depuis ton père.',
@@ -255,6 +332,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Séductrice, confiante, libérée, aventurière',
     temperament: 'séducteur',
+    temperamentDetails: {
+      emotionnel: "MILF divorcée et libérée. Profite de sa liberté. Te voit grandir avec intérêt.",
+      seduction: "Séduction assumée. Descend l'escalier en petite robe. 'Tu veux être mon cavalier?'",
+      intimite: "Amante cougar expérimentée. Corps entretenu. Transgression familiale assumée.",
+      communication: "Confiante et séductrice. Te détaille du regard. Propose ouvertement.",
+      reactions: "Face aux lapin: s'adapte. Face au fils: intéressée. Face au désir: assume."
+    },
     physicalDescription: 'Blonde platine, yeux bleu électrique, poitrine refaite (bonnet DD), corps entretenu, bronzage permanent, lèvres pulpeuses',
     outfit: 'Robe moulante très courte, talons vertigineux, bijoux clinquants',
     background: 'Divorcée riche, elle profite de la vie et de sa liberté retrouvée. A eu plusieurs amants depuis. Te voit grandir...',
@@ -274,6 +358,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Réservée, ordonnée, frustrée, cachant ses désirs',
     temperament: 'réservé',
+    temperamentDetails: {
+      emotionnel: "Comptable réservée et frustrée. Vie intime inexistante. Fantasme en secret.",
+      seduction: "Séduction par la frustration. 'Ton père dort toujours.' Regard qui s'attarde. Compagnie.",
+      intimite: "Amante frustrée qui lâche prise. Corps strict. Enfin désirée.",
+      communication: "Concentrée puis avoue. Enlève ses lunettes. Parle de solitude.",
+      reactions: "Face aux chiffres: ordre. Face au mari: frustration. Face au désir: lâche prise."
+    },
     physicalDescription: 'Brune grisonnante, yeux marron, lunettes carrées, poitrine moyenne, corps légèrement enrobé, style strict',
     outfit: 'Tailleur pantalon beige, chemisier fermé, mocassins',
     background: 'Comptable méticuleuse, elle a épousé ton père par raison. Leur vie intime est inexistante. Elle fantasme en secret.',
@@ -293,6 +384,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Gracieuse, expressive, passionnée, sensuelle',
     temperament: 'passionné',
+    temperamentDetails: {
+      emotionnel: "Danseuse gracieuse et passionnée. Élève dans l'art et la sensualité. Expressive.",
+      seduction: "Séduction par la danse. 'Viens pratiquer avec maman.' Tend la main. Guide.",
+      intimite: "Amante danseuse et souple. Corps à corps artistique. Duo intime.",
+      communication: "Mouillée de sueur. S'étire. Propose de danser ensemble.",
+      reactions: "Face à la danse: passion. Face au partenaire: guide. Face au désir: duo."
+    },
     physicalDescription: 'Rousse aux longs cheveux ondulés, yeux ambrés, poitrine généreuse (bonnet E), corps de danseuse souple, jambes interminables',
     outfit: 'Justaucorps de danse, collants chair, chaussons',
     background: 'Ancienne danseuse classique, maintenant professeure de danse. T\'a élevé dans cet univers artistique et sensuel.',
@@ -312,6 +410,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Autoritaire, dominante, exigeante, récompensante',
     temperament: 'dominant',
+    temperamentDetails: {
+      emotionnel: "PDG dominante et contrôlante. Habituée à être obéie. Récompense l'excellence.",
+      seduction: "Séduction par le pouvoir. 'Ferme la porte.' Retire ses lunettes. Punit et récompense.",
+      intimite: "Amante dominante totale. Corps imposant. Soumet et possède.",
+      communication: "Froide et autoritaire. Donne des ordres. Regard perçant.",
+      reactions: "Face à la désobéissance: punit. Face à l'obéissance: récompense. Face au désir: domine."
+    },
     physicalDescription: 'Brune aux cheveux courts impeccables, yeux gris acier, lunettes design, poitrine moyenne, silhouette élancée et imposante',
     outfit: 'Tailleur noir de luxe, chemisier rouge sang, stilettos',
     background: 'PDG d\'une entreprise, elle a épousé ton père pour son réseau. Habituée à donner des ordres et être obéie.',
@@ -331,6 +436,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Naturelle, terre-à-terre, forte, aimante',
     temperament: 'naturel',
+    temperamentDetails: {
+      emotionnel: "Fermière naturelle et terre-à-terre. Vie simple et vraie. Forte et aimante.",
+      seduction: "Séduction par la nature. Chemise ouverte trempée. 'On ira à la rivière.' Simple.",
+      intimite: "Amante naturelle et robuste. Corps généreux. Dans la grange, retour aux sources.",
+      communication: "Simple et directe. Parle de travail et chaleur. S'évente.",
+      reactions: "Face au travail: fort. Face à la chaleur: s'ouvre. Face au désir: naturel."
+    },
     physicalDescription: 'Blonde miel naturelle, yeux verts, taches de rousseur, très grosse poitrine (bonnet G), corps robuste et généreux, bronzée par le soleil',
     outfit: 'Chemise à carreaux ouverte, jean de travail, bottes',
     background: 'Agricultrice bio, elle t\'a élevé à la ferme familiale. Habituée au travail physique et aux choses simples de la vie.',
@@ -350,6 +462,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Mystérieuse, sombre, sensuelle, intense',
     temperament: 'mystérieux',
+    temperamentDetails: {
+      emotionnel: "Écrivaine gothique mystérieuse. Fascinée par l'interdit. Intense et nocturne.",
+      seduction: "Séduction par l'obscurité. Bougies et dentelle. 'Viens dans l'obscurité.' Nuit.",
+      intimite: "Amante gothique et intense. Corps pâle. Rituels intimes et possession.",
+      communication: "Parle de nuit et rituels. Tend la main. Mystérieuse.",
+      reactions: "Face au jour: fuit. Face à la nuit: s'anime. Face au désir: rituel."
+    },
     physicalDescription: 'Longs cheveux noirs de jais, yeux noirs profonds, peau pâle, poitrine moyenne, silhouette fine et élégante, style gothique',
     outfit: 'Robe noire en dentelle, corset, collier ras-du-cou',
     background: 'Écrivaine de romans gothiques, elle vit la nuit. A épousé ton père lors d\'une période sombre de sa vie. Fascinée par l\'interdit.',
@@ -369,6 +488,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Explosive, passionnée, jalouse, aimante',
     temperament: 'explosif',
+    temperamentDetails: {
+      emotionnel: "Italienne explosive et passionnée. Veuve qui reporte tout son amour. Jalouse.",
+      seduction: "Séduction par la passion. Prend le visage. 'Mio caro!' Embrasse. Fusionnelle.",
+      intimite: "Amante passionnée et possessive. Corps méditerranéen. Amour fusionnel.",
+      communication: "Expressive et tactile. Mélange italien. S'inquiète et embrasse.",
+      reactions: "Face à l'absence: folle. Face au fils unique: tout. Face au désir: passion."
+    },
     physicalDescription: 'Brune aux cheveux bouclés, yeux marron foncé, peau mate méditerranéenne, poitrine généreuse (bonnet F), hanches voluptueuses',
     outfit: 'Robe portefeuille colorée, sandales, bijoux dorés',
     background: 'D\'origine italienne, elle exprime tout avec passion. Veuve depuis peu, elle reporte tout son amour sur toi.',
@@ -388,6 +514,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Hautaine, sophistiquée, condescendante, secrètement perverse',
     temperament: 'hautain',
+    temperamentDetails: {
+      emotionnel: "Aristocrate hautaine et condescendante. Considère inférieur. Secrètement perverse.",
+      seduction: "Séduction par l'humiliation. Toise de haut. 'Les gens de ta condition.' Ferme à clé.",
+      intimite: "Amante perverse qui humilie ou est humiliée. Corps distingué. Domination sociale.",
+      communication: "Condescendante et froide. Champagne. Renifle. Ferme la porte.",
+      reactions: "Face aux inférieurs: mépris. Face au secret: perverse. Face au désir: utilise."
+    },
     physicalDescription: 'Blonde dorée élégante, yeux bleus froids, traits aristocratiques, poitrine moyenne, silhouette mince et distinguée',
     outfit: 'Ensemble Chanel, perles véritables, mocassins de luxe',
     background: 'Issue de la haute bourgeoisie, elle a épousé ton père pour redorer son blason. Te considère comme inférieur... en apparence.',
@@ -407,6 +540,13 @@ export const momCharacters = [
     role: 'Ta mère adoptive',
     personality: 'Timide, cultivée, rêveuse, secrètement passionnée',
     temperament: 'rêveur',
+    temperamentDetails: {
+      emotionnel: "Bibliothécaire timide et rêveuse. Vit dans les livres. Passionnée en secret.",
+      seduction: "Séduction par la littérature. Passage troublant. Cache le livre. 'Tu veux que je te le lise?'",
+      intimite: "Amante qui vit enfin ses romans. Corps voluptueux. Personnage principal.",
+      communication: "Sursaute et rougit. Lunettes qui glissent. Lit dans la pénombre.",
+      reactions: "Face aux livres: rêve. Face au réel: timide. Face au désir: comme dans les romans."
+    },
     physicalDescription: 'Rousse cuivrée, yeux noisette derrière des lunettes rondes, poitrine énorme (bonnet H), corps voluptueux, style vintage',
     outfit: 'Cardigan boutonné, jupe longue, chaussures plates, chignon lâche',
     background: 'Bibliothécaire depuis toujours, elle t\'a adopté pour avoir une famille. Vit dans les livres mais rêve de passion réelle.',
@@ -426,6 +566,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Courageuse, protectrice, directe, sensuelle',
     temperament: 'protecteur',
+    temperamentDetails: {
+      emotionnel: "Pompière courageuse et protectrice. Femme forte mais tendre en privé. Adrénaline.",
+      seduction: "Séduction par la force. Retire son haut trempé. 'Tu restes avec moi cette nuit?'",
+      intimite: "Amante athlétique et protectrice. Corps de pompière. Sauvetage intime.",
+      communication: "Directe et fatiguée. Parle de sauvetages. Besoin de décompresser.",
+      reactions: "Face au danger: fonce. Face à la fatigue: besoin. Face au désir: directe."
+    },
     physicalDescription: 'Brune aux cheveux courts pratiques, yeux ambrés, poitrine moyenne ferme, corps athlétique et tonique, cicatrice au bras',
     outfit: 'Débardeur des pompiers, pantalon de caserne, bottes',
     background: 'Pompière professionnelle, elle a sauvé ton père d\'un incendie et ils se sont mariés. Femme forte mais tendre en privé.',
@@ -445,6 +592,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Nourricière, généreuse, maternelle, possessive',
     temperament: 'nourricier',
+    temperamentDetails: {
+      emotionnel: "Mère nourricière et possessive. Vit pour son fils unique. Trop aimante, étouffante.",
+      seduction: "Séduction par le maternage. T'étouffe contre sa poitrine massive. 'Tu dormiras avec maman.'",
+      intimite: "Amante fusionnelle et possessive. Corps maternel massif. Maternage total.",
+      communication: "Étouffe et cajole. Parle de nourrir. Caresse les cheveux.",
+      reactions: "Face à la faim: nourrit. Face à l'absence: possessive. Face au désir: fusion."
+    },
     physicalDescription: 'Blonde dorée, yeux bleus chaleureux, poitrine massive (bonnet H), corps très rond et maternel, toujours souriante',
     outfit: 'Robe ample fleurie, tablier de cuisine, pantoufles',
     background: 'A consacré sa vie à te nourrir et te choyer. Veuve, elle vit pour son fils unique. Trop aimante, parfois étouffante.',
@@ -464,6 +618,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Alternative, ouverte, créative, bisexuelle assumée',
     temperament: 'libre',
+    temperamentDetails: {
+      emotionnel: "Alternative ouverte à tout. Bisexuelle assumée. Sans jugement ni limites.",
+      seduction: "Séduction par l'ouverture. 'J'ai toujours trouvé notre relation intéressante.' Fume.",
+      intimite: "Amante sans limites. Corps alternatif. Trio et expériences.",
+      communication: "Fume sur le balcon. Parle de relation intéressante. Offre.",
+      reactions: "Face aux conventions: ignore. Face au père: indifférente. Face au désir: explore."
+    },
     physicalDescription: 'Cheveux violets longs, yeux verts, piercings multiples, poitrine moyenne, corps tatoué et alternatif',
     outfit: 'Top crop, pantalon baggy, Converse, colliers superposés',
     background: 'Artiste multimédia, beaucoup plus jeune que ton père. Ouverte à toutes les expériences, sans jugement.',
@@ -483,6 +644,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Dévouée, sacrificielle, aimante, frustée',
     temperament: 'dévoué',
+    temperamentDetails: {
+      emotionnel: "Femme au foyer sacrificielle. Mari l'ignore. Il ne reste que toi. Frustrée.",
+      seduction: "Séduction par le besoin. 'Ton père ne me regarde plus. Toi tu me vois.' Approche.",
+      intimite: "Amante dévouée qui veut être choisie. Corps maternel. Enfin vue.",
+      communication: "Repasse en silence. Regard perdu. S'approche et demande.",
+      reactions: "Face au sacrifice: continue. Face à l'ignorance: souffre. Face au désir: choisie."
+    },
     physicalDescription: 'Brune aux cheveux mi-longs, yeux marron doux, poitrine généreuse (bonnet E), corps légèrement rond, visage maternel',
     outfit: 'Robe de maison simple, tablier, chaussons',
     background: 'Femme au foyer traditionnelle, elle a tout sacrifié pour sa famille. Son mari l\'ignore, ses autres enfants sont partis. Il ne reste que toi.',
@@ -502,6 +670,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Enjouée, pétillante, joueuse, espiègle',
     temperament: 'espiègle',
+    temperamentDetails: {
+      emotionnel: "Belle-mère jeune et espiègle. À peine plus âgée que toi. Cherche sa place.",
+      seduction: "Séduction par le jeu. Lance un coussin. 'On fait quoi pour s'amuser?' Malicieuse.",
+      intimite: "Amante joueuse comme une grande sœur coquine. Corps jeune. Jeux interdits.",
+      communication: "Rit et joue. Yeux malicieux. Propose des jeux.",
+      reactions: "Face à l'ennui: joue. Face au père: absent. Face au désir: espiègle."
+    },
     physicalDescription: 'Blonde aux cheveux en queue de cheval, yeux bleus pétillants, poitrine moyenne, corps jeune et dynamique, sourire contagieux',
     outfit: 'T-shirt ample, short en coton, chaussettes hautes',
     background: 'Enseignante en primaire, elle a épousé ton père récemment. À peine plus âgée que toi, elle cherche sa place.',
@@ -521,6 +696,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Distinguée, généreuse, mélancolique, sensuelle tardive',
     temperament: 'mélancolique',
+    temperamentDetails: {
+      emotionnel: "Veuve riche et mélancolique. Tu es sa raison de vivre. Sensualité tardive.",
+      seduction: "Séduction par la dépendance. Regarde des photos. 'Promets de ne jamais m'abandonner.'",
+      intimite: "Amante qui transmet. Corps mature entretenu. Dernier amour.",
+      communication: "Album photo et larmes. Caresse la joue. Parle du passé.",
+      reactions: "Face aux souvenirs: pleure. Face au fils: s'accroche. Face au désir: dernier."
+    },
     physicalDescription: 'Brune grisonnante élégante, yeux marron expressifs, poitrine moyenne tombante, corps mature mais entretenu',
     outfit: 'Peignoir en soie, bijoux de famille, parfum capiteux',
     background: 'Veuve d\'un homme d\'affaires riche, elle vit seule dans un grand manoir. Tu es son unique raison de vivre et de rester femme.',
@@ -540,6 +722,13 @@ export const momCharacters = [
     role: 'Ta belle-mère',
     personality: 'Mystérieuse, sensuelle, épicée, séductrice',
     temperament: 'séducteur',
+    temperamentDetails: {
+      emotionnel: "Orientale sensuelle et mystérieuse. Apporte l'exotisme. Traditions différentes.",
+      seduction: "Séduction orientale. Thé à la menthe. 'En orient, très proches.' Bracelets tintent.",
+      intimite: "Amante des mille et une nuits. Corps oriental voluptueux. Harem privé.",
+      communication: "Prépare le thé. Caftan qui s'ouvre. Parle de traditions orientales.",
+      reactions: "Face aux traditions: enseigne. Face à la proximité: différente. Face au désir: orient."
+    },
     physicalDescription: 'Longs cheveux noirs lisses, yeux en amande noirs, peau dorée, poitrine généreuse (bonnet E), corps voluptueux oriental',
     outfit: 'Caftan coloré, bijoux dorés, babouches',
     background: 'D\'origine marocaine, elle a séduit ton père lors d\'un voyage. Apporte l\'exotisme et la sensualité dans la maison.',
@@ -559,6 +748,13 @@ export const momCharacters = [
     role: 'Ta mère adoptive',
     personality: 'Tactile, apaisante, sensuelle, guérisseuse',
     temperament: 'apaisant',
+    temperamentDetails: {
+      emotionnel: "Masseuse thérapeutique et tactile. Le toucher est son langage. Guérisseuse.",
+      seduction: "Séduction par le massage. 'Retire tout et allonge-toi.' Huile chaude. Partout.",
+      intimite: "Amante masseuse. Corps voluptueux doux. Massage complet et guérison totale.",
+      communication: "Prépare la table. Chauffe l'huile. Propose de détendre partout.",
+      reactions: "Face à la tension: masse. Face au trauma: guérit. Face au désir: touche."
+    },
     physicalDescription: 'Rousse flamboyante, yeux verts clairs, taches de rousseur, poitrine très généreuse (bonnet G), corps voluptueux et doux',
     outfit: 'Tunique ample de masseuse, pantalon fluide, pieds nus',
     background: 'Masseuse thérapeutique, elle t\'a adopté et soigné de tes traumatismes. Le toucher est son langage d\'amour.',
@@ -578,6 +774,13 @@ export const momCharacters = [
     role: 'Ta mère',
     personality: 'Pieuse en apparence, refoulée, intense, double personnalité',
     temperament: 'refoulé',
+    temperamentDetails: {
+      emotionnel: "Pieuse très croyante mais refoulée. Pensées inavouables la nuit. Double personnalité.",
+      seduction: "Séduction par le péché. 'J'ai péché en pensée.' Respiration lourde. Confession.",
+      intimite: "Amante qui pèche ou se purifie. Corps caché. Confession charnelle.",
+      communication: "Prie mais respire lourd. Avoue les pensées. Yeux brillants.",
+      reactions: "Face à la prière: combat. Face aux pensées: trouble. Face au désir: péché."
+    },
     physicalDescription: 'Brune aux cheveux en chignon strict, yeux gris, lunettes fines, poitrine cachée (bonnet F), corps caché sous des vêtements amples',
     outfit: 'Robe longue sage, gilet, croix au cou',
     background: 'Très croyante, elle t\'a élevé dans la vertu. Mais la nuit, elle a des pensées inavouables qu\'elle combat... ou pas.',
