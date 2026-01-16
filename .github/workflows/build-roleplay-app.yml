@@ -99,19 +99,20 @@ jobs:
             gh release upload $TAG "$APK_FILE" --clobber
           else
             echo "Creating new release $TAG..."
-            gh release create $TAG "$APK_FILE" \
-              --title "Boys & Girls v$VERSION" \
-              --notes "## Boys & Girls v$VERSION
-
-### Nouveautés v6.0.0
-- **Cohérence NSFW absolue**: Le mode NSFW ne s'active plus automatiquement
-- Les réponses restent cohérentes avec les messages de l'utilisateur
-- Nouveau mode 'nsfw_soft' pour contextes intimes sans forcer le contenu sexuel
-- Corrections génération d'images (termes visuels améliorés)
-- ID utilisateur unique pour Pollinations AI
-
-📱 **Télécharger**: Boys-and-Girls-v$VERSION-android.apk
-🔄 **Après installation**: Redémarrer l'application"
+            NOTES=$(cat << 'EOF'
+          ## Boys & Girls v$VERSION
+          
+          ### Nouveautés
+          * Cohérence NSFW absolue: Le mode NSFW ne s'active plus automatiquement
+          * Les réponses restent cohérentes avec les messages de l'utilisateur
+          * Nouveau mode nsfw_soft pour contextes intimes sans forcer le contenu sexuel
+          * Corrections génération d'images (termes visuels améliorés)
+          * ID utilisateur unique pour Pollinations AI
+          
+          Télécharger: Boys-and-Girls-v$VERSION-android.apk
+          EOF
+          )
+            gh release create $TAG "$APK_FILE" --title "Boys & Girls v$VERSION" --notes "$NOTES"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
