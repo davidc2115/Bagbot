@@ -538,14 +538,10 @@ export default function CharacterCarouselScreen({ navigation }) {
         </Animated.View>
       </View>
 
-      {/* Bouton démarrer avec image dorée */}
+      {/* Bouton démarrer doré */}
       <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.selectButton} onPress={handleSelect}>
-          <Image
-            source={require('../../assets/gold-button.png')}
-            style={styles.goldButtonImage}
-            resizeMode="contain"
-          />
+          <Text style={styles.selectButtonText}>💬 Discuter</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -973,10 +969,20 @@ const styles = StyleSheet.create({
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#C9A227',
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#ffd700',
+    shadowColor: '#ffd700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
   },
-  goldButtonImage: {
-    width: '100%',
-    height: '100%',
+  selectButtonText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#0a0a12',
+    letterSpacing: 1,
   },
   emptyText: {
     fontSize: 18,
