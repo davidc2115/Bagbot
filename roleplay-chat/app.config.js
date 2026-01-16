@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "Boys & Girls",
     slug: "roleplay-chat-app",
-    version: "5.0.6",
+    version: "6.0.0",
     orientation: "portrait",
     userInterfaceStyle: "dark",
     splash: {
@@ -18,7 +18,7 @@ export default {
     },
     android: {
       package: "com.boysandgirls.chat",
-      versionCode: 50006,
+      versionCode: 60000,
       permissions: [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
