@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd roleplay-chat
-          npm ci
+          npm install
           
       - name: Get version
         id: get_version
