@@ -21,14 +21,27 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState(null);
+  const [checkingServer, setCheckingServer] = useState(false);
 
   useEffect(() => {
     checkServer();
   }, []);
 
   const checkServer = async () => {
-    const online = await AuthService.checkServerHealth();
-    setServerOnline(online);
+    setCheckingServer(true);
+    setServerOnline(null); // Reset pendant la vérification
+    try {
+      const online = await AuthService.checkServerHealth();
+      setServerOnline(online);
+      if (!online) {
+        console.log('❌ Serveur hors ligne - vérifiez votre connexion internet');
+      }
+    } catch (error) {
+      console.log('❌ Erreur vérification serveur:', error.message);
+      setServerOnline(false);
+    } finally {
+      setCheckingServer(false);
+    }
   };
 
   const handleEmailAuth = async () => {
@@ -183,12 +196,23 @@ export default function LoginScreen({ navigation, onLoginSuccess, forceLogin = f
         </View>
 
         {/* Statut serveur */}
-        {serverOnline !== null && (
-          <View style={[styles.serverStatus, { backgroundColor: serverOnline ? '#dcfce7' : '#fef2f2' }]}>
-            <Text style={[styles.serverStatusText, { color: serverOnline ? '#166534' : '#991b1b' }]}>
-              {serverOnline ? '🟢 Serveur en ligne' : '🔴 Serveur hors ligne'}
+        {checkingServer ? (
+          <View style={[styles.serverStatus, { backgroundColor: '#fef3c7' }]}>
+            <ActivityIndicator size="small" color="#92400e" />
+            <Text style={[styles.serverStatusText, { color: '#92400e', marginLeft: 8 }]}>
+              Vérification du serveur...
             </Text>
           </View>
+        ) : serverOnline !== null && (
+          <TouchableOpacity 
+            style={[styles.serverStatus, { backgroundColor: serverOnline ? '#dcfce7' : '#fef2f2' }]}
+            onPress={checkServer}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.serverStatusText, { color: serverOnline ? '#166534' : '#991b1b' }]}>
+              {serverOnline ? '🟢 Serveur en ligne' : '🔴 Serveur hors ligne - Appuyez pour réessayer'}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Formulaire Email */}
