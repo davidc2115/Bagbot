@@ -425,40 +425,12 @@ class AuthService {
 
   /**
    * Vérifie si le serveur est accessible
-   * v6.0.1 - Timeout augmenté + retry + fallback endpoints
    */
   async checkServerHealth() {
-    const endpoints = ['/health', '/api/health'];
-    const timeout = 15000; // 15 secondes pour les connexions mobiles lentes
-    
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`🔍 Test serveur: ${this.baseUrl}${endpoint}`);
-        const response = await axios.get(`${this.baseUrl}${endpoint}`, { 
-          timeout,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          }
-        });
-        
-        if (response.data.status === 'ok') {
-          console.log(`✅ Serveur en ligne via ${endpoint}`);
-          return true;
-        }
-      } catch (error) {
-        console.log(`⚠️ Échec ${endpoint}: ${error.message}`);
-        // Continuer avec le prochain endpoint
-      }
-    }
-    
-    // Dernier essai avec un timeout plus long
     try {
-      console.log('🔄 Dernier essai avec timeout étendu...');
-      const response = await axios.get(`${this.baseUrl}/health`, { timeout: 30000 });
+      const response = await axios.get(`${this.baseUrl}/health`, { timeout: 5000 });
       return response.data.status === 'ok';
     } catch (error) {
-      console.log(`❌ Serveur inaccessible: ${error.message}`);
       return false;
     }
   }

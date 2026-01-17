@@ -306,7 +306,7 @@ export default function CharacterCarouselScreen({ navigation }) {
       {/* Logo Boys & Girls */}
       <View style={styles.logoContainer}>
         <Text style={styles.logoTitle}>💋 Boys & Girls 💋</Text>
-        <Text style={styles.logoVersion}>v6.0.1</Text>
+        <Text style={styles.logoVersion}>v6.0.2</Text>
       </View>
       
       {/* Header Premium */}
