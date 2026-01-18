@@ -1099,7 +1099,7 @@ function ensureEconomyShape(g) {
     "Ça brûle un peu… mais l'appétit reste entier!",
     "La cuisine est en désordre, vous finirez par commander."
   ]);
-  const defaultEnabled = ['work','fish','give','steal','kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','massage','dance','crime','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','daily','touche','reveiller','cuisiner','douche'];
+  const defaultEnabled = ['work','fish','give','steal','kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','calin','massage','dance','crime','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','daily','touche','reveiller','cuisiner','douche','sixtynine','boire'];
   if (!Array.isArray(e.actions.enabled)) e.actions.enabled = defaultEnabled;
   else {
     for (const k of defaultEnabled) if (!e.actions.enabled.includes(k)) e.actions.enabled.push(k);
@@ -1153,7 +1153,10 @@ function ensureEconomyShape(g) {
     touche: { label: '✋ Toucher', description: 'Toucher sensuellement' },
     reveiller: { label: '⏰ Réveiller', description: 'Réveiller quelqu\'un' },
     cuisiner: { label: '👨‍🍳 Cuisiner', description: 'Cuisiner pour quelqu\'un' },
-    douche: { label: '🚿 Douche', description: 'Douche sensuelle' }
+    douche: { label: '🚿 Douche', description: 'Douche sensuelle' },
+    calin: { label: '🤗 Câlin', description: 'Faire un câlin chaleureux' },
+    sixtynine: { label: '♋ 69', description: 'Position 69' },
+    boire: { label: '🍺 Boire un verre', description: 'Boire un verre ensemble' }
   };
   
   // Ajouter les labels manquants
@@ -1212,6 +1215,7 @@ function ensureEconomyShape(g) {
     tickle: { moneyMin: 4, moneyMax: 12, karma: 'charm', karmaDelta: 2, cooldown: 60, successRate: 0.9, failMoneyMin: 1, failMoneyMax: 3, failKarmaDelta: 1, partnerMoneyShare: 1.0, partnerKarmaShare: 1.0 },
     revive: { moneyMin: 6, moneyMax: 18, karma: 'charm', karmaDelta: 3, cooldown: 180, successRate: 0.85, failMoneyMin: 2, failMoneyMax: 6, failKarmaDelta: 1, partnerMoneyShare: 1.0, partnerKarmaShare: 1.0 },
     comfort: { moneyMin: 5, moneyMax: 15, karma: 'charm', karmaDelta: 3, cooldown: 90, successRate: 0.9, failMoneyMin: 1, failMoneyMax: 4, failKarmaDelta: 1, partnerMoneyShare: 1.2, partnerKarmaShare: 1.0 },
+    calin: { moneyMin: 3, moneyMax: 10, karma: 'charm', karmaDelta: 2, cooldown: 60, successRate: 0.95, failMoneyMin: 1, failMoneyMax: 3, failKarmaDelta: 1, partnerMoneyShare: 1.0, partnerKarmaShare: 1.0, zones: ['Câlin classique', 'Câlin chaleureux', 'Câlin réconfortant', 'Câlin tendre', 'Gros câlin', 'Câlin amical', 'Câlin doux', 'Câlin prolongé', 'Câlin sincère', 'Câlin affectueux'] },
     flirt: { moneyMin: 5, moneyMax: 15, karma: 'charm', karmaDelta: 2, cooldown: 60, successRate: 0.8, failMoneyMin: 2, failMoneyMax: 5, failKarmaDelta: 2, partnerMoneyShare: 1.2, partnerKarmaShare: 1.5 },
     seduce: { moneyMin: 10, moneyMax: 20, karma: 'charm', karmaDelta: 3, cooldown: 120, successRate: 0.7, failMoneyMin: 5, failMoneyMax: 10, failKarmaDelta: 3, partnerMoneyShare: 1.2, partnerKarmaShare: 1.5 },
     fuck: { moneyMin: 20, moneyMax: 50, karma: 'perversion', karmaDelta: 5, cooldown: 600, successRate: 0.7, failMoneyMin: 10, failMoneyMax: 20, failKarmaDelta: 5, partnerMoneyShare: 1.2, partnerKarmaShare: 1.5 },
@@ -1248,6 +1252,8 @@ function ensureEconomyShape(g) {
     caught: { moneyMin: 3, moneyMax: 12, karma: 'perversion', karmaDelta: 1, cooldown: 60, successRate: 0.9, failMoneyMin: 1, failMoneyMax: 3, failKarmaDelta: 1, partnerMoneyShare: 0.0, partnerKarmaShare: 0.0 },
     tromper: { moneyMin: 15, moneyMax: 40, karma: 'perversion', karmaDelta: 3, cooldown: 300, successRate: 0.6, failMoneyMin: 10, failMoneyMax: 25, failKarmaDelta: 3, partnerMoneyShare: 0.0, partnerKarmaShare: 0.0 },
     orgie: { moneyMin: 30, moneyMax: 100, karma: 'perversion', karmaDelta: 6, cooldown: 900, successRate: 0.65, failMoneyMin: 15, failMoneyMax: 35, failKarmaDelta: 4, partnerMoneyShare: 0.0, partnerKarmaShare: 0.0 },
+    sixtynine: { moneyMin: 25, moneyMax: 65, karma: 'perversion', karmaDelta: 6, cooldown: 600, successRate: 0.75, failMoneyMin: 12, failMoneyMax: 25, failKarmaDelta: 4, partnerMoneyShare: 1.5, partnerKarmaShare: 1.5 },
+    boire: { moneyMin: 5, moneyMax: 15, karma: 'charm', karmaDelta: 2, cooldown: 90, successRate: 0.9, failMoneyMin: 2, failMoneyMax: 5, failKarmaDelta: 1, partnerMoneyShare: 1.0, partnerKarmaShare: 1.0, types: ['Bière', 'Vin', 'Cocktail', 'Champagne', 'Whisky', 'Rhum', 'Vodka', 'Gin', 'Tequila', 'Sangria', 'Mojito', 'Shot'] },
   };
   // Add XP parameters defaults for actions (success/fail) + partner XP share
   const xpDefaults = {
@@ -1265,6 +1271,7 @@ function ensureEconomyShape(g) {
     tickle: { xpDelta: 6, failXpDelta: 1, partnerXpShare: 1.0 },
     revive: { xpDelta: 10, failXpDelta: 2, partnerXpShare: 1.0 },
     comfort: { xpDelta: 8, failXpDelta: 2, partnerXpShare: 1.0 },
+    calin: { xpDelta: 6, failXpDelta: 1, partnerXpShare: 1.0 },
     flirt: { xpDelta: 8, failXpDelta: 2, partnerXpShare: 1.0 },
     seduce: { xpDelta: 12, failXpDelta: 3, partnerXpShare: 1.0 },
     fuck: { xpDelta: 20, failXpDelta: 5, partnerXpShare: 1.0 },
@@ -1292,6 +1299,8 @@ function ensureEconomyShape(g) {
     caught: { xpDelta: 5, failXpDelta: 1, partnerXpShare: 0.0 },
     tromper: { xpDelta: 12, failXpDelta: 3, partnerXpShare: 0.0 },
     orgie: { xpDelta: 24, failXpDelta: 6, partnerXpShare: 0.0 },
+    sixtynine: { xpDelta: 20, failXpDelta: 5, partnerXpShare: 1.5 },
+    boire: { xpDelta: 8, failXpDelta: 2, partnerXpShare: 1.0 },
   };
   for (const [k, d] of Object.entries(defaults)) {
     if (!e.actions.config[k] || typeof e.actions.config[k] !== 'object') e.actions.config[k] = { ...d };
@@ -1494,6 +1503,42 @@ function ensureEconomyShape(g) {
       fail: [
         'Orgie avortée: ambiance cassée, on remballe.',
         'Ça ne prend pas cette fois, chacun rentre frustré.',
+      ]
+    },
+    boire: {
+      success: [
+        'Tu verses un verre à {target}, le contact de vos mains fait monter la tension…',
+        'Vous trinquez, le regard intense, l\'alcool n\'est qu\'un prétexte…',
+        'Tu glisses le verre vers {target} avec un sourire coquin, la soirée s\'annonce chaude.',
+        'Vos verres s\'entrechoquent, l\'ambiance devient électrique entre vous.',
+        'Tu sers généreusement {target}, qui te lance un regard plein de sous-entendus.',
+        'L\'alcool délie les langues et les corps… Vous vous rapprochez dangereusement.',
+        'Tu partages cette bouteille avec {target}, chaque gorgée rapproche vos lèvres.',
+        'Vous buvez au même verre, échange de salive et promesses silencieuses.',
+        'Tu fais goûter ta boisson à {target}, langue contre langue, c\'est torride.',
+        'L\'alcool vous échauffe, les mains commencent à se balader…',
+        'Tu proposes un jeu à boire coquin, {target} accepte avec un sourire malicieux.',
+        'Chaque shot vous rapproche, l\'inhibition disparaît progressivement…',
+        'Tu verses directement dans la bouche de {target}, moment intense et sensuel.',
+        'Vous partagez ce verre dans une atmosphère de plus en plus chaude.',
+        'L\'alcool coule, les vêtements commencent à tomber… La soirée ne fait que commencer.',
+        'Tu embrasses {target} avec le goût de l\'alcool sur les lèvres, feu et passion.',
+        'Vous vous enivrez l\'un de l\'autre autant que de vos verres…',
+        'Tu lèches une goutte sur le cou de {target}, prétexte parfait pour plus.',
+        'L\'alcool n\'est qu\'une excuse, vous savez tous deux où ça va mener…',
+        'Entre deux verres, vos corps se collent, promesse d\'une nuit torride.'
+      ],
+      fail: [
+        '{target} refuse, trop d\'alcool tue le désir.',
+        'Tu renverses le verre sur toi, moment sexy ruiné.',
+        '{target} grimace, vraiment pas son truc, ambiance cassée.',
+        'Trop insistant(e), {target} recule et met les limites.',
+        'L\'alcool te fait faire n\'importe quoi, {target} préfère arrêter là.',
+        'Tu proposes mais {target} n\'est pas d\'humeur coquine ce soir.',
+        'Le verre te glisse des mains, fail complet devant {target}.',
+        '{target} refuse net, pas question de mélanger alcool et jeu sensuel.',
+        'Tu tentes mais {target} a passé l\'âge de ces combines d\'ado.',
+        '{target} te repousse, trop bourré(e) pour être sexy là.'
       ]
     }
   };
@@ -1749,19 +1794,69 @@ function ensureAutoThreadShape(g) {
 function ensureCountingShape(g) {
   if (!g.counting || typeof g.counting !== 'object') g.counting = {};
   const c = g.counting;
-  if (!Array.isArray(c.channels)) c.channels = [];
-  if (typeof c.allowFormulas !== 'boolean') c.allowFormulas = true;
-  if (!c.state || typeof c.state !== 'object') c.state = { current: 0, lastUserId: '' };
-  // Be tolerant: some clients may persist numbers as strings.
-  if (typeof c.state.current === 'string') {
-    const s = c.state.current.trim();
-    const n = Number(s);
-    c.state.current = Number.isFinite(n) ? n : 0;
-  } else if (typeof c.state.current !== 'number') {
-    c.state.current = 0;
+  
+  // MIGRATION: Ancien format avec c.channels array + c.state unique
+  // Nouveau format: c.channels object avec un état par channel
+  if (Array.isArray(c.channels)) {
+    // Migration depuis l'ancien format
+    const oldChannels = c.channels;
+    const oldState = c.state || { current: 0, lastUserId: '' };
+    const oldAchievedNumbers = c.achievedNumbers || [];
+    const oldAllowFormulas = typeof c.allowFormulas === 'boolean' ? c.allowFormulas : true;
+    
+    // Créer le nouveau format
+    c.channels = {};
+    
+    // Migrer chaque channel avec l'état partagé (on le duplique pour chaque channel)
+    for (const channelId of oldChannels) {
+      c.channels[channelId] = {
+        allowFormulas: oldAllowFormulas,
+        state: { ...oldState },
+        achievedNumbers: [...oldAchievedNumbers],
+        deleteInvalid: true  // Nouvelle option : supprimer les messages invalides
+      };
+    }
+    
+    // Nettoyer les anciennes propriétés
+    delete c.state;
+    delete c.achievedNumbers;
+    delete c.allowFormulas;
   }
-  if (typeof c.state.lastUserId !== 'string') c.state.lastUserId = '';
-  if (!Array.isArray(c.achievedNumbers)) c.achievedNumbers = [];
+  
+  // Assurer que c.channels est un objet
+  if (!c.channels || typeof c.channels !== 'object' || Array.isArray(c.channels)) {
+    c.channels = {};
+  }
+  
+  // Assurer la forme de chaque channel
+  for (const channelId in c.channels) {
+    const ch = c.channels[channelId];
+    if (typeof ch !== 'object') {
+      c.channels[channelId] = {
+        allowFormulas: true,
+        state: { current: 0, lastUserId: '' },
+        achievedNumbers: [],
+        deleteInvalid: true
+      };
+      continue;
+    }
+    
+    if (typeof ch.allowFormulas !== 'boolean') ch.allowFormulas = true;
+    if (typeof ch.deleteInvalid !== 'boolean') ch.deleteInvalid = true;
+    
+    if (!ch.state || typeof ch.state !== 'object') ch.state = { current: 0, lastUserId: '' };
+    // Be tolerant: some clients may persist numbers as strings.
+    if (typeof ch.state.current === 'string') {
+      const s = ch.state.current.trim();
+      const n = Number(s);
+      ch.state.current = Number.isFinite(n) ? n : 0;
+    } else if (typeof ch.state.current !== 'number') {
+      ch.state.current = 0;
+    }
+    if (typeof ch.state.lastUserId !== 'string') ch.state.lastUserId = '';
+    
+    if (!Array.isArray(ch.achievedNumbers)) ch.achievedNumbers = [];
+  }
 }
 function ensureDisboardShape(g) {
   if (!g.disboard || typeof g.disboard !== 'object') g.disboard = {};
@@ -1886,12 +1981,120 @@ async function updateCountingConfig(guildId, partial) {
 }
 
 async function setCountingState(guildId, state) {
+  // DEPRECATED: Cette fonction est conservée pour rétrocompatibilité mais ne devrait plus être utilisée
+  // Utiliser setCountingChannelState à la place
   const cfg = await readConfig();
   if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
   ensureCountingShape(cfg.guilds[guildId]);
-  cfg.guilds[guildId].counting.state = { ...(cfg.guilds[guildId].counting.state || {}), ...state };
+  
+  // Si l'ancien format existe encore, mettre à jour l'état global
+  if (cfg.guilds[guildId].counting.state) {
+    cfg.guilds[guildId].counting.state = { ...(cfg.guilds[guildId].counting.state || {}), ...state };
+  } else {
+    // Nouveau format : mettre à jour tous les channels
+    for (const channelId in cfg.guilds[guildId].counting.channels) {
+      cfg.guilds[guildId].counting.channels[channelId].state = { 
+        ...(cfg.guilds[guildId].counting.channels[channelId].state || {}), 
+        ...state 
+      };
+    }
+  }
+  
   await writeConfig(cfg, "counting");
-  return cfg.guilds[guildId].counting.state;
+  return state;
+}
+
+// Nouvelles fonctions pour gérer l'état par channel
+async function getCountingChannelConfig(guildId, channelId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  const channels = cfg.guilds[guildId].counting.channels || {};
+  if (!channels[channelId]) {
+    // Créer la config par défaut pour ce channel
+    channels[channelId] = {
+      allowFormulas: true,
+      state: { current: 0, lastUserId: '' },
+      achievedNumbers: [],
+      deleteInvalid: true
+    };
+  }
+  
+  return channels[channelId];
+}
+
+async function setCountingChannelState(guildId, channelId, state) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  if (!cfg.guilds[guildId].counting.channels[channelId]) {
+    cfg.guilds[guildId].counting.channels[channelId] = {
+      allowFormulas: true,
+      state: { current: 0, lastUserId: '' },
+      achievedNumbers: [],
+      deleteInvalid: true
+    };
+  }
+  
+  cfg.guilds[guildId].counting.channels[channelId].state = { 
+    ...(cfg.guilds[guildId].counting.channels[channelId].state || {}), 
+    ...state 
+  };
+  
+  await writeConfig(cfg, "counting");
+  return cfg.guilds[guildId].counting.channels[channelId].state;
+}
+
+async function updateCountingChannelConfig(guildId, channelId, partial) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  if (!cfg.guilds[guildId].counting.channels[channelId]) {
+    cfg.guilds[guildId].counting.channels[channelId] = {
+      allowFormulas: true,
+      state: { current: 0, lastUserId: '' },
+      achievedNumbers: [],
+      deleteInvalid: true
+    };
+  }
+  
+  cfg.guilds[guildId].counting.channels[channelId] = {
+    ...cfg.guilds[guildId].counting.channels[channelId],
+    ...partial
+  };
+  
+  await writeConfig(cfg, "counting");
+  return cfg.guilds[guildId].counting.channels[channelId];
+}
+
+async function addCountingChannel(guildId, channelId, options = {}) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  cfg.guilds[guildId].counting.channels[channelId] = {
+    allowFormulas: options.allowFormulas !== undefined ? options.allowFormulas : true,
+    state: { current: 0, lastUserId: '' },
+    achievedNumbers: [],
+    deleteInvalid: options.deleteInvalid !== undefined ? options.deleteInvalid : true
+  };
+  
+  await writeConfig(cfg, "counting");
+  return cfg.guilds[guildId].counting.channels[channelId];
+}
+
+async function removeCountingChannel(guildId, channelId) {
+  const cfg = await readConfig();
+  if (!cfg.guilds[guildId]) cfg.guilds[guildId] = {};
+  ensureCountingShape(cfg.guilds[guildId]);
+  
+  delete cfg.guilds[guildId].counting.channels[channelId];
+  
+  await writeConfig(cfg, "counting");
+  return true;
 }
 async function getDisboardConfig(guildId) {
   const cfg = await readConfig();
@@ -2191,6 +2394,11 @@ module.exports = {
   getCountingConfig,
   updateCountingConfig,
   setCountingState,
+  getCountingChannelConfig,
+  setCountingChannelState,
+  updateCountingChannelConfig,
+  addCountingChannel,
+  removeCountingChannel,
   getDisboardConfig,
   updateDisboardConfig,
   // Tribunal

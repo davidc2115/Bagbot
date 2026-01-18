@@ -10,7 +10,7 @@ try {
   try { console.error('[Lock] init failed:', e?.message || e); } catch (_) {}
 }
 
-const { setGuildStaffRoleIds, getGuildStaffRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
+const { setGuildStaffRoleIds, getGuildStaffRoleIds, ensureStorageExists, getAutoKickConfig, updateAutoKickConfig, addPendingJoiner, removePendingJoiner, updateMemberActivity, setPlannedInactivity, removePlannedInactivity, getInactivityTracking, updateLastInactivityCheck, getLevelsConfig, updateLevelsConfig, getUserStats, setUserStats, getEconomyConfig, updateEconomyConfig, getEconomyUser, setEconomyUser, getTruthDareConfig, updateTruthDareConfig, addTdChannels, removeTdChannels, addTdPrompts, deleteTdPrompts, editTdPrompt, getConfessConfig, updateConfessConfig, addConfessChannels, removeConfessChannels, incrementConfessCounter, getGeoConfig, setUserLocation, getUserLocation, getAllLocations, getAutoThreadConfig, updateAutoThreadConfig, getCountingConfig, updateCountingConfig, setCountingState, getCountingChannelConfig, setCountingChannelState, updateCountingChannelConfig, addCountingChannel, removeCountingChannel, getDisboardConfig, updateDisboardConfig, getLogsConfig, updateLogsConfig, getGuildFooterLogo, getGuildCategoryBanners } = require('./storage/jsonStore');
 const { downloadDiscordGifForBot } = require('./utils/discord_gif_downloader');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 
@@ -1520,7 +1520,7 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
     return renderSafeReply(interaction, "⛔ Action désactivée.", { ephemeral: true });
   }
   // Resolve optional/required partner for actions that target a user
-  const actionsWithTarget = ['kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','massage','dance','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','touche','reveiller','douche','sixtynine','calin','give','steal'];
+  const actionsWithTarget = ['kiss','flirt','seduce','fuck','sodo','orgasme','branler','doigter','hairpull','caress','lick','suck','nibble','tickle','revive','comfort','massage','dance','shower','wet','bed','undress','collar','leash','kneel','order','punish','rose','wine','pillowfight','sleep','oops','caught','tromper','orgie','touche','reveiller','douche','sixtynine','calin','boire','give','steal'];
   let initialPartner = null;
   let tromperResolvedPartner = null;
   try {
@@ -2555,7 +2555,7 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
       ]
     };
     const texts = success ? sixtynineMessages.success : sixtynineMessages.fail;
-    // DISABLED: msgText = texts[randInt(0, texts.length - 1)];
+    msgText = texts[randInt(0, texts.length - 1)];
   }
   if (actionKey === 'branler') {
     const branlerMessages = {
@@ -2689,6 +2689,32 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
       ];
       msgText = texts[randInt(0, texts.length - 1)];
     }
+  }
+  if (actionKey === 'calin') {
+    const calinMessages = {
+      success: [
+        'Tu prends {cible} dans tes bras, câlin chaleureux et réconfortant.',
+        'Un câlin tendre avec {cible}, moment de douceur partagée.',
+        'Tu serres {cible} contre toi, câlin plein d\'affection.',
+        'Câlin câlin avec {cible}, chaleur humaine bienvenue.',
+        'Tu enveloppes {cible} de tes bras, moment cocooning parfait.',
+        '{cible} se blottit contre toi, câlin apaisant.',
+        'Un gros câlin réconfortant, {cible} se sent mieux.',
+        'Tu câlines {cible} tendrement, moment de complicité.',
+        'Câlin doux et prolongé avec {cible}, pure douceur.',
+        'Tu offres un câlin sincère à {cible}, sourires échangés.'
+      ],
+      fail: [
+        '{cible} te repousse doucement, pas d\'humeur pour les câlins.',
+        'Câlin raté, {cible} préfère son espace personnel.',
+        'Tu tends les bras mais {cible} recule, timing mauvais.',
+        '{cible} n\'est pas câlin aujourd\'hui, désolé.',
+        'Tentative de câlin, mais {cible} est occupé(e).',
+        'Pas de câlin cette fois, {cible} n\'est pas réceptif/ve.'
+      ]
+    };
+    const texts = success ? calinMessages.success : calinMessages.fail;
+    msgText = texts[randInt(0, texts.length - 1)];
   }
   if (actionKey === 'shower') {
     const showerMessages = {
@@ -3217,6 +3243,51 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
     };
     
     const texts = success ? doucheMessages.success : doucheMessages.fail;
+    msgText = texts[randInt(0, texts.length - 1)];
+  }
+  if (actionKey === 'boire') {
+    const boireMessages = {
+      success: [
+        'Tu trinques avec {cible}, le verre claque joyeusement, ambiance parfaite.',
+        'Vous levez vos verres ensemble, à la santé de votre amitié !',
+        'Tu commandes une tournée, {cible} sourit et accepte avec plaisir.',
+        'Vous sirotez tranquillement en discutant, moment de détente idéal.',
+        'Tu partages un moment convivial avec {cible} autour d\'un bon verre.',
+        'L\'alcool commence à faire effet, les rires fusent entre vous deux.',
+        'Tu portes un toast à {cible}, la soirée démarre bien !',
+        'Vous enchaînez les verres, l\'ambiance devient de plus en plus fun.',
+        'Tu offres un verre à {cible}, geste apprécié et convivialité assurée.',
+        'Vous dégustez ensemble, les langues se délient progressivement.',
+        'Tu sers généreusement {cible}, qui apprécie ton geste.',
+        'Vous buvez cul sec tous les deux, fous rires garantis !',
+        'Tu partages ce moment avec {cible}, complicité renforcée.',
+        'Vous trinquez bruyamment, attrapant l\'attention des autres.',
+        'Tu proposes un shot, {cible} accepte le défi sans hésiter.',
+        'Vous savourez chaque gorgée en discutant de tout et de rien.',
+        'Tu fais goûter ta boisson à {cible}, qui adore ça.',
+        'Vous passez un excellent moment ensemble, verres à la main.',
+        'Tu improvisent un jeu à boire avec {cible}, ambiance assurée.',
+        'Vous vous lâchez complètement, la soirée devient mémorable !'
+      ],
+      fail: [
+        '{cible} refuse poliment, pas d\'alcool ce soir.',
+        'Tu renverses maladroitement le verre sur la table, fail total.',
+        '{cible} grimace en goûtant, vraiment pas à son goût.',
+        'Tu proposes mais {cible} a déjà trop bu, ça suffit pour lui/elle.',
+        'Refus catégorique, {cible} préfère rester sobre.',
+        '{cible} te repousse gentiment, pas envie de boire maintenant.',
+        'Tu tends le verre mais {cible} secoue la tête, non merci.',
+        'Le verre est renversé avant même d\'avoir trinqué, pas de chance.',
+        '{cible} refuse, il/elle conduit ce soir.',
+        'Tu insistes mais {cible} n\'est vraiment pas d\'humeur.',
+        'Le verre te glisse des mains, situation embarrassante.',
+        '{cible} jette un œil au verre et refuse net, trop fort.',
+        'Tu proposes mais {cible} boit juste de l\'eau ce soir.',
+        'Refus poli mais ferme, {cible} a passé l\'âge de ces conneries.',
+        '{cible} est malade, vraiment pas le bon moment.'
+      ]
+    };
+    const texts = success ? boireMessages.success : boireMessages.fail;
     msgText = texts[randInt(0, texts.length - 1)];
   }
   // Special cases
@@ -5109,13 +5180,33 @@ async function buildAutoThreadRows(guild, page = 0) {
 
 async function buildCountingRows(guild) {
   const cfg = await getCountingConfig(guild.id);
+  
+  // Nouveau format : cfg.channels est un objet { channelId: config }
+  // Ancien format : cfg.channels est un array ['channelId1', 'channelId2']
+  const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+  
   const chAdd = new ChannelSelectMenuBuilder().setCustomId('counting_channels_add').setPlaceholder('Ajouter des salons…').setMinValues(1).setMaxValues(3).addChannelTypes(ChannelType.GuildText);
-  const chRem = new StringSelectMenuBuilder().setCustomId('counting_channels_remove').setPlaceholder('Retirer des salons…').setMinValues(1).setMaxValues(Math.max(1, Math.min(25, (cfg.channels||[]).length || 1)));
-  const opts = (cfg.channels||[]).map(id => ({ label: guild.channels.cache.get(id)?.name || id, value: id }));
+  const chRem = new StringSelectMenuBuilder().setCustomId('counting_channels_remove').setPlaceholder('Retirer des salons…').setMinValues(1).setMaxValues(Math.max(1, Math.min(25, channelIds.length || 1)));
+  
+  const opts = channelIds.map(id => {
+    const ch = guild.channels.cache.get(id);
+    const chCfg = cfg.channels[id] || {};
+    const current = chCfg.state?.current || 0;
+    return { 
+      label: `${ch?.name || id} (${current})`, 
+      value: id 
+    };
+  });
+  
   if (opts.length) chRem.addOptions(...opts); else chRem.addOptions({ label: 'Aucun', value: 'none' }).setDisabled(true);
-  const formulas = new ButtonBuilder().setCustomId('counting_toggle_formulas').setLabel(cfg.allowFormulas ? 'Formules: ON' : 'Formules: OFF').setStyle(cfg.allowFormulas ? ButtonStyle.Success : ButtonStyle.Secondary);
-  const reset = new ButtonBuilder().setCustomId('counting_reset').setLabel(`Remise à zéro (actuel: ${cfg.state?.current||0})`).setStyle(ButtonStyle.Danger);
+  
+  // Note : formulas et autres options sont maintenant par channel, mais on garde un toggle global pour simplifier l'UI
+  const globalFormulas = channelIds.length > 0 && channelIds.every(id => cfg.channels[id]?.allowFormulas !== false);
+  const formulas = new ButtonBuilder().setCustomId('counting_toggle_formulas').setLabel(globalFormulas ? 'Formules: ON' : 'Formules: OFF').setStyle(globalFormulas ? ButtonStyle.Success : ButtonStyle.Secondary);
+  
+  const reset = new ButtonBuilder().setCustomId('counting_reset').setLabel('Remise à zéro (sélection)').setStyle(ButtonStyle.Danger);
   const resetTrophies = new ButtonBuilder().setCustomId('counting_reset_trophies').setLabel('Reset trophées 🏆').setStyle(ButtonStyle.Danger);
+  
   return [
     new ActionRowBuilder().addComponents(chAdd),
     new ActionRowBuilder().addComponents(chRem),
@@ -5440,6 +5531,7 @@ function actionKeyToLabel(key) {
     tickle: 'chatouiller',
     revive: 'réanimer',
     comfort: 'réconforter',
+    calin: 'câlin',
     massage: 'masser',
     dance: 'danser',
     crime: 'crime',
@@ -5466,7 +5558,9 @@ function actionKeyToLabel(key) {
     orgie: 'orgie',
     touche: 'toucher',
     reveiller: 'réveiller',
-    douche: 'douche (intime)'
+    douche: 'douche (intime)',
+    sixtynine: '69',
+    boire: 'boire un verre',
   };
   return map[key] || key;
 }
@@ -10730,39 +10824,75 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // Counting config handlers
     if (interaction.isChannelSelectMenu() && interaction.customId === 'counting_channels_add') {
       const cfg = await getCountingConfig(interaction.guild.id);
-      const set = new Set(cfg.channels || []);
-      for (const id of interaction.values) set.add(String(id));
-      await updateCountingConfig(interaction.guild.id, { channels: Array.from(set) });
+      
+      // Gérer ancien et nouveau format
+      const existingChannels = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      for (const id of interaction.values) {
+        const channelId = String(id);
+        if (!existingChannels.includes(channelId)) {
+          // Ajouter un nouveau channel avec sa propre config
+          await addCountingChannel(interaction.guild.id, channelId, {
+            allowFormulas: true,
+            deleteInvalid: true
+          });
+        }
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isStringSelectMenu() && interaction.customId === 'counting_channels_remove') {
       if (interaction.values.includes('none')) return interaction.deferUpdate();
-      const cfg = await getCountingConfig(interaction.guild.id);
-      const remove = new Set(interaction.values.map(String));
-      const next = (cfg.channels||[]).filter(id => !remove.has(String(id)));
-      await updateCountingConfig(interaction.guild.id, { channels: next });
+      
+      for (const channelId of interaction.values) {
+        await removeCountingChannel(interaction.guild.id, String(channelId));
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isButton() && interaction.customId === 'counting_toggle_formulas') {
       const cfg = await getCountingConfig(interaction.guild.id);
-      await updateCountingConfig(interaction.guild.id, { allowFormulas: !cfg.allowFormulas });
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      // Toggle formulas pour tous les channels
+      const currentState = channelIds.length > 0 && channelIds.every(id => cfg.channels[id]?.allowFormulas !== false);
+      const newState = !currentState;
+      
+      for (const channelId of channelIds) {
+        await updateCountingChannelConfig(interaction.guild.id, channelId, { allowFormulas: newState });
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isButton() && interaction.customId === 'counting_reset') {
-      await setCountingState(interaction.guild.id, { current: 0, lastUserId: '' });
+      const cfg = await getCountingConfig(interaction.guild.id);
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      // Reset tous les channels
+      for (const channelId of channelIds) {
+        await setCountingChannelState(interaction.guild.id, channelId, { current: 0, lastUserId: '' });
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
     }
     if (interaction.isButton() && interaction.customId === 'counting_reset_trophies') {
-      await updateCountingConfig(interaction.guild.id, { achievedNumbers: [] });
-      await setCountingState(interaction.guild.id, { current: 0, lastUserId: '' });
+      const cfg = await getCountingConfig(interaction.guild.id);
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      
+      // Reset trophées et compteur pour tous les channels
+      for (const channelId of channelIds) {
+        await updateCountingChannelConfig(interaction.guild.id, channelId, { achievedNumbers: [] });
+        await setCountingChannelState(interaction.guild.id, channelId, { current: 0, lastUserId: '' });
+      }
+      
       const embed = await buildConfigEmbed(interaction.guild);
       const rows = await buildCountingRows(interaction.guild);
       return interaction.update({ embeds: [embed], components: [...rows] });
@@ -11800,6 +11930,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'action_douche') {
       return handleEconomyAction(interaction, 'douche');
     }
+    // Câlin
+    if (interaction.isChatInputCommand() && (interaction.commandName === 'câlin' || interaction.commandName === 'calin' || interaction.commandName === 'action_calin')) {
+      return handleEconomyAction(interaction, 'calin');
+    }
+    // 69
+    if (interaction.isChatInputCommand() && (interaction.commandName === 'sixtynine' || interaction.commandName === '69')) {
+      return handleEconomyAction(interaction, 'sixtynine');
+    }
+    // Boire un verre
+    if (interaction.isChatInputCommand() && interaction.commandName === 'boir-verre') {
+      return handleEconomyAction(interaction, 'boire');
+    }
     if (interaction.isChatInputCommand() && interaction.commandName === 'boutique') {
       const PAGE_SIZE = 10;
       const embed = await buildBoutiqueEmbed(interaction.guild, interaction.user, 0, PAGE_SIZE);
@@ -12353,9 +12495,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const ms = (daysMap[key] || 1) * 24 * 60 * 60 * 1000;
         const until = now + ms;
         
-        // Créer les canaux avec numéro
-        const text = await interaction.guild.channels.create({ name: `🌹┃${nameBase}-#${suiteNum}-txt`, type: ChannelType.GuildText, parent: parent.id, permissionOverwrites: overwrites });
-        const voice = await interaction.guild.channels.create({ name: `🔥┃${nameBase}-#${suiteNum}-vc`, type: ChannelType.GuildVoice, parent: parent.id, permissionOverwrites: overwrites });
+        // Créer les canaux avec numéro et limitation d'âge activée
+        const text = await interaction.guild.channels.create({ name: `🌹┃${nameBase}-#${suiteNum}-txt`, type: ChannelType.GuildText, parent: parent.id, permissionOverwrites: overwrites, nsfw: true });
+        const voice = await interaction.guild.channels.create({ name: `🔥┃${nameBase}-#${suiteNum}-vc`, type: ChannelType.GuildVoice, parent: parent.id, permissionOverwrites: overwrites, nsfw: true });
         
         // Sauvegarder les données de la suite AVANT que l'event ChannelCreate ne se déclenche
         // Ajouter la suite au tableau de l'utilisateur
@@ -12764,6 +12906,20 @@ client.on(Events.MessageCreate, async (message) => {
       }
     } catch (_) {}
     if (message.author?.bot) return; // exclude bots from XP and economy rewards
+    
+    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
+    // IMPORTANT: Doit être AVANT le comptage car celui-ci fait des returns
+    try {
+      const motCacheHandler = require('./modules/mot-cache-handler');
+      console.log('[MOT-CACHE-CALL] 🔄 Handler appelé pour message de', message.author.username);
+      await motCacheHandler.handleMessage(message);
+      console.log('[MOT-CACHE-CALL] ✅ Handler terminé sans erreur');
+    } catch (err) {
+      // LOG TEMPORAIRE POUR DEBUG : afficher TOUTES les erreurs
+      console.error('[MOT-CACHE-CALL] ❌ ERREUR DÉTECTÉE:', err.message);
+      console.error('[MOT-CACHE-CALL] Stack:', err.stack);
+    }
+    
     // AutoThread runtime: if message is in a configured channel, create a thread if none exists
     try {
       const at = await getAutoThreadConfig(message.guild.id);
@@ -12792,124 +12948,269 @@ client.on(Events.MessageCreate, async (message) => {
     // Counting runtime
     try {
       const cfg = await getCountingConfig(message.guild.id);
-      if (cfg.channels && cfg.channels.includes(message.channel.id)) {
-        const raw = (message.content || '').trim();
-        // Keep only digits, operators, parentheses, spaces, caret, sqrt symbol, and mathematical symbols × ÷
-        let onlyDigitsAndOps = raw.replace(/[^0-9+\-*\/().\s^√×÷]/g, '');
-        // Remplacer les symboles mathématiques par leurs équivalents
-        onlyDigitsAndOps = onlyDigitsAndOps.replace(/×/g, '*').replace(/÷/g, '/');
-        // If any letters are present in the original message, ignore (do not reset)
-        const state0 = cfg.state || { current: 0, lastUserId: '' };
-        const expected0 = (state0.current || 0) + 1;
-        if (/[a-zA-Z]/.test(raw)) {
-          return;
-        }
-        // If no digit at all, ignore silently
-        if (!/\d/.test(onlyDigitsAndOps)) {
-          return;
-        }
-        let value = NaN;
-        // Fast path: plain integer
-        const intMatch = onlyDigitsAndOps.match(/^-?\d+$/);
-        if (intMatch) {
-          value = Number(intMatch[0]);
-        } else if (cfg.allowFormulas) {
-          let expr0 = onlyDigitsAndOps;
-          expr0 = expr0.replace(/√\s*\(/g, 'Math.sqrt(');
-          expr0 = expr0.replace(/√\s*([0-9]+(?:\.[0-9]+)?)/g, 'Math.sqrt($1)');
-          expr0 = expr0.replace(/\^/g,'**');
-          const testable = expr0.replace(/Math\.sqrt/g,'');
-          const ok = /^[0-9+\-*\/().\s]*$/.test(testable);
-          if (ok && expr0.length > 0) {
-            try { value = Number(Function('"use strict";return (' + expr0 + ')')()); } catch (_) { value = NaN; }
+      
+      // Vérifier si le message est dans un channel de comptage
+      const channelIds = Array.isArray(cfg.channels) ? cfg.channels : Object.keys(cfg.channels || {});
+      const channelId = message.channel.id;
+      
+      if (!channelIds.includes(channelId)) return; // Pas un channel de comptage
+      
+      // Récupérer la config spécifique à ce channel
+      const channelCfg = await getCountingChannelConfig(message.guild.id, channelId);
+      
+      const raw = (message.content || '').trim();
+      // Keep only digits, operators, parentheses, spaces, caret, sqrt symbol, and mathematical symbols × ÷
+      let onlyDigitsAndOps = raw.replace(/[^0-9+\-*\/().\s^√×÷]/g, '');
+      // Remplacer les symboles mathématiques par leurs équivalents
+      onlyDigitsAndOps = onlyDigitsAndOps.replace(/×/g, '*').replace(/÷/g, '/');
+      
+      const state = channelCfg.state || { current: 0, lastUserId: '' };
+      const expected = (state.current || 0) + 1;
+      
+      // Si le message contient des lettres (pas un calcul), supprimer
+      if (/[a-zA-Z]/.test(raw)) {
+        if (channelCfg.deleteInvalid) {
+          try {
+            await message.delete();
+            // Optionnel : envoyer un DM à l'utilisateur
+            try {
+              await message.author.send({
+                embeds: [new EmbedBuilder()
+                  .setColor(0xec407a)
+                  .setTitle('🚫 Message supprimé - Comptage')
+                  .setDescription(`Ton message dans <#${channelId}> a été supprimé.\n\n**Raison :** Ce salon est réservé au comptage uniquement.\n**Nombre attendu :** ${expected}\n\nMerci de poster uniquement des nombres ou calculs ! 😊`)
+                  .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+                ]
+              });
+            } catch (_) {
+              // L'utilisateur a peut-être bloqué les DMs, ce n'est pas grave
+            }
+          } catch (_) {
+            // Pas de permission de supprimer, on ignore
           }
-          if (!Number.isFinite(value)) {
-            const digitsOnly = onlyDigitsAndOps.replace(/[^0-9]/g,'');
-            if (digitsOnly.length > 0) value = Number(digitsOnly);
-          }
-        } else {
+        }
+        return;
+      }
+      
+      // Si aucun chiffre n'est présent, supprimer
+      if (!/\d/.test(onlyDigitsAndOps)) {
+        if (channelCfg.deleteInvalid) {
+          try {
+            await message.delete();
+          } catch (_) {}
+        }
+        return;
+      }
+      
+      let value = NaN;
+      // Fast path: plain integer
+      const intMatch = onlyDigitsAndOps.match(/^-?\d+$/);
+      if (intMatch) {
+        value = Number(intMatch[0]);
+      } else if (channelCfg.allowFormulas) {
+        let expr0 = onlyDigitsAndOps;
+        expr0 = expr0.replace(/√\s*\(/g, 'Math.sqrt(');
+        expr0 = expr0.replace(/√\s*([0-9]+(?:\.[0-9]+)?)/g, 'Math.sqrt($1)');
+        expr0 = expr0.replace(/\^/g,'**');
+        const testable = expr0.replace(/Math\.sqrt/g,'');
+        const ok = /^[0-9+\-*\/().\s]*$/.test(testable);
+        if (ok && expr0.length > 0) {
+          try { value = Number(Function('"use strict";return (' + expr0 + ')')()); } catch (_) { value = NaN; }
+        }
+        if (!Number.isFinite(value)) {
           const digitsOnly = onlyDigitsAndOps.replace(/[^0-9]/g,'');
           if (digitsOnly.length > 0) value = Number(digitsOnly);
         }
-        // Final fallback: first integer sequence
-        if (!Number.isFinite(value)) {
-          const m = onlyDigitsAndOps.match(/-?\d+/);
-          if (m) value = Number(m[0]);
+      } else {
+        const digitsOnly = onlyDigitsAndOps.replace(/[^0-9]/g,'');
+        if (digitsOnly.length > 0) value = Number(digitsOnly);
+      }
+      
+      // Final fallback: first integer sequence
+      if (!Number.isFinite(value)) {
+        const m = onlyDigitsAndOps.match(/-?\d+/);
+        if (m) value = Number(m[0]);
+      }
+      
+      // Si on ne peut pas parser un nombre, supprimer le message et avertir
+      if (!Number.isFinite(value)) {
+        if (channelCfg.deleteInvalid) {
+          try {
+            await message.delete();
+          } catch (_) {}
         }
-        // If we couldn't parse a number safely, do NOT reset the counter:
-        // random messages with digits (emojis, IDs, etc.) shouldn't wipe progress.
-        if (!Number.isFinite(value)) {
-          await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: valeur non reconnue').setDescription('Attendu: **' + expected0 + '**\nJe n\'arrive pas à interpréter ton message comme un nombre (ou une formule).\nOn ne reset pas: tu peux renvoyer **' + expected0 + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-        } else {
-          // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
-          const rounded = Math.round(value);
-          const eps = 1e-9;
-          const next = (Math.abs(value - rounded) <= eps) ? rounded : value;
-          const state = cfg.state || { current: 0, lastUserId: '' };
-          const expected = (state.current || 0) + 1;
-          if ((state.lastUserId||'') === message.author.id) {
-            await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Doucement, un à la fois…').setDescription('Deux chiffres d\'affilée 😉\nAttendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, à toi de rejouer.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-          } else if (!Number.isInteger(next)) {
-            // Non-integer results shouldn't hard-reset the game.
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: résultat non entier').setDescription('Attendu: **' + expected + '**\nTon résultat fait **' + String(next) + '** (non entier). Le comptage attend un entier.\nOn ne reset pas: renvoie **' + expected + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
-          } else if (next !== expected) {
-            await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Mauvais numéro').setDescription('Attendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on se retrouve au début 💕').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+        await message.author.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0xffb300)
+            .setTitle('⚠️ Comptage: valeur non reconnue')
+            .setDescription(`Attendu: **${expected}**\n\nJe n'arrive pas à interpréter ton message comme un nombre (ou une formule).\n\nRenvoie **${expected}** dans <#${channelId}> ✅`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+          ]
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
+      const rounded = Math.round(value);
+      const eps = 1e-9;
+      const next = (Math.abs(value - rounded) <= eps) ? rounded : value;
+      
+      // Vérifier si c'est le même utilisateur deux fois de suite
+      if ((state.lastUserId||'') === message.author.id) {
+        await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
+        
+        // Créer un thread pour le gage
+        try {
+          const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
+          const thread = await message.startThread({
+            name: threadName,
+            autoArchiveDuration: 60, // 1 heure
+            reason: 'Erreur de comptage - Deux messages d\'affilée'
+          });
+          
+          // Message dans le thread avec invitation à tous
+          await thread.send({
+            content: `<@${message.author.id}> a compté deux fois d'affilée !\n\n🎭 **C'est l'heure du gage !**\n\n💡 **Tout le monde peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😈`,
+            embeds: [new EmbedBuilder()
+              .setColor(0xec407a)
+              .setTitle('❌ Erreur : Deux chiffres d\'affilée')
+              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n\n**Règle :** Un seul message par personne ! On alterne 😉\n\n🎭 **Temps de gage !**\n\n💬 Tout le monde peut proposer un gage ici !`)
+              .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+              .setThumbnail(currentThumbnailImage)
+            ]
+          });
+        } catch (err) {
+          console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
+        }
+        
+        // Message principal sans lien
+        await message.reply({ 
+          embeds: [new EmbedBuilder()
+            .setColor(0xec407a)
+            .setTitle('❌ Doucement, un à la fois…')
+            .setDescription(`Deux chiffres d'affilée 😉\n\nAttendu: **${expected}**\nRemise à zéro → **1**\n\n**Fautif :** <@${message.author.id}>\n\n🎭 Un thread a été créé pour le gage !\n💡 Tout le monde peut y proposer des idées !`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+            .setImage(categoryBanners.comptage || undefined)
+          ] 
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Vérifier si le résultat est un entier
+      if (!Number.isInteger(next)) {
+        await message.reply({ 
+          embeds: [new EmbedBuilder()
+            .setColor(0xffb300)
+            .setTitle('⚠️ Comptage: résultat non entier')
+            .setDescription(`Attendu: **${expected}**\n\nTon résultat fait **${String(next)}** (non entier).\nLe comptage attend un entier.\n\nOn ne reset pas: renvoie **${expected}** ✅`)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+            .setImage(categoryBanners.comptage || undefined)
+          ] 
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Vérifier si c'est le bon nombre
+      if (next !== expected) {
+        const lastGoodUserId = state.lastUserId; // Sauvegarder l'ID du dernier bon compteur
+        await setCountingChannelState(message.guild.id, channelId, { current: 0, lastUserId: '' });
+        
+        // Créer un thread pour le gage
+        try {
+          const threadName = `❌ Erreur de comptage - Gage pour ${message.member?.displayName || message.author.username}`;
+          const thread = await message.startThread({
+            name: threadName,
+            autoArchiveDuration: 60, // 1 heure
+            reason: 'Erreur de comptage - Mauvais numéro'
+          });
+          
+          // Message dans le thread avec invitation à tous
+          let threadContent = `<@${message.author.id}> s'est trompé de numéro !\n\n`;
+          if (lastGoodUserId && lastGoodUserId !== message.author.id) {
+            threadContent += `<@${lastGoodUserId}> était le dernier bon compteur.\n\n`;
+            threadContent += `<@${lastGoodUserId}>, à toi de donner un gage à <@${message.author.id}> ! 😈\n\n`;
           } else {
-            await setCountingState(message.guild.id, { current: next, lastUserId: message.author.id });
-            
-            // Vérifier si c'est la première fois que ce nombre est atteint
-            const isFirstTime = !cfg.achievedNumbers || !cfg.achievedNumbers.includes(next);
-            if (isFirstTime) {
-              // Ajouter le nombre à la liste des nombres atteints
-              const updatedAchieved = [...(cfg.achievedNumbers || []), next];
-              await updateCountingConfig(message.guild.id, { achievedNumbers: updatedAchieved });
-              
-              // Ajouter les réactions : trophée + check
-              try {
-                // Vérifier permissions
-                const perms = message.channel.permissionsFor(message.guild.members.me);
-                if (perms && perms.has('AddReactions')) {
-                  await message.react('🏆');
-                  // Délai pour éviter rate limit Discord
-                  await new Promise(resolve => setTimeout(resolve, 300));
-                  await message.react('✅');
-                } else {
-                  console.log('[COUNTING] ⚠️ Pas de permission AddReactions');
-                }
-              } catch (err) {
-                console.log(`[COUNTING] ❌ Erreur réaction (première fois): ${err.message}`);
-              }
-            } else {
-              // Juste le check habituel
-              try {
-                const perms = message.channel.permissionsFor(message.guild.members.me);
-                if (perms && perms.has('AddReactions')) {
-                  await message.react('✅');
-                } else {
-                  console.log('[COUNTING] ⚠️ Pas de permission AddReactions');
-                }
-              } catch (err) {
-                console.log(`[COUNTING] ❌ Erreur réaction: ${err.message}`);
-              }
-            }
+            threadContent += `C'est l'heure du gage ! 😈\n\n`;
           }
+          threadContent += `💡 **Tout le monde peut donner ses idées de gage dans ce thread !**\nSoyez créatifs, drôles, mais respectueux 😊`;
+          
+          await thread.send({
+            content: threadContent,
+            embeds: [new EmbedBuilder()
+              .setColor(0xec407a)
+              .setTitle('❌ Erreur : Mauvais numéro')
+              .setDescription(`**Fautif :** <@${message.author.id}>\n**Nombre attendu :** ${expected}\n**Nombre donné :** ${next}\n\n${lastGoodUserId && lastGoodUserId !== message.author.id ? `**Dernier bon compteur :** <@${lastGoodUserId}>` : ''}\n\n🎭 **Temps de gage !**\n\n💬 Tout le monde peut proposer un gage ici !`)
+              .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+              .setThumbnail(currentThumbnailImage)
+            ]
+          });
+        } catch (err) {
+          console.log(`[COUNTING] ⚠️ Impossible de créer le thread: ${err.message}`);
+        }
+        
+        // Message principal sans lien
+        let mainDescription = `Attendu: **${expected}**\nDonné: **${next}**\nRemise à zéro → **1**\n\n`;
+        mainDescription += `**Fautif :** <@${message.author.id}>\n`;
+        
+        if (lastGoodUserId && lastGoodUserId !== message.author.id) {
+          mainDescription += `**Dernier bon compteur :** <@${lastGoodUserId}>\n\n`;
+          mainDescription += `🎭 <@${lastGoodUserId}>, à toi de donner un gage dans le thread !\n💡 Tout le monde peut proposer des idées !`;
+        } else {
+          mainDescription += `\n🎭 Un thread a été créé pour le gage !\n💡 Tout le monde peut y proposer des idées !`;
+        }
+        
+        await message.reply({ 
+          embeds: [new EmbedBuilder()
+            .setColor(0xec407a)
+            .setTitle('❌ Mauvais numéro')
+            .setDescription(mainDescription)
+            .setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon })
+            .setThumbnail(currentThumbnailImage)
+            .setImage(categoryBanners.comptage || undefined)
+          ] 
+        }).catch(()=>{});
+        return;
+      }
+      
+      // Succès ! Mettre à jour l'état
+      await setCountingChannelState(message.guild.id, channelId, { current: next, lastUserId: message.author.id });
+      
+      // Vérifier si c'est la première fois que ce nombre est atteint (pour ce channel)
+      const achievedNumbers = channelCfg.achievedNumbers || [];
+      const isFirstTime = !achievedNumbers.includes(next);
+      
+      if (isFirstTime) {
+        // Ajouter le nombre à la liste des nombres atteints
+        const updatedAchieved = [...achievedNumbers, next];
+        await updateCountingChannelConfig(message.guild.id, channelId, { achievedNumbers: updatedAchieved });
+        
+        // Ajouter les réactions : trophée + check
+        try {
+          const perms = message.channel.permissionsFor(message.guild.members.me);
+          if (perms && perms.has('AddReactions')) {
+            await message.react('🏆');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await message.react('✅');
+          }
+        } catch (err) {
+          console.log(`[COUNTING] ❌ Erreur réaction (première fois): ${err.message}`);
+        }
+      } else {
+        // Juste le check habituel
+        try {
+          const perms = message.channel.permissionsFor(message.guild.members.me);
+          if (perms && perms.has('AddReactions')) {
+            await message.react('✅');
+          }
+        } catch (err) {
+          console.log(`[COUNTING] ❌ Erreur réaction: ${err.message}`);
         }
       }
-    } catch (_) {}
-
-    // ========== HANDLER MOT-CACHÉ (lettres aléatoires) ==========
-    // IMPORTANT: Doit être AVANT le check des levels pour ne pas être bloqué
-    try {
-      const motCacheHandler = require('./modules/mot-cache-handler');
-      await motCacheHandler.handleMessage(message);
     } catch (err) {
-      // Silent fail pour ne pas bloquer le traitement des messages
-      // Log uniquement les vraies erreurs, pas les modules manquants
-      if (err.message && !err.message.includes('Cannot find module')) {
-        console.error('[MOT-CACHE] Error in message handler:', err.message);
-      }
+      console.error('[COUNTING] ❌ Erreur dans le système de comptage:', err);
     }
 
     const levels = await getLevelsConfig(message.guild.id);
