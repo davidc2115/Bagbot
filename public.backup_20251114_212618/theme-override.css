@@ -1,9 +1,0 @@
-/* Minimal override - non-intrusive */
-body{
-  background-image:url("https://cdn.discordapp.com/attachments/1408458115283812484/1408497858256179400/file_00000000d78861f4993dddd515f84845.png?ex=68cce51a&is=68cb939a&hm=45478494e9b7fede69f68de54f90c6ba9b0dc9307c6d8fc12e2c5d3192598daf&");
-  background-size:cover;
-  background-position:center;
-  background-attachment:fixed;
-  background-repeat:no-repeat;
-}
-/* Preserve app defaults; do not override panels or layout */
