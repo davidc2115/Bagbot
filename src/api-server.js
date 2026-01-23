@@ -93,6 +93,15 @@ setInterval(() => {
 app.use(cors());
 app.use(express.json());
 
+// Method override middleware (pour les réseaux qui bloquent DELETE)
+app.use((req, res, next) => {
+  if (req.query._method === 'DELETE' && req.method === 'POST') {
+    req.method = 'DELETE';
+    console.log(`[BOT-API] Method override: POST -> DELETE for ${req.path}`);
+  }
+  next();
+});
+
 // Logger middleware
 app.use((req, res, next) => {
   console.log(`📥 [BOT-API] ${req.method} ${req.path}`);

@@ -77,19 +77,39 @@ class ApiClient(private val store: SettingsStore) {
     }
     fun deleteJson(path: String): String {
         val url = "${store.getBaseUrl()}$path"
-        val request = Request.Builder()
-            .url(url)
-            .delete()
-            .apply { authHeader()?.let { addHeader("Authorization", it) } }
-            .build()
         
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errorBody = response.body?.string() ?: ""
-            maybeClearTokenOnAuthFailure(response.code, errorBody)
-            throw IOException("HTTP ${response.code}: $errorBody")
+        // Essayer d'abord avec DELETE standard
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .delete()
+                .apply { authHeader()?.let { addHeader("Authorization", it) } }
+                .build()
+            
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                maybeClearTokenOnAuthFailure(response.code, errorBody)
+                throw IOException("HTTP ${response.code}: $errorBody")
+            }
+            return response.body?.string() ?: "{}"
+        } catch (e: IOException) {
+            // Fallback: utiliser POST avec _method=DELETE (pour les réseaux qui bloquent DELETE)
+            val fallbackUrl = if (url.contains("?")) "$url&_method=DELETE" else "$url?_method=DELETE"
+            val request = Request.Builder()
+                .url(fallbackUrl)
+                .post("".toRequestBody(jsonMediaType))
+                .apply { authHeader()?.let { addHeader("Authorization", it) } }
+                .build()
+            
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                maybeClearTokenOnAuthFailure(response.code, errorBody)
+                throw IOException("HTTP ${response.code}: $errorBody")
+            }
+            return response.body?.string() ?: "{}"
         }
-        return response.body?.string() ?: "{}"
     }
     
     fun uploadFile(path: String, fileName: String, fileBytes: ByteArray, fieldName: String = "file"): String {
