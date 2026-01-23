@@ -6464,7 +6464,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   });
   // Note: Le message de bienvenue des suites privées est maintenant envoyé directement
   // lors de la création dans la logique d'achat pour éviter les problèmes de timing
-  // Suites cleanup every 5 minutes
+  // Suites cleanup every 5 minutes - gère les formats simples et tableaux
   setInterval(async () => {
     try {
       const guild = readyClient.guilds.cache.get(guildId) || await readyClient.guilds.fetch(guildId).catch(()=>null);
@@ -6473,55 +6473,100 @@ client.once(Events.ClientReady, async (readyClient) => {
       const active = eco.suites?.active || {};
       const now = Date.now();
       let modified = false;
+      
+      // Helper pour supprimer les canaux d'une suite
+      async function deleteSuiteChannels(suite, uid) {
+        let textDeleted = true;
+        let voiceDeleted = true;
+        
+        // delete text channel
+        try {
+          const tcid = suite.textId;
+          if (tcid) {
+            const tch = guild.channels.cache.get(tcid) || await guild.channels.fetch(tcid).catch(()=>null);
+            if (tch) {
+              await tch.delete().catch((e)=>{ try { console.warn('[Suites] Échec suppression texte', { uid, tcid, error: e?.message }); } catch(_){}; });
+              const still = guild.channels.cache.get(tcid) || await guild.channels.fetch(tcid).catch(()=>null);
+              textDeleted = !still;
+            }
+          }
+        } catch (e) {
+          try { console.warn('[Suites] Erreur suppression texte', { uid, error: e?.message }); } catch(_){}
+        }
+        
+        // delete voice channel (seulement si différent du texte)
+        try {
+          const vcid = suite.voiceId;
+          if (vcid && vcid !== suite.textId) {
+            const vch = guild.channels.cache.get(vcid) || await guild.channels.fetch(vcid).catch(()=>null);
+            if (vch) {
+              await vch.delete().catch((e)=>{ try { console.warn('[Suites] Échec suppression vocal', { uid, vcid, error: e?.message }); } catch(_){}; });
+              const still = guild.channels.cache.get(vcid) || await guild.channels.fetch(vcid).catch(()=>null);
+              voiceDeleted = !still;
+            }
+          }
+        } catch (e) {
+          try { console.warn('[Suites] Erreur suppression vocal', { uid, error: e?.message }); } catch(_){}
+        }
+        
+        return (suite.textId ? textDeleted : true) && (suite.voiceId ? voiceDeleted : true);
+      }
+      
       for (const [uid, info] of Object.entries(active)) {
-        if (!info || typeof info.expiresAt !== 'number') continue;
-        if (now >= info.expiresAt) {
-          let textDeleted = true;
-          let voiceDeleted = true;
-          // delete text channel
-          try {
-            const tcid = info.textId;
-            if (tcid) {
-              const tch = guild.channels.cache.get(tcid) || await guild.channels.fetch(tcid).catch(()=>null);
-              if (tch) {
-                await tch.delete().catch((e)=>{ try { console.warn('[Suites] Échec suppression texte', { uid, tcid, error: e?.message }); } catch(_){}; });
-                const still = guild.channels.cache.get(tcid) || await guild.channels.fetch(tcid).catch(()=>null);
-                textDeleted = !still;
+        if (!info) continue;
+        
+        // Gérer le format tableau (plusieurs suites par utilisateur)
+        if (Array.isArray(info)) {
+          const remaining = [];
+          for (const suite of info) {
+            if (!suite) continue;
+            // Suite permanente ou pas encore expirée
+            if (suite.expiresAt === null || suite.expiresAt === undefined || now < suite.expiresAt) {
+              remaining.push(suite);
+            } else {
+              // Suite expirée - supprimer les canaux
+              const canRemove = await deleteSuiteChannels(suite, uid);
+              if (canRemove) {
+                try { console.log('[Suites] Suite expirée supprimée', { uid, textId: suite.textId||null, voiceId: suite.voiceId||null }); } catch(_){}
+                modified = true;
+              } else {
+                try { console.warn('[Suites] Suite expirée conservée (suppression incomplète)', { uid }); } catch(_){}
+                remaining.push(suite); // Garder pour réessayer
               }
             }
-          } catch (e) {
-            try { console.warn('[Suites] Erreur suppression texte', { uid, error: e?.message }); } catch(_){}
           }
-          // delete voice channel
-          try {
-            const vcid = info.voiceId;
-            if (vcid) {
-              const vch = guild.channels.cache.get(vcid) || await guild.channels.fetch(vcid).catch(()=>null);
-              if (vch) {
-                await vch.delete().catch((e)=>{ try { console.warn('[Suites] Échec suppression vocal', { uid, vcid, error: e?.message }); } catch(_){}; });
-                const still = guild.channels.cache.get(vcid) || await guild.channels.fetch(vcid).catch(()=>null);
-                voiceDeleted = !still;
-              }
-            }
-          } catch (e) {
-            try { console.warn('[Suites] Erreur suppression vocal', { uid, error: e?.message }); } catch(_){}
+          // Mettre à jour l'entrée
+          if (remaining.length === 0) {
+            delete active[uid];
+          } else if (remaining.length === 1) {
+            active[uid] = remaining[0]; // Convertir en format simple
+          } else {
+            active[uid] = remaining;
           }
-          // Remove entry only if both channels are gone or undefined
-          const canRemove = (info.textId ? textDeleted : true) && (info.voiceId ? voiceDeleted : true);
+        } 
+        // Gérer le format simple (une seule suite)
+        else if (typeof info === 'object') {
+          // Suite permanente ou pas encore expirée
+          if (info.expiresAt === null || info.expiresAt === undefined || now < info.expiresAt) {
+            continue;
+          }
+          // Suite expirée - supprimer les canaux
+          const canRemove = await deleteSuiteChannels(info, uid);
           if (canRemove) {
-            try { console.log('[Suites] Entrée supprimée (canaux supprimés ou introuvables)', { uid, textId: info.textId||null, voiceId: info.voiceId||null }); } catch(_){}
+            try { console.log('[Suites] Suite expirée supprimée', { uid, textId: info.textId||null, voiceId: info.voiceId||null }); } catch(_){}
             delete active[uid];
             modified = true;
           } else {
-            try { console.warn('[Suites] Entrée conservée: suppression incomplète', { uid, textDeleted, voiceDeleted }); } catch(_){}
+            try { console.warn('[Suites] Suite expirée conservée (suppression incomplète)', { uid }); } catch(_){}
           }
         }
       }
+      
       if (modified) {
         eco.suites = { ...(eco.suites||{}), active };
         await updateEconomyConfig(guild.id, eco);
       }
-    } catch (_) {}
+    } catch (e) { try { console.error('[Suites] Erreur cleanup:', e?.message); } catch(_){} }
   }, 5 * 60 * 1000);
   // Temporary roles cleanup every 10 minutes
   setInterval(async () => {
