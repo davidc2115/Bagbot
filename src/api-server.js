@@ -1638,27 +1638,31 @@ app.get('/api/inactivity', async (req, res) => {
     const tracking = autokick.inactivityTracking || {};
     
     // Charger les noms Discord depuis le cache
-    let discordNames = {};
+    let discordNamesFile = { channels: {}, roles: {}, members: {}, updatedAt: null };
+    const namesPath = path.join(__dirname, '../data/discord-names.json');
     try {
-      const namesPath = path.join(__dirname, '../data/discord-names.json');
       if (fs.existsSync(namesPath)) {
-        discordNames = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
+        discordNamesFile = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
+        if (!discordNamesFile.members) discordNamesFile.members = {};
       }
     } catch (e) {
       console.warn('[API] Could not load discord-names.json:', e.message);
     }
+    
+    const membersCache = discordNamesFile.members || {};
     
     // Enrichir le tracking avec les pseudos
     const enrichedTracking = {};
     for (const [userId, data] of Object.entries(tracking)) {
       enrichedTracking[userId] = {
         ...data,
-        username: discordNames[userId] || null
+        username: membersCache[userId] || null
       };
     }
     
     // Essayer de récupérer les noms manquants via le client Discord
     const client = req.app.locals.client;
+    let cacheUpdated = false;
     if (client) {
       const guild = client.guilds.cache.get(GUILD);
       if (guild) {
@@ -1669,16 +1673,20 @@ app.get('/api/inactivity', async (req, res) => {
               if (member) {
                 enrichedTracking[userId].username = member.user.username;
                 // Mettre à jour le cache local
-                discordNames[userId] = member.user.username;
+                membersCache[userId] = member.user.username;
+                cacheUpdated = true;
               }
             } catch (e) { /* ignore */ }
           }
         }
         // Sauvegarder le cache mis à jour
-        try {
-          const namesPath = path.join(__dirname, '../data/discord-names.json');
-          fs.writeFileSync(namesPath, JSON.stringify(discordNames, null, 2), 'utf8');
-        } catch (e) { /* ignore */ }
+        if (cacheUpdated) {
+          try {
+            discordNamesFile.members = membersCache;
+            discordNamesFile.updatedAt = new Date().toISOString();
+            fs.writeFileSync(namesPath, JSON.stringify(discordNamesFile, null, 2), 'utf8');
+          } catch (e) { /* ignore */ }
+        }
       }
     }
     
