@@ -25,6 +25,25 @@ const {
 const app = express();
 const PORT = 33003; // Port différent du dashboard
 
+// Cache global pour les noms Discord
+let globalMembersCache = {};
+function loadMembersCache() {
+  try {
+    const namesPath = path.join(__dirname, '../data/discord-names.json');
+    if (fs.existsSync(namesPath)) {
+      const data = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
+      globalMembersCache = data.members || {};
+      console.log('[BOT-API] Loaded', Object.keys(globalMembersCache).length, 'members from cache');
+    }
+  } catch (e) {
+    console.error('[BOT-API] Error loading members cache:', e.message);
+  }
+}
+// Charger le cache au démarrage
+loadMembersCache();
+// Rafraîchir toutes les 5 minutes
+setInterval(loadMembersCache, 5 * 60 * 1000);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -1637,26 +1656,12 @@ app.get('/api/inactivity', async (req, res) => {
     };
     const tracking = autokick.inactivityTracking || {};
     
-    // Charger les noms Discord depuis le cache
-    let discordNamesFile = { channels: {}, roles: {}, members: {}, updatedAt: null };
-    const namesPath = path.join(__dirname, '../data/discord-names.json');
-    try {
-      if (fs.existsSync(namesPath)) {
-        discordNamesFile = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
-        if (!discordNamesFile.members) discordNamesFile.members = {};
-      }
-    } catch (e) {
-      console.warn('[API] Could not load discord-names.json:', e.message);
-    }
-    
-    const membersCache = discordNamesFile.members || {};
-    
-    // Enrichir le tracking avec les pseudos
+    // Enrichir le tracking avec les pseudos depuis le cache global
     const enrichedTracking = {};
     for (const [userId, data] of Object.entries(tracking)) {
       enrichedTracking[userId] = {
         ...data,
-        username: membersCache[userId] || null
+        username: globalMembersCache[userId] || null
       };
     }
     
@@ -1672,8 +1677,8 @@ app.get('/api/inactivity', async (req, res) => {
               const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
               if (member) {
                 enrichedTracking[userId].username = member.user.username;
-                // Mettre à jour le cache local
-                membersCache[userId] = member.user.username;
+                // Mettre à jour le cache global
+                globalMembersCache[userId] = member.user.username;
                 cacheUpdated = true;
               }
             } catch (e) { /* ignore */ }
@@ -1682,7 +1687,14 @@ app.get('/api/inactivity', async (req, res) => {
         // Sauvegarder le cache mis à jour
         if (cacheUpdated) {
           try {
-            discordNamesFile.members = membersCache;
+            const namesPath = path.join(__dirname, '../data/discord-names.json');
+            let discordNamesFile = { channels: {}, roles: {}, members: {}, updatedAt: null };
+            try {
+              if (fs.existsSync(namesPath)) {
+                discordNamesFile = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
+              }
+            } catch (e) {}
+            discordNamesFile.members = globalMembersCache;
             discordNamesFile.updatedAt = new Date().toISOString();
             fs.writeFileSync(namesPath, JSON.stringify(discordNamesFile, null, 2), 'utf8');
           } catch (e) { /* ignore */ }
