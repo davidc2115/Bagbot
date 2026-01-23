@@ -6562,6 +6562,7 @@ private fun InactivityConfigTab(
 ) {
     data class InactivityRow(
         val userId: String,
+        val username: String?,
         val lastActivityMs: Long,
         val inactiveForMs: Long
     )
@@ -6602,10 +6603,12 @@ private fun InactivityConfigTab(
                     val rows = trackingObj
                         ?.entries
                         ?.mapNotNull { (uid, v) ->
-                            val last = v.jsonObject["lastActivity"]?.safeLong() ?: 0L
+                            val trackData = v.jsonObject
+                            val last = trackData["lastActivity"]?.safeLong() ?: 0L
                             if (last <= 0L) return@mapNotNull null
                             val inactiveFor = (now - last).coerceAtLeast(0L)
-                            InactivityRow(userId = uid, lastActivityMs = last, inactiveForMs = inactiveFor)
+                            val username = trackData["username"]?.jsonPrimitive?.contentOrNull
+                            InactivityRow(userId = uid, username = username, lastActivityMs = last, inactiveForMs = inactiveFor)
                         }
                         ?.sortedByDescending { it.inactiveForMs }
                         ?: emptyList()
@@ -6764,7 +6767,8 @@ private fun InactivityConfigTab(
                     return@SectionCard
                 }
                 trackingRows.take(80).forEach { row ->
-                    val name = members[row.userId] ?: row.userId
+                    // Priorité: username de l'API, puis map members, puis ID
+                    val name = row.username ?: members[row.userId] ?: row.userId
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -6785,7 +6789,7 @@ private fun InactivityConfigTab(
                                         try {
                                             api.postJson("/api/inactivity/reset/${row.userId}", "{}")
                                             withContext(Dispatchers.Main) {
-                                                snackbar.showSnackbar("✅ Reset inactivité: ${members[row.userId] ?: row.userId}")
+                                                snackbar.showSnackbar("✅ Reset inactivité: $name")
                                             }
                                             load()
                                         } catch (e: Exception) {

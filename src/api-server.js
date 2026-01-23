@@ -1637,14 +1637,59 @@ app.get('/api/inactivity', async (req, res) => {
     };
     const tracking = autokick.inactivityTracking || {};
     
-    // Retourner les données avec le tracking
+    // Charger les noms Discord depuis le cache
+    let discordNames = {};
+    try {
+      const namesPath = path.join(__dirname, '../data/discord-names.json');
+      if (fs.existsSync(namesPath)) {
+        discordNames = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
+      }
+    } catch (e) {
+      console.warn('[API] Could not load discord-names.json:', e.message);
+    }
+    
+    // Enrichir le tracking avec les pseudos
+    const enrichedTracking = {};
+    for (const [userId, data] of Object.entries(tracking)) {
+      enrichedTracking[userId] = {
+        ...data,
+        username: discordNames[userId] || null
+      };
+    }
+    
+    // Essayer de récupérer les noms manquants via le client Discord
+    const client = req.app.locals.client;
+    if (client) {
+      const guild = client.guilds.cache.get(GUILD);
+      if (guild) {
+        for (const userId of Object.keys(enrichedTracking)) {
+          if (!enrichedTracking[userId].username) {
+            try {
+              const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+              if (member) {
+                enrichedTracking[userId].username = member.user.username;
+                // Mettre à jour le cache local
+                discordNames[userId] = member.user.username;
+              }
+            } catch (e) { /* ignore */ }
+          }
+        }
+        // Sauvegarder le cache mis à jour
+        try {
+          const namesPath = path.join(__dirname, '../data/discord-names.json');
+          fs.writeFileSync(namesPath, JSON.stringify(discordNames, null, 2), 'utf8');
+        } catch (e) { /* ignore */ }
+      }
+    }
+    
+    // Retourner les données avec le tracking enrichi
     res.json({
       enabled: inactivity.enabled,
       delayDays: inactivity.delayDays || 30,
       excludedRoleIds: inactivity.excludedRoleIds || [],
       inactiveRoleId: inactivity.inactiveRoleId || null,
       trackActivity: inactivity.trackActivity !== false,
-      tracking: tracking
+      tracking: enrichedTracking
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
