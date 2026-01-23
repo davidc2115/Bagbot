@@ -96,6 +96,14 @@ class SettingsStore private constructor(context: Context) {
     fun wasUrlMigrated(): Boolean = prefs.getBoolean("url_migrated", false)
     fun clearMigrationFlag() = prefs.edit().putBoolean("url_migrated", false).apply()
     
+    // --- Notification service settings ---
+    fun isNotificationServiceEnabled(): Boolean = prefs.getBoolean("notification_service_enabled", true)
+    fun setNotificationServiceEnabled(enabled: Boolean) = prefs.edit().putBoolean("notification_service_enabled", enabled).apply()
+    
+    // --- Notification frequency (minutes) ---
+    fun getNotificationFrequency(): Int = prefs.getInt("notification_frequency", 2)
+    fun setNotificationFrequency(minutes: Int) = prefs.edit().putInt("notification_frequency", minutes).apply()
+    
     fun resetToDefaults() {
         prefs.edit()
             .putString("base_url", "http://88.174.155.230:33003")

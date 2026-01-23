@@ -51,6 +51,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.bagbot.manager.StaffChatNotificationWorker
+import com.bagbot.manager.NotificationForegroundService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -1231,6 +1232,11 @@ fun App(deepLink: Uri?, onDeepLinkConsumed: () -> Unit) {
         // Notifications staff (en arrière-plan via WorkManager)
         try {
             StaffChatNotificationWorker.schedule(context)
+            
+            // Démarrer le service de premier plan pour des notifications plus fréquentes
+            if (store.isNotificationServiceEnabled()) {
+                NotificationForegroundService.start(context)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Could not schedule staff notifications: ${e.message}")
         }
@@ -3402,11 +3408,69 @@ fun AppConfigScreen(
                         )
                     }
                     
+                    Spacer(Modifier.height(16.dp))
+                    Divider(color = Color.Gray.copy(alpha = 0.3f))
+                    Spacer(Modifier.height(16.dp))
+                    
+                    // Section Notifications
+                    Text(
+                        "🔔 Notifications",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                     Spacer(Modifier.height(12.dp))
+                    
+                    var notifServiceEnabled by remember { mutableStateOf(store.isNotificationServiceEnabled()) }
+                    
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Notifications en temps réel", color = Color.White)
+                            Text(
+                                "Vérifie les messages toutes les 2 minutes",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+                        Switch(
+                            checked = notifServiceEnabled,
+                            onCheckedChange = { enabled ->
+                                notifServiceEnabled = enabled
+                                store.setNotificationServiceEnabled(enabled)
+                                if (enabled) {
+                                    NotificationForegroundService.start(context)
+                                    scope.launch { snackbar.showSnackbar("✅ Notifications activées") }
+                                } else {
+                                    NotificationForegroundService.stop(context)
+                                    scope.launch { snackbar.showSnackbar("🔕 Notifications désactivées") }
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF9C27B0),
+                                checkedTrackColor = Color(0xFF9C27B0).copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "💡 Conseil : Désactivez l'optimisation de batterie pour BagBot Manager dans les paramètres Android pour de meilleures performances.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray.copy(alpha = 0.7f)
+                    )
+                    
+                    Spacer(Modifier.height(16.dp))
+                    Divider(color = Color.Gray.copy(alpha = 0.3f))
+                    Spacer(Modifier.height(16.dp))
                     
                     Button(
                         onClick = {
                             scope.launch {
+                                NotificationForegroundService.stop(context)
                                 store.clear()
                                 onDisconnect()
                                 snackbar.showSnackbar("✅ Déconnecté")
