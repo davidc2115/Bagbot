@@ -1689,6 +1689,7 @@ app.post('/api/goodbye', requireAuth, express.json(), async (req, res) => {
 
 // GET /api/inactivity - Récupérer config inactivity (depuis autokick.inactivityKick)
 app.get('/api/inactivity', async (req, res) => {
+  console.log(`📥 [BOT-API] GET /api/inactivity?includeLeft=${req.query.includeLeft || 'undefined'}`);
   try {
     const config = await readConfig();
     const autokick = config.guilds?.[GUILD]?.autokick || {};
