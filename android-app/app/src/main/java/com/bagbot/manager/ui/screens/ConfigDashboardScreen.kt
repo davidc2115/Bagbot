@@ -237,7 +237,7 @@ fun ConfigDashboardScreen(
                 DashTab.Inactivity -> InactivityConfigTab(members, roles, api, json, scope, snackbar)
                 DashTab.AutoThread -> AutoThreadConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Disboard -> DisboardConfigTab(configData, channels, api, json, scope, snackbar)
-                DashTab.Geo -> GeoConfigTab(configData, members, api, scope, snackbar) { loadConfig() }
+                DashTab.Geo -> GeoConfigTab(configData, members, api, scope, snackbar, onReloadConfig)
                 DashTab.Backups -> BackupsTab(api, json, scope, snackbar)
                 DashTab.Control -> ControlTab(api, json, scope, snackbar)
                 null -> {} // Should not happen
