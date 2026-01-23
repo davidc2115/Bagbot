@@ -237,7 +237,7 @@ fun ConfigDashboardScreen(
                 DashTab.Inactivity -> InactivityConfigTab(members, roles, api, json, scope, snackbar)
                 DashTab.AutoThread -> AutoThreadConfigTab(configData, channels, api, json, scope, snackbar)
                 DashTab.Disboard -> DisboardConfigTab(configData, channels, api, json, scope, snackbar)
-                DashTab.Geo -> GeoConfigTab(configData, members)
+                DashTab.Geo -> GeoConfigTab(configData, members, api, scope, snackbar) { loadConfig() }
                 DashTab.Backups -> BackupsTab(api, json, scope, snackbar)
                 DashTab.Control -> ControlTab(api, json, scope, snackbar)
                 null -> {} // Should not happen
@@ -6564,7 +6564,8 @@ private fun InactivityConfigTab(
         val userId: String,
         val username: String?,
         val lastActivityMs: Long,
-        val inactiveForMs: Long
+        val inactiveForMs: Long,
+        val isOnServer: Boolean = true
     )
 
     fun formatDuration(ms: Long): String {
@@ -6608,7 +6609,8 @@ private fun InactivityConfigTab(
                             if (last <= 0L) return@mapNotNull null
                             val inactiveFor = (now - last).coerceAtLeast(0L)
                             val username = trackData["username"]?.jsonPrimitive?.contentOrNull
-                            InactivityRow(userId = uid, username = username, lastActivityMs = last, inactiveForMs = inactiveFor)
+                            val isOnServer = trackData["isOnServer"]?.jsonPrimitive?.booleanOrNull ?: true
+                            InactivityRow(userId = uid, username = username, lastActivityMs = last, inactiveForMs = inactiveFor, isOnServer = isOnServer)
                         }
                         ?.sortedByDescending { it.inactiveForMs }
                         ?: emptyList()
@@ -6775,7 +6777,13 @@ private fun InactivityConfigTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                if (!row.isOnServer) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("(parti)", color = Color.Red, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                             Text(
                                 "Inactif: ${formatDuration(row.inactiveForMs)}",
                                 color = Color.Gray,
@@ -6801,6 +6809,27 @@ private fun InactivityConfigTab(
                             enabled = !isLoading
                         ) {
                             Text("Reset")
+                        }
+                        // Bouton Supprimer
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            api.deleteJson("/api/inactivity/tracking/${row.userId}")
+                                            withContext(Dispatchers.Main) {
+                                                snackbar.showSnackbar("🗑️ Supprimé du tracking: $name")
+                                            }
+                                            load()
+                                        } catch (e: Exception) {
+                                            withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isLoading
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Supprimer", tint = Color.Red)
                         }
                     }
                     Spacer(Modifier.height(6.dp))
@@ -7010,23 +7039,30 @@ private fun DisboardConfigTab(
 @Composable
 private fun GeoConfigTab(
     configData: JsonObject?,
-    members: Map<String, String>
+    members: Map<String, String>,
+    api: ApiClient,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbar: SnackbarHostState,
+    onReload: () -> Unit
 ) {
     val geo = configData?.obj("geo")
     val locs = geo?.obj("locations") ?: buildJsonObject { }
     
     data class Location(val userId: String, val city: String, val lat: Double, val lon: Double, val updatedAt: String)
     
-    val locations = remember(locs) {
-        locs.mapNotNull { (uid, el) ->
-            val o = el.jsonObject
-            val city = o["city"]?.jsonPrimitive?.contentOrNull ?: ""
-            val lat = o["lat"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
-            val lon = o["lon"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
-            val updatedAt = o["updatedAt"]?.jsonPrimitive?.contentOrNull ?: ""
-            Location(uid, city, lat, lon, updatedAt)
-        }
+    var locationsList by remember(locs) { 
+        mutableStateOf(
+            locs.mapNotNull { (uid, el) ->
+                val o = el.jsonObject
+                val city = o["city"]?.jsonPrimitive?.contentOrNull ?: ""
+                val lat = o["lat"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+                val lon = o["lon"]?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+                val updatedAt = o["updatedAt"]?.jsonPrimitive?.contentOrNull ?: ""
+                Location(uid, city, lat, lon, updatedAt)
+            }
+        )
     }
+    val locations = locationsList
     
     var selectedLocation by remember { mutableStateOf<Location?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -7117,6 +7153,32 @@ private fun GeoConfigTab(
                                     "ID: ${location.userId.takeLast(8)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.Gray
+                                )
+                            }
+                            // Bouton supprimer
+                            IconButton(
+                                onClick = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                api.deleteJson("/api/geo/locations/${location.userId}")
+                                                withContext(Dispatchers.Main) {
+                                                    snackbar.showSnackbar("🗑️ Localisation supprimée")
+                                                    // Mettre à jour la liste localement
+                                                    locationsList = locationsList.filter { it.userId != location.userId }
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) { snackbar.showSnackbar("❌ Erreur: ${e.message}") }
+                                            }
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Supprimer",
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                             Icon(

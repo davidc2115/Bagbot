@@ -1701,50 +1701,63 @@ app.get('/api/inactivity', async (req, res) => {
     };
     const tracking = autokick.inactivityTracking || {};
     
-    // Enrichir le tracking avec les pseudos depuis le cache global
+    // Récupérer les IDs des membres actuels du serveur
+    const client = req.app.locals.client;
+    const guild = client?.guilds.cache.get(GUILD);
+    const currentMemberIds = guild ? new Set(guild.members.cache.map(m => m.id)) : new Set();
+    
+    // Paramètre pour inclure les membres partis (par défaut: false)
+    const includeLeft = req.query.includeLeft === 'true';
+    
+    // Enrichir le tracking avec les pseudos et filtrer les membres partis
     const enrichedTracking = {};
+    let cacheUpdated = false;
+    
     for (const [userId, data] of Object.entries(tracking)) {
+      // Vérifier si le membre est toujours sur le serveur
+      const isOnServer = currentMemberIds.has(userId);
+      
+      // Si on n'inclut pas les membres partis et qu'il n'est plus là, skip
+      if (!includeLeft && !isOnServer) {
+        continue;
+      }
+      
+      // Récupérer le username
+      let username = globalMembersCache[userId] || null;
+      
+      // Essayer le cache Discord si pas trouvé
+      if (!username && guild) {
+        const member = guild.members.cache.get(userId);
+        if (member) {
+          username = member.user.username;
+          globalMembersCache[userId] = username;
+          cacheUpdated = true;
+        }
+      }
+      
       enrichedTracking[userId] = {
         ...data,
-        username: globalMembersCache[userId] || null
+        username,
+        isOnServer
       };
     }
     
-    // Essayer de récupérer les noms manquants depuis le cache Discord (sans fetch lent)
-    const client = req.app.locals.client;
-    let cacheUpdated = false;
-    if (client) {
-      const guild = client.guilds.cache.get(GUILD);
-      if (guild) {
-        for (const userId of Object.keys(enrichedTracking)) {
-          if (!enrichedTracking[userId].username) {
-            // Utiliser seulement le cache, pas de fetch pour éviter les timeouts
-            const member = guild.members.cache.get(userId);
-            if (member) {
-              enrichedTracking[userId].username = member.user.username;
-              globalMembersCache[userId] = member.user.username;
-              cacheUpdated = true;
+    // Sauvegarder le cache mis à jour (en arrière-plan, sans bloquer)
+    if (cacheUpdated) {
+      setImmediate(() => {
+        try {
+          const namesPath = path.join(__dirname, '../data/discord-names.json');
+          let discordNamesFile = { channels: {}, roles: {}, members: {}, updatedAt: null };
+          try {
+            if (fs.existsSync(namesPath)) {
+              discordNamesFile = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
             }
-          }
-        }
-        // Sauvegarder le cache mis à jour (en arrière-plan, sans bloquer)
-        if (cacheUpdated) {
-          setImmediate(() => {
-            try {
-              const namesPath = path.join(__dirname, '../data/discord-names.json');
-              let discordNamesFile = { channels: {}, roles: {}, members: {}, updatedAt: null };
-              try {
-                if (fs.existsSync(namesPath)) {
-                  discordNamesFile = JSON.parse(fs.readFileSync(namesPath, 'utf8'));
-                }
-              } catch (e) {}
-              discordNamesFile.members = globalMembersCache;
-              discordNamesFile.updatedAt = new Date().toISOString();
-              fs.writeFileSync(namesPath, JSON.stringify(discordNamesFile, null, 2), 'utf8');
-            } catch (e) { /* ignore */ }
-          });
-        }
-      }
+          } catch (e) {}
+          discordNamesFile.members = globalMembersCache;
+          discordNamesFile.updatedAt = new Date().toISOString();
+          fs.writeFileSync(namesPath, JSON.stringify(discordNamesFile, null, 2), 'utf8');
+        } catch (e) { /* ignore */ }
+      });
     }
     
     // Retourner les données avec le tracking enrichi
@@ -1856,6 +1869,82 @@ app.post('/api/inactivity/add-all-members', requireAuth, async (req, res) => {
     
     await writeConfig(config);
     res.json({ success: true, message: `Added ${addedCount} members to tracking`, total: Object.keys(config.guilds[GUILD].autokick.inactivityTracking).length });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== GEOLOCATION ==========
+// GET /api/geo/locations - Récupérer toutes les localisations
+app.get('/api/geo/locations', requireAuth, async (req, res) => {
+  try {
+    const config = await readConfig();
+    const locations = config.guilds?.[GUILD]?.geo?.locations || {};
+    
+    // Enrichir avec les usernames
+    const enrichedLocations = {};
+    for (const [userId, data] of Object.entries(locations)) {
+      enrichedLocations[userId] = {
+        ...data,
+        username: globalMembersCache[userId] || null
+      };
+    }
+    
+    res.json({ locations: enrichedLocations });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/geo/locations/:userId - Supprimer la localisation d'un membre
+app.delete('/api/geo/locations/:userId', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const config = await readConfig();
+    
+    if (!config.guilds?.[GUILD]?.geo?.locations) {
+      return res.status(404).json({ error: 'No locations found' });
+    }
+    
+    if (!config.guilds[GUILD].geo.locations[userId]) {
+      return res.status(404).json({ error: 'Location not found for this user' });
+    }
+    
+    // Supprimer la localisation
+    delete config.guilds[GUILD].geo.locations[userId];
+    
+    await writeConfig(config);
+    
+    console.log(`[API] Location deleted for user ${userId} by ${req.userData?.username || 'unknown'}`);
+    
+    res.json({ success: true, message: 'Location deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/inactivity/tracking/:userId - Supprimer un membre du tracking d'inactivité
+app.delete('/api/inactivity/tracking/:userId', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const config = await readConfig();
+    
+    if (!config.guilds?.[GUILD]?.autokick?.inactivityTracking) {
+      return res.status(404).json({ error: 'No tracking data found' });
+    }
+    
+    if (!config.guilds[GUILD].autokick.inactivityTracking[userId]) {
+      return res.status(404).json({ error: 'User not found in tracking' });
+    }
+    
+    // Supprimer du tracking
+    delete config.guilds[GUILD].autokick.inactivityTracking[userId];
+    
+    await writeConfig(config);
+    
+    console.log(`[API] Inactivity tracking deleted for user ${userId} by ${req.userData?.username || 'unknown'}`);
+    
+    res.json({ success: true, message: 'User removed from tracking' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
