@@ -6596,7 +6596,7 @@ private fun InactivityConfigTab(
             isLoading = true
             withContext(Dispatchers.IO) {
                 try {
-                    val resp = api.getJson("/api/inactivity")
+                    val resp = api.getJson("/api/inactivity?includeLeft=false")
                     val obj = json.parseToJsonElement(resp).jsonObject
                     val trackingObj = obj["tracking"]?.jsonObject
                     val tracking = trackingObj?.size ?: 0

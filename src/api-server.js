@@ -1701,27 +1701,23 @@ app.get('/api/inactivity', async (req, res) => {
     };
     const tracking = autokick.inactivityTracking || {};
     
-    // Récupérer les IDs des membres actuels du serveur
+    // Récupérer les IDs des membres actuels du serveur depuis le cache Discord
     const client = req.app.locals.client;
     const guild = client?.guilds.cache.get(GUILD);
-    const currentMemberIds = guild ? new Set(guild.members.cache.map(m => m.id)) : new Set();
+    const discordCacheMemberIds = guild ? new Set(guild.members.cache.map(m => m.id)) : new Set();
     
-    // Paramètre pour inclure les membres partis (par défaut: false)
-    const includeLeft = req.query.includeLeft === 'true';
+    // Utiliser le cache global comme source principale (plus fiable)
+    // Un membre est considéré "sur le serveur" s'il a un username dans notre cache
+    const globalCacheMemberIds = new Set(Object.keys(globalMembersCache));
+    
+    // Paramètre pour inclure les membres partis (par défaut: true pour éviter de perdre des données)
+    const includeLeft = req.query.includeLeft !== 'false';
     
     // Enrichir le tracking avec les pseudos et filtrer les membres partis
     const enrichedTracking = {};
     let cacheUpdated = false;
     
     for (const [userId, data] of Object.entries(tracking)) {
-      // Vérifier si le membre est toujours sur le serveur
-      const isOnServer = currentMemberIds.has(userId);
-      
-      // Si on n'inclut pas les membres partis et qu'il n'est plus là, skip
-      if (!includeLeft && !isOnServer) {
-        continue;
-      }
-      
       // Récupérer le username
       let username = globalMembersCache[userId] || null;
       
@@ -1733,6 +1729,14 @@ app.get('/api/inactivity', async (req, res) => {
           globalMembersCache[userId] = username;
           cacheUpdated = true;
         }
+      }
+      
+      // Un membre est "sur le serveur" s'il a un username (dans notre cache ou Discord)
+      const isOnServer = username !== null;
+      
+      // Si on n'inclut pas les membres partis et qu'il n'a pas de username, skip
+      if (!includeLeft && !isOnServer) {
+        continue;
       }
       
       enrichedTracking[userId] = {
