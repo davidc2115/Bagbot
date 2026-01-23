@@ -3308,6 +3308,8 @@ fun AppConfigScreen(
     snackbar: SnackbarHostState,
     onDisconnect: () -> Unit
 ) {
+    val context = LocalContext.current
+    
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
