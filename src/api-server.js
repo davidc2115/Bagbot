@@ -1618,10 +1618,14 @@ app.delete('/api/music/playlists/:id', requireAuth, (req, res) => {
 // POST /api/economy - Sauvegarder config économie (utilise PUT /api/configs/economy)
 app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
   console.log('[BOT-API] /api/economy START - req.body keys:', Object.keys(req.body || {}));
+  console.log('[BOT-API] /api/economy FULL BODY:', JSON.stringify(req.body, null, 2));
   try {
     const actionKey = Object.keys(req.body?.actions?.config || {})[0];
+    const actionConfig = req.body?.actions?.config?.[actionKey];
     const settingsCd = req.body?.settings?.cooldowns;
-    console.log('[BOT-API] /api/economy - actionKey:', actionKey, ', cooldowns:', JSON.stringify(settingsCd));
+    console.log('[BOT-API] /api/economy - actionKey:', actionKey);
+    console.log('[BOT-API] /api/economy - actionConfig:', JSON.stringify(actionConfig));
+    console.log('[BOT-API] /api/economy - cooldowns:', JSON.stringify(settingsCd));
     
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};
