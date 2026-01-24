@@ -795,13 +795,30 @@ startKeepAliveServer();
 const THEME_COLOR_PRIMARY = 0x1e88e5; // blue
 const THEME_COLOR_ACCENT = 0xec407a; // pink
 const THEME_COLOR_NSFW = 0xd32f2f; // deep red for NSFW
-const THEME_IMAGE = 'https://cdn.discordapp.com/attachments/1408458115283812484/1408497858256179400/file_00000000d78861f4993dddd515f84845.png?ex=68b08cda&is=68af3b5a&hm=2e68cb9d7dfc7a60465aa74447b310348fc2d7236e74fa7c08f9434c110d7959&';
-const THEME_FOOTER_ICON = 'https://cdn.discordapp.com/attachments/1408458115283812484/1408458115770482778/20250305162902.png?ex=68b50516&is=68b3b396&hm=1d83bbaaa9451ed0034a52c48ede5ddc55db692b15e65b4fe5c659ed4c80b77d&';
-let THEME_TICKET_FOOTER_ICON = 'https://cdn.discordapp.com/attachments/1408458115283812484/1411752143173714040/IMG_20250831_183646.png?ex=68b7c664&is=68b674e4&hm=5980bdf7a118bddd76bb4d5f57168df7b2986b23b56ff0c96d47c3827b283765&';
+// URLs permanentes (sans expiration) - fallback vers null si non disponible
+const THEME_IMAGE = null;
+const THEME_FOOTER_ICON = null;
+let THEME_TICKET_FOOTER_ICON = null;
 // Variables dynamiques pour les thèmes personnalisés (chargées au démarrage depuis le storage)
 let currentThumbnailImage = THEME_IMAGE;
 const categoryBanners = { moderation: null, economy: null, localisation: null, confessions: null, premium_suites: null, comptage: null, couleurs: null, top_leaderboards: null, configuration: null, pagination: null };
 let currentFooterIcon = THEME_FOOTER_ICON;
+
+// Helper pour créer un footer sécurisé (évite les erreurs de validation URL)
+function safeFooter(text, iconURL) {
+  if (iconURL && typeof iconURL === 'string' && iconURL.startsWith('http')) {
+    return { text, iconURL };
+  }
+  return { text };
+}
+
+// Helper pour obtenir l'icône de footer de façon sécurisée
+function getFooterIcon() {
+  if (currentFooterIcon && typeof currentFooterIcon === 'string' && currentFooterIcon.startsWith('http')) {
+    return currentFooterIcon;
+  }
+  return undefined;
+}
 
 
 const DELAY_OPTIONS = [
@@ -841,10 +858,9 @@ function buildModEmbed(title, description, extras) {
     .setColor(THEME_COLOR_ACCENT)
     .setTitle(title)
     .setDescription(description || null)
-    .setThumbnail(currentThumbnailImage)
     .setTimestamp(new Date())
-    .setFooter({ text: 'BAG • Modération', iconURL: currentFooterIcon });
-  try { if (embed?.data?.footer?.text || true) embed.setFooter({ text: embed?.data?.footer?.text || 'Boy and Girls (BAG)', iconURL: currentFooterIcon }); } catch (_) {}
+    .setFooter(safeFooter('BAG • Modération', currentFooterIcon));
+  if (currentThumbnailImage) embed.setThumbnail(currentThumbnailImage);
   if (Array.isArray(extras) && extras.length) embed.addFields(extras);
   // Ajouter la bannière si configurée
   if (categoryBanners.moderation) embed.setImage(categoryBanners.moderation);
@@ -855,9 +871,9 @@ function buildEcoEmbed(opts) {
   const { title, description, fields, color } = opts || {};
   const embed = new EmbedBuilder()
     .setColor(color || THEME_COLOR_PRIMARY)
-    .setThumbnail(currentThumbnailImage)
     .setTimestamp(new Date())
-    .setFooter({ text: 'BAG • Économie', iconURL: currentFooterIcon });
+    .setFooter(safeFooter('BAG • Économie', currentFooterIcon));
+  if (currentThumbnailImage) embed.setThumbnail(currentThumbnailImage);
   if (title) embed.setTitle(String(title));
   if (description) embed.setDescription(String(description));
   if (Array.isArray(fields) && fields.length) embed.addFields(fields);
@@ -884,7 +900,7 @@ function buildTruthDareStartEmbed(mode, hasAction, hasTruth) {
     .setDescription(lines.join('\n'))
     .setThumbnail(currentThumbnailImage)
     .setTimestamp(new Date())
-    .setFooter({ text: footerText, iconURL: currentFooterIcon });
+    .setFooter({ text: footerText, iconURL: getFooterIcon() });
   return embed;
 }
 
@@ -901,7 +917,7 @@ function buildTruthDarePromptEmbed(mode, type, text) {
     .setDescription(`${String(text||'—')}\n\nCliquez pour un nouveau prompt.`)
     .setThumbnail(currentThumbnailImage)
     .setTimestamp(new Date())
-    .setFooter({ text: footerText, iconURL: currentFooterIcon });
+    .setFooter({ text: footerText, iconURL: getFooterIcon() });
   return embed;
 }
 
@@ -1059,7 +1075,7 @@ async function maybeAwardOneTimeGrant(interaction, eco, userEcoAfter, actionKey,
         { name: 'Nouveau solde', value: `${beforeAmt.toLocaleString()} → **${afterAmt.toLocaleString()}** ${currency}`, inline: true },
       )
       .setThumbnail(currentThumbnailImage)
-      .setFooter({ text: 'BAG • Économie • Grants', iconURL: currentFooterIcon })
+      .setFooter({ text: 'BAG • Économie • Grants', iconURL: getFooterIcon() })
       .setTimestamp(new Date());
     try {
       const mention = `<@${interaction.user.id}>`;
@@ -3731,7 +3747,7 @@ async function buildConfigEmbed(guild) {
     .setThumbnail(currentThumbnailImage)
     .setImage(THEME_IMAGE);
 
-  embed.setFooter({ text: 'Boy and Girls (BAG) • Config', iconURL: currentFooterIcon });
+  embed.setFooter({ text: 'Boy and Girls (BAG) • Config', iconURL: getFooterIcon() });
   if (categoryBanners.configuration) embed.setImage(categoryBanners.configuration);
 
   return embed;
@@ -4692,7 +4708,7 @@ async function buildTopNiveauEmbed(guild, entriesSorted, offset, limit) {
     .setAuthor({ name: `${guild.name} • Classement des niveaux`, iconURL: guild.iconURL?.() || undefined })
     .setDescription(lines.join('\n') || '—')
     .setThumbnail(currentThumbnailImage)
-    .setFooter({ text: `Boy and Girls (BAG) • ${offset + 1}-${Math.min(total, offset + limit)} sur ${total}`, iconURL: currentFooterIcon })
+    .setFooter({ text: `Boy and Girls (BAG) • ${offset + 1}-${Math.min(total, offset + limit)} sur ${total}`, iconURL: getFooterIcon() })
     .setTimestamp(new Date());
 
   const components = [];
@@ -4735,7 +4751,7 @@ async function buildTopEconomieEmbed(guild, entriesSorted, offset, limit) {
     .setAuthor({ name: `${guild.name} • Classement Économie`, iconURL: guild.iconURL?.() || undefined })
     .setDescription(lines.join('\n') || '—')
     .setThumbnail(currentThumbnailImage)
-    .setFooter({ text: `Boy and Girls (BAG) • ${offset + 1}-${Math.min(total, offset + limit)} sur ${total}`, iconURL: currentFooterIcon })
+    .setFooter({ text: `Boy and Girls (BAG) • ${offset + 1}-${Math.min(total, offset + limit)} sur ${total}`, iconURL: getFooterIcon() })
     .setTimestamp(new Date());
 
   const components = [];
@@ -6085,9 +6101,18 @@ client.once(Events.ClientReady, async (readyClient) => {
   // Charger les thèmes personnalisés depuis le storage
   try { 
     const gid = readyClient.guilds.cache.first()?.id; 
+    
+    // Utiliser l'avatar du bot comme footer icon par défaut
+    const botAvatarUrl = readyClient.user?.displayAvatarURL({ format: 'png', size: 64 });
+    if (botAvatarUrl) {
+      currentFooterIcon = botAvatarUrl;
+      currentThumbnailImage = botAvatarUrl;
+    }
+    
     if (gid) { 
       const logo = await getGuildFooterLogo(gid); 
-      if (logo) { 
+      // Valider que l'URL est bien formée avant de l'utiliser
+      if (logo && typeof logo === 'string' && logo.startsWith('http')) { 
         currentFooterIcon = logo; 
         currentThumbnailImage = logo; 
       } 
@@ -7032,7 +7057,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             { name: 'Latitude', value: String(stored.lat), inline: true },
             { name: 'Longitude', value: String(stored.lon), inline: true },
           )
-          .setFooter({ text: 'BAG • Localisation', iconURL: currentFooterIcon });
+          .setFooter({ text: 'BAG • Localisation', iconURL: getFooterIcon() });
       if (categoryBanners.localisation) embed.setImage(categoryBanners.localisation);
         let file = null;
         const buf = await fetchStaticMapBuffer(stored.lat, stored.lon, 10, [{ lat: stored.lat, lon: stored.lon, icon: 'small-blue-cutout' }], 600, 400);
@@ -7073,7 +7098,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           .setTitle('Membres proches')
           .setDescription(lines)
           .addFields({ name: 'Rayon', value: `${radius} km`, inline: true })
-          .setFooter({ text: 'BAG • Localisation', iconURL: currentFooterIcon });
+          .setFooter({ text: 'BAG • Localisation', iconURL: getFooterIcon() });
       if (categoryBanners.localisation) embed.setImage(categoryBanners.localisation);
         // Build markers: center user in blue, others in red
         const markers = [{ lat: selfLoc.lat, lon: selfLoc.lon, icon: 'small-blue-cutout' }];
@@ -7113,7 +7138,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
               { name: 'Longitude', value: String(loc.lon), inline: true },
               { name: 'Carte', value: url }
             )
-            .setFooter({ text: 'BAG • Localisation', iconURL: currentFooterIcon });
+            .setFooter({ text: 'BAG • Localisation', iconURL: getFooterIcon() });
       if (categoryBanners.localisation) embed.setImage(categoryBanners.localisation);
           let file = null;
           const buf = await fetchStaticMapBuffer(loc.lat, loc.lon, 10, [{ lat: loc.lat, lon: loc.lon, icon: 'small-blue-cutout' }], 600, 400);
@@ -7139,7 +7164,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           .setTitle('Localisations membres')
           .setDescription(lines)
           .addFields({ name: 'Total', value: String(ids.length), inline: true })
-          .setFooter({ text: 'BAG • Localisation', iconURL: currentFooterIcon });
+          .setFooter({ text: 'BAG • Localisation', iconURL: getFooterIcon() });
       if (categoryBanners.localisation) embed.setImage(categoryBanners.localisation);
         // Try to compute map center and show up to 25 markers
         const points = ids.slice(0, 25).map(uid => ({ lat: Number(all[uid].lat), lon: Number(all[uid].lon) })).filter(p => isFinite(p.lat) && isFinite(p.lon));
@@ -11720,7 +11745,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
       }
       if (thread) {
-        const embed = new EmbedBuilder().setColor(THEME_COLOR_PRIMARY).setAuthor({ name: 'Réponse anonyme' }).setDescription(text).setFooter({ text: 'Boy and Girls (BAG)', iconURL: currentFooterIcon }).setTimestamp(new Date());
+        const embed = new EmbedBuilder().setColor(THEME_COLOR_PRIMARY).setAuthor({ name: 'Réponse anonyme' }).setDescription(text).setFooter({ text: 'Boy and Girls (BAG)', iconURL: getFooterIcon() }).setTimestamp(new Date());
         const sent = await thread.send({ embeds: [embed] }).catch(()=>null);
         // Admin log for anonymous reply
         try {
@@ -12325,7 +12350,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         .setDescription(text || null)
         .setThumbnail(currentThumbnailImage)
         .setTimestamp(new Date())
-        .setFooter({ text: 'BAG • Confessions', iconURL: currentFooterIcon });
+        .setFooter({ text: 'BAG • Confessions', iconURL: getFooterIcon() });
       // Ajouter l'image uniquement dans l'embed, pas en fichier séparé
       if (attach && attach.url) {
         embed.setImage(attach.url);
@@ -12888,7 +12913,7 @@ client.on(Events.MessageCreate, async (message) => {
               .setTitle('✨ Merci pour le bump !')
               .setDescription('Votre soutien fait rayonner le serveur. Le cooldown de 2 heures démarre maintenant.\n\n• Prochain rappel automatique: dans 2h\n• Salon: <#' + message.channel.id + '>\n\nRestez sexy, beaux/belles gosses 😘')
               .setThumbnail(currentThumbnailImage)
-              .setFooter({ text: 'BAG • Premium', iconURL: currentFooterIcon })
+              .setFooter({ text: 'BAG • Premium', iconURL: getFooterIcon() })
               .setTimestamp(new Date());
             await message.channel.send({ embeds: [embed] }).catch(()=>{});
           } catch (_) {}
@@ -12971,7 +12996,7 @@ client.on(Events.MessageCreate, async (message) => {
         // If we couldn't parse a number safely, do NOT reset the counter:
         // random messages with digits (emojis, IDs, etc.) shouldn't wipe progress.
         if (!Number.isFinite(value)) {
-          await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: valeur non reconnue').setDescription('Attendu: **' + expected0 + '**\nJe n\'arrive pas à interpréter ton message comme un nombre (ou une formule).\nOn ne reset pas: tu peux renvoyer **' + expected0 + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+          await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: valeur non reconnue').setDescription('Attendu: **' + expected0 + '**\nJe n\'arrive pas à interpréter ton message comme un nombre (ou une formule).\nOn ne reset pas: tu peux renvoyer **' + expected0 + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: getFooterIcon() }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
         } else {
           // Normalize float noise (e.g. 3.9999999997) to the nearest integer.
           const rounded = Math.round(value);
@@ -12981,13 +13006,13 @@ client.on(Events.MessageCreate, async (message) => {
           const expected = (state.current || 0) + 1;
           if ((state.lastUserId||'') === message.author.id) {
             await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Doucement, un à la fois…').setDescription('Deux chiffres d\'affilée 😉\nAttendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, à toi de rejouer.').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Doucement, un à la fois…').setDescription('Deux chiffres d\'affilée 😉\nAttendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, à toi de rejouer.').setFooter({ text: 'BAG • Comptage', iconURL: getFooterIcon() }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
           } else if (!Number.isInteger(next)) {
             // Non-integer results shouldn't hard-reset the game.
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: résultat non entier').setDescription('Attendu: **' + expected + '**\nTon résultat fait **' + String(next) + '** (non entier). Le comptage attend un entier.\nOn ne reset pas: renvoie **' + expected + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+            await message.reply({ embeds: [new EmbedBuilder().setColor(0xffb300).setTitle('⚠️ Comptage: résultat non entier').setDescription('Attendu: **' + expected + '**\nTon résultat fait **' + String(next) + '** (non entier). Le comptage attend un entier.\nOn ne reset pas: renvoie **' + expected + '** ✅').setFooter({ text: 'BAG • Comptage', iconURL: getFooterIcon() }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
           } else if (next !== expected) {
             await setCountingState(message.guild.id, { current: 0, lastUserId: '' });
-            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Mauvais numéro').setDescription('Attendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on se retrouve au début 💕').setFooter({ text: 'BAG • Comptage', iconURL: currentFooterIcon }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
+            await message.reply({ embeds: [new EmbedBuilder().setColor(0xec407a).setTitle('❌ Mauvais numéro').setDescription('Attendu: **' + expected + '**\nRemise à zéro → **1**\n<@' + message.author.id + '>, on se retrouve au début 💕').setFooter({ text: 'BAG • Comptage', iconURL: getFooterIcon() }).setThumbnail(currentThumbnailImage).setImage(categoryBanners.comptage || undefined)] }).catch(()=>{});
           } else {
             await setCountingState(message.guild.id, { current: next, lastUserId: message.author.id });
             
@@ -13470,7 +13495,7 @@ function buildColorSelectView(targetType, targetId, category, offset = 0) {
     .setTitle(`🎨 Attribution de couleur — ${categoryNames[category]}`)
     .setDescription(`Sélectionnez une couleur (${pageIndex}/${pageCount}). Utilisez les boutons pour naviguer.`)
     .setThumbnail(currentThumbnailImage)
-    .setFooter({ text: 'BAG • Couleurs', iconURL: currentFooterIcon })
+    .setFooter({ text: 'BAG • Couleurs', iconURL: getFooterIcon() })
     .setTimestamp()
     .addFields(fields);
 
@@ -13722,7 +13747,7 @@ async function maybeAnnounceNewKarmaBonus(interaction, eco, userEcoAfter, action
           )
           .setThumbnail(currentThumbnailImage)
           .setTimestamp(new Date())
-          .setFooter({ text: 'BAG • Système de bonus karma', iconURL: currentFooterIcon });
+          .setFooter({ text: 'BAG • Système de bonus karma', iconURL: getFooterIcon() });
         
         // Send as channel message (not followUp) to ensure visibility
         try {
@@ -13813,7 +13838,7 @@ async function maybeAnnounceNewShopDiscount(interaction, eco, userEcoAfter, acti
           )
           .setThumbnail(currentThumbnailImage)
           .setTimestamp(new Date())
-          .setFooter({ text: 'BAG • Réductions boutique karma', iconURL: currentFooterIcon });
+          .setFooter({ text: 'BAG • Réductions boutique karma', iconURL: getFooterIcon() });
         
         // Send as channel message
         try {
@@ -13906,7 +13931,7 @@ async function buildBoutiqueEmbed(guild, user, offset = 0, limit = 25) {
     .setColor(THEME_COLOR_PRIMARY)
     .setTitle('🛍️ Boutique BAG')
     .setThumbnail(currentThumbnailImage)
-    .setFooter({ text: 'Boy and Girls (BAG)', iconURL: currentFooterIcon });
+    .setFooter({ text: 'Boy and Girls (BAG)', iconURL: getFooterIcon() });
   
   // Calculate total delta for display (positif = augmente, négatif = baisse)
   let totalDeltaPercent = 0;
@@ -14044,7 +14069,7 @@ async function buildBoutiqueEmbed(guild, user, offset = 0, limit = 25) {
   if (total > limit) {
     const from = Math.min(total, offset + 1);
     const to = Math.min(total, offset + limit);
-    embed.setFooter({ text: `Boy and Girls (BAG) • ${from}-${to} sur ${total}`, iconURL: currentFooterIcon });
+    embed.setFooter({ text: `Boy and Girls (BAG) • ${from}-${to} sur ${total}`, iconURL: getFooterIcon() });
   }
   return embed;
 }
