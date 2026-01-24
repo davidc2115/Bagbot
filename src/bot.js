@@ -1647,6 +1647,7 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
   const now = Date.now();
   const conf = (eco.actions?.config || {})[actionKey] || {};
   const baseCd = Number(eco.settings?.cooldowns?.[actionKey] || conf.cooldown || 0);
+  console.log(`[ECO DEBUG] Action: ${actionKey}, moneyMin: ${conf.moneyMin}, moneyMax: ${conf.moneyMax}, cooldown: ${baseCd}`);
   let cdLeft = Math.max(0, (u.cooldowns?.[actionKey] || 0) - now);
   if (cdLeft > 0) {
     const txt = `Veuillez patienter ${Math.ceil(cdLeft/1000)}s avant de réessayer.`;
