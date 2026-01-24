@@ -1650,6 +1650,21 @@ app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
     
     config.guilds[GUILD].economy = deepMerge(config.guilds[GUILD].economy, req.body);
     
+    // Synchroniser le cooldown entre settings.cooldowns et actions.config
+    if (actionKey) {
+      const settingsCooldown = config.guilds[GUILD].economy?.settings?.cooldowns?.[actionKey];
+      const configCooldown = config.guilds[GUILD].economy?.actions?.config?.[actionKey]?.cooldown;
+      
+      // Si le cooldown a été modifié dans settings, le synchroniser dans actions.config
+      if (settingsCooldown !== undefined && settingsCooldown !== configCooldown) {
+        if (!config.guilds[GUILD].economy.actions) config.guilds[GUILD].economy.actions = {};
+        if (!config.guilds[GUILD].economy.actions.config) config.guilds[GUILD].economy.actions.config = {};
+        if (!config.guilds[GUILD].economy.actions.config[actionKey]) config.guilds[GUILD].economy.actions.config[actionKey] = {};
+        config.guilds[GUILD].economy.actions.config[actionKey].cooldown = settingsCooldown;
+        console.log(`[BOT-API] /api/economy - Synced cooldown for ${actionKey}: ${settingsCooldown}`);
+      }
+    }
+    
     const afterConfig = actionKey ? config.guilds[GUILD].economy?.actions?.config?.[actionKey] : null;
     console.log('[BOT-API] /api/economy AFTER merge:', actionKey, '=', JSON.stringify(afterConfig));
     
