@@ -3051,11 +3051,11 @@ private fun ActionGifsTab(
     snackbar: SnackbarHostState
 ) {
     val gifsData = actions?.obj("gifs")?.obj(selectedActionKey)
-    val successGifs = remember(gifsData) {
-        gifsData?.arr("success").safeStringList().toMutableList()
+    val successGifs = remember(gifsData, selectedActionKey) {
+        (gifsData?.arr("success").safeStringList() ?: emptyList()).toMutableStateList()
     }
-    val failGifs = remember(gifsData) {
-        gifsData?.arr("fail").safeStringList().toMutableList()
+    val failGifs = remember(gifsData, selectedActionKey) {
+        (gifsData?.arr("fail").safeStringList() ?: emptyList()).toMutableStateList()
     }
     
     var showAddSuccess by remember { mutableStateOf(false) }
