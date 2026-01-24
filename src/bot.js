@@ -67,6 +67,15 @@ function isLikelyDirectImageUrl(url) {
   } catch (_) { return false; }
 }
 function normalizeGifUrlBasic(url) {
+  if (!url) return null;
+  
+  // Ignorer les URLs relatives (chemins /uploads/... sans domaine)
+  // Ces URLs ne peuvent pas être utilisées par Discord
+  if (typeof url === 'string' && (url.startsWith('/') && !url.startsWith('//'))) {
+    console.log(`[IMAGE] Ignoring relative URL: ${url}`);
+    return null;
+  }
+  
   try {
     const u = new URL(url);
     const host = String(u.hostname || '').toLowerCase();
@@ -79,7 +88,7 @@ function normalizeGifUrlBasic(url) {
       if (id) return `https://media.giphy.com/media/${id}/giphy.gif`;
     }
     return url;
-  } catch (_) { return url; }
+  } catch (_) { return null; }
 }
 async function resolveGifUrl(url, opts) {
   const options = opts || {};
@@ -3456,7 +3465,9 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
   });
   const embed = buildEcoEmbed({ title, description: desc, fields: safeFields });
   console.log(`[IMAGE DEBUG] Avant setImage - imageAttachment:`, !!imageAttachment, 'imageUrl:', imageUrl);
-  if (imageUrl) {
+  // Valider que imageUrl est une URL absolue valide avant de l'utiliser
+  const isValidImageUrl = imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http');
+  if (isValidImageUrl) {
     console.log(`[IMAGE] Setting embed image: ${imageUrl}`);
     embed.setImage(imageUrl);
   } else if (imageAttachment && imageAttachment.filename) {
