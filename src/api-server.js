@@ -1617,7 +1617,12 @@ app.delete('/api/music/playlists/:id', requireAuth, (req, res) => {
 
 // POST /api/economy - Sauvegarder config économie (utilise PUT /api/configs/economy)
 app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
+  console.log('[BOT-API] /api/economy START - req.body keys:', Object.keys(req.body || {}));
   try {
+    const actionKey = Object.keys(req.body?.actions?.config || {})[0];
+    const settingsCd = req.body?.settings?.cooldowns;
+    console.log('[BOT-API] /api/economy - actionKey:', actionKey, ', cooldowns:', JSON.stringify(settingsCd));
+    
     const config = await readConfig();
     if (!config.guilds) config.guilds = {};
     if (!config.guilds[GUILD]) config.guilds[GUILD] = {};
@@ -1636,9 +1641,16 @@ app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
     };
     
     if (!config.guilds[GUILD].economy) config.guilds[GUILD].economy = {};
+    const beforeConfig = actionKey ? config.guilds[GUILD].economy?.actions?.config?.[actionKey] : null;
+    console.log('[BOT-API] /api/economy BEFORE merge:', actionKey, '=', JSON.stringify(beforeConfig));
+    
     config.guilds[GUILD].economy = deepMerge(config.guilds[GUILD].economy, req.body);
     
+    const afterConfig = actionKey ? config.guilds[GUILD].economy?.actions?.config?.[actionKey] : null;
+    console.log('[BOT-API] /api/economy AFTER merge:', actionKey, '=', JSON.stringify(afterConfig));
+    
     await writeConfig(config);
+    console.log('[BOT-API] /api/economy SAVED successfully');
     res.json({ success: true, config: config.guilds[GUILD].economy });
   } catch (error) {
     console.error('[BOT-API] Error in /api/economy:', error);
