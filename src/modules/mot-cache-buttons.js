@@ -1105,6 +1105,12 @@ async function handleMotCacheSelect(interaction) {
   // Sélecteur d'emoji
   if (interaction.customId === 'motcache_emoji_select') {
     const selected = interaction.values[0];
+    console.log(`[MOT-CACHE] Emoji select: ${selected}`);
+    
+    if (selected === 'none') {
+      return interaction.deferUpdate();
+    }
+    
     let emoji = '🔍';
     
     if (selected.startsWith('std:')) {
@@ -1113,14 +1119,23 @@ async function handleMotCacheSelect(interaction) {
       emoji = selected.substring(7); // Emoji custom du serveur
     }
     
-    motCache.emoji = emoji;
-    guildConfig.motCache = motCache;
-    await writeConfig(config);
+    console.log(`[MOT-CACHE] Emoji parsed: ${emoji}`);
+    
+    try {
+      motCache.emoji = emoji;
+      guildConfig.motCache = motCache;
+      await writeConfig(config);
+      console.log(`[MOT-CACHE] Emoji saved successfully`);
 
-    return interaction.update({
-      content: `✅ Emoji défini : ${emoji}`,
-      components: []
-    });
+      return interaction.update({
+        content: `✅ Emoji défini : ${emoji}`,
+        embeds: [],
+        components: []
+      });
+    } catch (error) {
+      console.error(`[MOT-CACHE] Error saving emoji:`, error);
+      return interaction.reply({ content: `❌ Erreur: ${error.message}`, ephemeral: true });
+    }
   }
 }
 
