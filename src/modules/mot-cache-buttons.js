@@ -202,11 +202,83 @@ async function handleMotCacheButton(interaction) {
     return interaction.showModal(modal);
   }
 
-  // Emoji
+  // Emoji - Afficher sélecteur avec emojis du serveur
   if (buttonId === 'motcache_emoji') {
+    try {
+      // Récupérer les emojis du serveur
+      const guildEmojis = await interaction.guild.emojis.fetch().catch(() => new Map());
+      const emojiOptions = [];
+      
+      // Ajouter quelques emojis standards populaires en premier
+      const standardEmojis = ['🔍', '⭐', '🎯', '💎', '🏆', '🎁', '❤️', '🔥', '✨', '🌟'];
+      for (const emoji of standardEmojis) {
+        emojiOptions.push({
+          label: `Standard: ${emoji}`,
+          value: `std:${emoji}`,
+          emoji: emoji
+        });
+      }
+      
+      // Ajouter les emojis du serveur (max 15 pour garder de la place)
+      let count = 0;
+      for (const [id, emoji] of guildEmojis) {
+        if (count >= 15) break;
+        const raw = emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
+        emojiOptions.push({
+          label: emoji.name.substring(0, 25),
+          value: `custom:${raw}`,
+          emoji: { id: emoji.id, name: emoji.name, animated: emoji.animated }
+        });
+        count++;
+      }
+      
+      const select = new StringSelectMenuBuilder()
+        .setCustomId('motcache_emoji_select')
+        .setPlaceholder(`Emoji actuel: ${motCache.emoji || '🔍'}`)
+        .addOptions(emojiOptions.slice(0, 25));
+      
+      const backBtn = new ButtonBuilder()
+        .setCustomId('motcache_back_to_config')
+        .setLabel('↩️ Retour')
+        .setStyle(ButtonStyle.Secondary);
+      
+      const customBtn = new ButtonBuilder()
+        .setCustomId('motcache_emoji_custom')
+        .setLabel('✏️ Saisir manuellement')
+        .setStyle(ButtonStyle.Primary);
+      
+      return interaction.update({
+        content: `🔍 **Sélectionne un emoji pour le jeu Mot-Caché**\n\nEmoji actuel: ${motCache.emoji || '🔍'}\n\n💡 Utilise le sélecteur ou clique sur "Saisir manuellement" pour un emoji personnalisé.`,
+        components: [
+          new ActionRowBuilder().addComponents(select),
+          new ActionRowBuilder().addComponents(backBtn, customBtn)
+        ]
+      });
+    } catch (error) {
+      console.error('[MOT-CACHE] Erreur chargement emojis:', error);
+      // Fallback vers la modal texte
+      const modal = new ModalBuilder()
+        .setCustomId('motcache_modal_emoji')
+        .setTitle('🔍 Emoji de réaction');
+
+      const emojiInput = new TextInputBuilder()
+        .setCustomId('emoji')
+        .setLabel('Emoji (standard ou du serveur)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Ex: 🔍 ou <:nom:123456> pour emoji serveur')
+        .setRequired(true)
+        .setValue(motCache.emoji || '🔍');
+
+      modal.addComponents(new ActionRowBuilder().addComponents(emojiInput));
+      return interaction.showModal(modal);
+    }
+  }
+  
+  // Emoji custom - Modal pour saisie manuelle
+  if (buttonId === 'motcache_emoji_custom') {
     const modal = new ModalBuilder()
       .setCustomId('motcache_modal_emoji')
-      .setTitle('🔍 Emoji de réaction');
+      .setTitle('🔍 Emoji personnalisé');
 
     const emojiInput = new TextInputBuilder()
       .setCustomId('emoji')
@@ -306,6 +378,89 @@ async function handleMotCacheButton(interaction) {
       content: '🔄 **Jeu réinitialisé !**\nToutes les collections ont été effacées.',
       embeds: [],
       components: []
+    });
+  }
+  
+  // Retour à la config (depuis sélecteur emoji)
+  if (buttonId === 'motcache_back_to_config') {
+    // Reconstruire le panneau de config
+    const modeText = motCache.mode === 'daily' 
+      ? `📅 Programmé (${motCache.lettersPerDay || 1} lettre(s)/jour)` 
+      : `🎲 Probabilité (${motCache.probability || 5}%)`;
+
+    const embed = new EmbedBuilder()
+      .setTitle('⚙️ Configuration Mot-Caché')
+      .setDescription('────────────────────────────')
+      .addFields(
+        { name: '📊 État', value: motCache.enabled ? '✅ Activé' : '⏸️ Désactivé', inline: true },
+        { name: '🎯 Mot cible', value: motCache.targetWord || 'Non défini', inline: true },
+        { name: '🔍 Emoji', value: motCache.emoji || '🔍', inline: true },
+        { name: '💰 Récompense', value: `${motCache.rewardAmount || 5000} BAG$`, inline: true },
+        { name: '🎮 Mode de jeu', value: modeText, inline: true },
+        { name: '📈 Taux d\'apparition', value: `${motCache.probability || 5}%`, inline: true },
+        { name: '📏 Longueur min.', value: `${motCache.minMessageLength || 15} caractères`, inline: true },
+        { name: '📋 Salons jeu', value: motCache.allowedChannels && motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salon(s)` : 'Tous', inline: true },
+        { name: '💬 Salon lettres', value: motCache.letterNotificationChannel ? `<#${motCache.letterNotificationChannel}>` : 'Non configuré', inline: true },
+        { name: '📢 Salon gagnant', value: motCache.winnerNotificationChannel ? `<#${motCache.winnerNotificationChannel}>` : 'Non configuré', inline: true }
+      )
+      .setColor(motCache.enabled ? '#2ecc71' : '#95a5a6');
+
+    const row1 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('motcache_toggle')
+        .setLabel(motCache.enabled ? '⏸️ Désactiver' : '▶️ Activer')
+        .setStyle(motCache.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('motcache_setword')
+        .setLabel('🎯 Changer le mot')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('motcache_mode')
+        .setLabel('🎮 Mode de jeu')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('motcache_emoji')
+        .setLabel('🔍 Emoji')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('motcache_probability')
+        .setLabel('📈 Taux (%)')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('motcache_minlength')
+        .setLabel('📏 Longueur min.')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    const row2bis = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('motcache_gamechannels')
+        .setLabel('📋 Salons jeu')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('motcache_letternotifchannel')
+        .setLabel('💬 Salon lettres')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('motcache_winnernotifchannel')
+        .setLabel('📢 Salon gagnant')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    const row3 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('motcache_reset')
+        .setLabel('🔄 Reset jeu')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    return interaction.update({
+      content: null,
+      embeds: [embed],
+      components: [row1, row2, row2bis, row3]
     });
   }
 
@@ -767,6 +922,27 @@ async function handleMotCacheSelect(interaction) {
 
     return interaction.update({
       content: `✅ Salons de jeu configurés : ${motCache.allowedChannels.length > 0 ? `${motCache.allowedChannels.length} salon(s)` : 'Tous les salons'}`,
+      components: []
+    });
+  }
+  
+  // Sélecteur d'emoji
+  if (interaction.customId === 'motcache_emoji_select') {
+    const selected = interaction.values[0];
+    let emoji = '🔍';
+    
+    if (selected.startsWith('std:')) {
+      emoji = selected.substring(4); // Emoji standard
+    } else if (selected.startsWith('custom:')) {
+      emoji = selected.substring(7); // Emoji custom du serveur
+    }
+    
+    motCache.emoji = emoji;
+    guildConfig.motCache = motCache;
+    await writeConfig(config);
+
+    return interaction.update({
+      content: `✅ Emoji défini : ${emoji}`,
       components: []
     });
   }

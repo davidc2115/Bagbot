@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed as itemsIndexedGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -4499,6 +4502,9 @@ private fun MusicTab(
     }
 }
 
+// Data class pour les emojis du serveur
+data class ServerEmoji(val id: String, val name: String, val animated: Boolean, val url: String, val raw: String)
+
 @Composable
 private fun MotCacheConfigTab(
     configData: JsonObject?,
@@ -4528,6 +4534,38 @@ private fun MotCacheConfigTab(
     var winnerNotifChannel by remember { mutableStateOf(motCache?.strOrId("notificationChannel")) }
     
     var isSaving by remember { mutableStateOf(false) }
+    
+    // États pour le sélecteur d'emoji
+    var serverEmojis by remember { mutableStateOf<List<ServerEmoji>>(emptyList()) }
+    var showEmojiPicker by remember { mutableStateOf(false) }
+    var emojiSearchQuery by remember { mutableStateOf("") }
+    var isLoadingEmojis by remember { mutableStateOf(false) }
+    
+    // Charger les emojis du serveur
+    LaunchedEffect(Unit) {
+        isLoadingEmojis = true
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.getJson("/api/discord/emojis")
+                val parsed = json.parseToJsonElement(response).jsonObject
+                val emojisArray = parsed["emojis"]?.jsonArray ?: return@withContext
+                serverEmojis = emojisArray.mapNotNull { e ->
+                    val obj = e.jsonObject
+                    ServerEmoji(
+                        id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                        name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                        animated = obj["animated"]?.jsonPrimitive?.booleanOrNull ?: false,
+                        url = obj["url"]?.jsonPrimitive?.contentOrNull ?: "",
+                        raw = obj["raw"]?.jsonPrimitive?.contentOrNull ?: ""
+                    )
+                }
+            } catch (e: Exception) {
+                // Silently fail - emojis will just not be available
+            } finally {
+                withContext(Dispatchers.Main) { isLoadingEmojis = false }
+            }
+        }
+    }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
@@ -4608,15 +4646,130 @@ private fun MotCacheConfigTab(
                     Spacer(Modifier.height(12.dp))
                     Text("🔍 Emoji", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = emoji,
-                        onValueChange = { emoji = it },
+                    
+                    // Affichage de l'emoji actuel et bouton pour ouvrir le sélecteur
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Emoji de réaction") },
-                        placeholder = { Text("🔍 ou <:nom:id> pour emoji serveur") },
-                        singleLine = true,
-                        supportingText = { Text("Emoji standard ou custom du serveur (coller depuis Discord)") }
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = emoji,
+                            onValueChange = { emoji = it },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Emoji actuel") },
+                            singleLine = true
+                        )
+                        OutlinedButton(
+                            onClick = { showEmojiPicker = true },
+                            enabled = !isLoadingEmojis
+                        ) {
+                            if (isLoadingEmojis) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("🎨 Choisir")
+                            }
+                        }
+                    }
+                    
+                    // Dialog sélecteur d'emoji
+                    if (showEmojiPicker) {
+                        AlertDialog(
+                            onDismissRequest = { showEmojiPicker = false },
+                            title = { Text("🔍 Sélectionner un emoji") },
+                            text = {
+                                Column {
+                                    // Barre de recherche
+                                    OutlinedTextField(
+                                        value = emojiSearchQuery,
+                                        onValueChange = { emojiSearchQuery = it },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        placeholder = { Text("Rechercher...") },
+                                        singleLine = true,
+                                        leadingIcon = { Icon(Icons.Default.Search, null) },
+                                        trailingIcon = {
+                                            if (emojiSearchQuery.isNotEmpty()) {
+                                                IconButton(onClick = { emojiSearchQuery = "" }) {
+                                                    Icon(Icons.Default.Clear, "Effacer")
+                                                }
+                                            }
+                                        }
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    
+                                    // Emojis standards
+                                    Text("Standards", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                                    Spacer(Modifier.height(4.dp))
+                                    val standardEmojis = listOf("🔍", "⭐", "🎯", "💎", "🏆", "🎁", "❤️", "🔥", "✨", "🌟", "💰", "🎲")
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Fixed(6),
+                                        modifier = Modifier.height(80.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        items(standardEmojis.filter { it.contains(emojiSearchQuery, ignoreCase = true) || emojiSearchQuery.isEmpty() }) { e ->
+                                            Surface(
+                                                onClick = { emoji = e; showEmojiPicker = false },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (emoji == e) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                                            ) {
+                                                Text(e, modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.titleLarge)
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Emojis du serveur
+                                    if (serverEmojis.isNotEmpty()) {
+                                        Spacer(Modifier.height(12.dp))
+                                        Text("Serveur (${serverEmojis.size})", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                                        Spacer(Modifier.height(4.dp))
+                                        
+                                        val filteredServerEmojis = serverEmojis.filter { 
+                                            emojiSearchQuery.isEmpty() || it.name.contains(emojiSearchQuery, ignoreCase = true) 
+                                        }
+                                        
+                                        LazyVerticalGrid(
+                                            columns = GridCells.Fixed(4),
+                                            modifier = Modifier.height(200.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            items(filteredServerEmojis) { e ->
+                                                Surface(
+                                                    onClick = { emoji = e.raw; showEmojiPicker = false },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (emoji == e.raw) MaterialTheme.colorScheme.primaryContainer else Color(0xFF2A2A2A)
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(8.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                    ) {
+                                                        AsyncImage(
+                                                            model = e.url,
+                                                            contentDescription = e.name,
+                                                            modifier = Modifier.size(32.dp)
+                                                        )
+                                                        Text(
+                                                            e.name,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            color = Color.White
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showEmojiPicker = false }) {
+                                    Text("Fermer")
+                                }
+                            }
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     Text("📏 Longueur minimale message", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
