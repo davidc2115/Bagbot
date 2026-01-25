@@ -210,9 +210,9 @@ async function handleMotCacheButton(interaction) {
 
     const emojiInput = new TextInputBuilder()
       .setCustomId('emoji')
-      .setLabel('Emoji')
+      .setLabel('Emoji (standard ou du serveur)')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Ex: 🔍, 🎯, ⭐')
+      .setPlaceholder('Ex: 🔍 ou <:nom:123456> pour emoji serveur')
       .setRequired(true)
       .setValue(motCache.emoji || '🔍');
 

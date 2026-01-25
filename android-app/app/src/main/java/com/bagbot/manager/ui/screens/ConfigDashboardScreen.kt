@@ -4613,8 +4613,9 @@ private fun MotCacheConfigTab(
                         onValueChange = { emoji = it },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Emoji de réaction") },
-                        placeholder = { Text("🔍") },
-                        singleLine = true
+                        placeholder = { Text("🔍 ou <:nom:id> pour emoji serveur") },
+                        singleLine = true,
+                        supportingText = { Text("Emoji standard ou custom du serveur (coller depuis Discord)") }
                     )
                     Spacer(Modifier.height(12.dp))
                     Text("📏 Longueur minimale message", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

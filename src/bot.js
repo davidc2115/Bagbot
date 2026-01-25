@@ -14089,18 +14089,38 @@ async function buildBoutiqueEmbed(guild, user, offset = 0, limit = 25) {
 async function buildBoutiqueRows(guild) {
   const eco = await getEconomyConfig(guild.id);
   const options = [];
+  
+  // Helper pour parser les emojis custom Discord
+  const parseEmoji = (emojiStr) => {
+    if (!emojiStr) return null;
+    // Format: <:name:id> ou <a:name:id> (animé)
+    const customMatch = emojiStr.match(/^<(a)?:(\w+):(\d+)>$/);
+    if (customMatch) {
+      return { id: customMatch[3], name: customMatch[2], animated: !!customMatch[1] };
+    }
+    // Emoji unicode standard
+    return emojiStr;
+  };
+  
   // Items
   for (const it of (eco.shop?.items || [])) {
-    const emoji = it.emoji || '🎁';
-    const label = emoji + ' ' + (it.name || it.id) + ' — ' + (it.price||0);
-    options.push({ label, value: 'item:' + it.id });
+    const emojiRaw = it.emoji || '🎁';
+    const parsedEmoji = parseEmoji(emojiRaw);
+    const label = (it.name || it.id) + ' — ' + (it.price||0);
+    const option = { label, value: 'item:' + it.id };
+    if (parsedEmoji) option.emoji = parsedEmoji;
+    options.push(option);
   }
   // Roles
   for (const r of (eco.shop?.roles || [])) {
     const roleName = guild.roles.cache.get(r.roleId)?.name || r.name || r.roleId;
     const dur = r.durationDays ? (r.durationDays + 'j') : 'permanent';
     const label = 'Rôle: ' + roleName + ' — ' + (r.price||0) + ' (' + dur + ')';
-    options.push({ label, value: 'role:' + r.roleId + ':' + (r.durationDays||0) });
+    const emojiRaw = r.emoji;
+    const parsedEmoji = emojiRaw ? parseEmoji(emojiRaw) : null;
+    const option = { label, value: 'role:' + r.roleId + ':' + (r.durationDays||0) };
+    if (parsedEmoji) option.emoji = parsedEmoji;
+    options.push(option);
   }
   // Suites (private rooms)
   if (eco.suites) {
@@ -14112,8 +14132,12 @@ async function buildBoutiqueRows(guild) {
     ];
     for (const l of labels) {
       const price = Number(prices[l.key]||0);
-      const label = (eco.suites.emoji || '💞') + ' ' + l.name + ' — ' + price;
-      options.push({ label, value: 'suite:' + l.key });
+      const emojiRaw = eco.suites.emoji || '💞';
+      const parsedEmoji = parseEmoji(emojiRaw);
+      const label = l.name + ' — ' + price;
+      const option = { label, value: 'suite:' + l.key };
+      if (parsedEmoji) option.emoji = parsedEmoji;
+      options.push(option);
     }
   }
   const select = new StringSelectMenuBuilder().setCustomId('boutique_select').setPlaceholder('Choisir un article…').setMinValues(1).setMaxValues(1);
