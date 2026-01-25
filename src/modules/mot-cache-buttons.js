@@ -202,40 +202,118 @@ async function handleMotCacheButton(interaction) {
     return interaction.showModal(modal);
   }
 
-  // Emoji - Afficher sélecteur avec emojis du serveur
-  if (buttonId === 'motcache_emoji') {
+  // Emoji - Afficher sélecteur avec emojis du serveur (avec pagination et recherche)
+  if (buttonId === 'motcache_emoji' || buttonId.startsWith('motcache_emoji_page:') || buttonId === 'motcache_emoji_search') {
     try {
+      // Parser les paramètres de pagination et recherche
+      let page = 0;
+      let searchQuery = '';
+      
+      if (buttonId.startsWith('motcache_emoji_page:')) {
+        const parts = buttonId.split(':');
+        page = parseInt(parts[1]) || 0;
+        searchQuery = parts[2] || '';
+      }
+      
+      // Si c'est le bouton recherche, ouvrir une modal
+      if (buttonId === 'motcache_emoji_search') {
+        const modal = new ModalBuilder()
+          .setCustomId('motcache_modal_emoji_search')
+          .setTitle('🔍 Rechercher un emoji');
+
+        const searchInput = new TextInputBuilder()
+          .setCustomId('search')
+          .setLabel('Nom de l\'emoji')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex: fouet, coeur, fire...')
+          .setRequired(false)
+          .setValue('');
+
+        modal.addComponents(new ActionRowBuilder().addComponents(searchInput));
+        return interaction.showModal(modal);
+      }
+      
       // Récupérer les emojis du serveur
       const guildEmojis = await interaction.guild.emojis.fetch().catch(() => new Map());
-      const emojiOptions = [];
       
-      // Ajouter quelques emojis standards populaires en premier
-      const standardEmojis = ['🔍', '⭐', '🎯', '💎', '🏆', '🎁', '❤️', '🔥', '✨', '🌟'];
+      // Construire la liste complète des emojis
+      const allEmojis = [];
+      
+      // Emojis standards
+      const standardEmojis = ['🔍', '⭐', '🎯', '💎', '🏆', '🎁', '❤️', '🔥', '✨', '🌟', '💰', '🎲', '👑', '🌈', '💫'];
       for (const emoji of standardEmojis) {
-        emojiOptions.push({
-          label: `Standard: ${emoji}`,
+        allEmojis.push({
+          type: 'standard',
+          name: emoji,
+          label: `${emoji}`,
           value: `std:${emoji}`,
           emoji: emoji
         });
       }
       
-      // Ajouter les emojis du serveur (max 15 pour garder de la place)
-      let count = 0;
+      // Emojis du serveur
       for (const [id, emoji] of guildEmojis) {
-        if (count >= 15) break;
         const raw = emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
-        emojiOptions.push({
+        allEmojis.push({
+          type: 'server',
+          name: emoji.name.toLowerCase(),
           label: emoji.name.substring(0, 25),
           value: `custom:${raw}`,
           emoji: { id: emoji.id, name: emoji.name, animated: emoji.animated }
         });
-        count++;
+      }
+      
+      // Filtrer par recherche
+      let filteredEmojis = allEmojis;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        filteredEmojis = allEmojis.filter(e => e.name.toLowerCase().includes(query));
+      }
+      
+      // Pagination (max 23 par page pour laisser place aux boutons)
+      const PAGE_SIZE = 23;
+      const totalPages = Math.ceil(filteredEmojis.length / PAGE_SIZE);
+      page = Math.max(0, Math.min(page, totalPages - 1));
+      const startIdx = page * PAGE_SIZE;
+      const pageEmojis = filteredEmojis.slice(startIdx, startIdx + PAGE_SIZE);
+      
+      // Construire le select menu
+      const options = pageEmojis.map(e => ({
+        label: e.label,
+        value: e.value,
+        emoji: e.emoji
+      }));
+      
+      if (options.length === 0) {
+        options.push({ label: 'Aucun emoji trouvé', value: 'none', emoji: '❌' });
       }
       
       const select = new StringSelectMenuBuilder()
         .setCustomId('motcache_emoji_select')
-        .setPlaceholder(`Emoji actuel: ${motCache.emoji || '🔍'}`)
-        .addOptions(emojiOptions.slice(0, 25));
+        .setPlaceholder(`Page ${page + 1}/${totalPages} • ${filteredEmojis.length} emojis`)
+        .addOptions(options);
+      
+      if (options[0].value === 'none') {
+        select.setDisabled(true);
+      }
+      
+      // Boutons de navigation
+      const prevBtn = new ButtonBuilder()
+        .setCustomId(`motcache_emoji_page:${page - 1}:${searchQuery}`)
+        .setLabel('◀️ Précédent')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page <= 0);
+      
+      const nextBtn = new ButtonBuilder()
+        .setCustomId(`motcache_emoji_page:${page + 1}:${searchQuery}`)
+        .setLabel('Suivant ▶️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(page >= totalPages - 1);
+      
+      const searchBtn = new ButtonBuilder()
+        .setCustomId('motcache_emoji_search')
+        .setLabel('🔍 Rechercher')
+        .setStyle(ButtonStyle.Primary);
       
       const backBtn = new ButtonBuilder()
         .setCustomId('motcache_back_to_config')
@@ -244,33 +322,23 @@ async function handleMotCacheButton(interaction) {
       
       const customBtn = new ButtonBuilder()
         .setCustomId('motcache_emoji_custom')
-        .setLabel('✏️ Saisir manuellement')
-        .setStyle(ButtonStyle.Primary);
+        .setLabel('✏️ Manuel')
+        .setStyle(ButtonStyle.Secondary);
+      
+      const searchInfo = searchQuery ? `\n🔍 Recherche: "${searchQuery}"` : '';
       
       return interaction.update({
-        content: `🔍 **Sélectionne un emoji pour le jeu Mot-Caché**\n\nEmoji actuel: ${motCache.emoji || '🔍'}\n\n💡 Utilise le sélecteur ou clique sur "Saisir manuellement" pour un emoji personnalisé.`,
+        content: `🎨 **Sélectionne un emoji pour le jeu Mot-Caché**\n\nEmoji actuel: ${motCache.emoji || '🔍'}${searchInfo}\n\n📊 ${filteredEmojis.length} emojis (${allEmojis.length - standardEmojis.length} du serveur)`,
+        embeds: [],
         components: [
           new ActionRowBuilder().addComponents(select),
+          new ActionRowBuilder().addComponents(prevBtn, searchBtn, nextBtn),
           new ActionRowBuilder().addComponents(backBtn, customBtn)
         ]
       });
     } catch (error) {
       console.error('[MOT-CACHE] Erreur chargement emojis:', error);
-      // Fallback vers la modal texte
-      const modal = new ModalBuilder()
-        .setCustomId('motcache_modal_emoji')
-        .setTitle('🔍 Emoji de réaction');
-
-      const emojiInput = new TextInputBuilder()
-        .setCustomId('emoji')
-        .setLabel('Emoji (standard ou du serveur)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Ex: 🔍 ou <:nom:123456> pour emoji serveur')
-        .setRequired(true)
-        .setValue(motCache.emoji || '🔍');
-
-      modal.addComponents(new ActionRowBuilder().addComponents(emojiInput));
-      return interaction.showModal(modal);
+      return interaction.reply({ content: '❌ Erreur lors du chargement des emojis.', ephemeral: true });
     }
   }
   
@@ -699,6 +767,114 @@ async function handleMotCacheModal(interaction) {
     return interaction.reply({
       content: `✅ Emoji défini : ${emoji}`,
       ephemeral: true
+    });
+  }
+  
+  // Recherche d'emoji - réafficher le sélecteur avec le filtre
+  if (modalId === 'motcache_modal_emoji_search') {
+    const searchQuery = interaction.fields.getTextInputValue('search').trim();
+    
+    // Récupérer les emojis du serveur
+    const guildEmojis = await interaction.guild.emojis.fetch().catch(() => new Map());
+    
+    // Construire la liste complète des emojis
+    const allEmojis = [];
+    
+    // Emojis standards
+    const standardEmojis = ['🔍', '⭐', '🎯', '💎', '🏆', '🎁', '❤️', '🔥', '✨', '🌟', '💰', '🎲', '👑', '🌈', '💫'];
+    for (const emoji of standardEmojis) {
+      allEmojis.push({
+        type: 'standard',
+        name: emoji,
+        label: `${emoji}`,
+        value: `std:${emoji}`,
+        emoji: emoji
+      });
+    }
+    
+    // Emojis du serveur
+    for (const [id, emoji] of guildEmojis) {
+      const raw = emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
+      allEmojis.push({
+        type: 'server',
+        name: emoji.name.toLowerCase(),
+        label: emoji.name.substring(0, 25),
+        value: `custom:${raw}`,
+        emoji: { id: emoji.id, name: emoji.name, animated: emoji.animated }
+      });
+    }
+    
+    // Filtrer par recherche
+    let filteredEmojis = allEmojis;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredEmojis = allEmojis.filter(e => e.name.toLowerCase().includes(query));
+    }
+    
+    // Pagination
+    const PAGE_SIZE = 23;
+    const page = 0;
+    const totalPages = Math.max(1, Math.ceil(filteredEmojis.length / PAGE_SIZE));
+    const pageEmojis = filteredEmojis.slice(0, PAGE_SIZE);
+    
+    // Construire le select menu
+    const options = pageEmojis.map(e => ({
+      label: e.label,
+      value: e.value,
+      emoji: e.emoji
+    }));
+    
+    if (options.length === 0) {
+      options.push({ label: 'Aucun emoji trouvé', value: 'none', emoji: '❌' });
+    }
+    
+    const select = new StringSelectMenuBuilder()
+      .setCustomId('motcache_emoji_select')
+      .setPlaceholder(`Page ${page + 1}/${totalPages} • ${filteredEmojis.length} emojis`)
+      .addOptions(options);
+    
+    if (options[0].value === 'none') {
+      select.setDisabled(true);
+    }
+    
+    // Boutons de navigation
+    const prevBtn = new ButtonBuilder()
+      .setCustomId(`motcache_emoji_page:${page - 1}:${searchQuery}`)
+      .setLabel('◀️ Précédent')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true);
+    
+    const nextBtn = new ButtonBuilder()
+      .setCustomId(`motcache_emoji_page:${page + 1}:${searchQuery}`)
+      .setLabel('Suivant ▶️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(totalPages <= 1);
+    
+    const searchBtn = new ButtonBuilder()
+      .setCustomId('motcache_emoji_search')
+      .setLabel('🔍 Rechercher')
+      .setStyle(ButtonStyle.Primary);
+    
+    const backBtn = new ButtonBuilder()
+      .setCustomId('motcache_back_to_config')
+      .setLabel('↩️ Retour')
+      .setStyle(ButtonStyle.Secondary);
+    
+    const customBtn = new ButtonBuilder()
+      .setCustomId('motcache_emoji_custom')
+      .setLabel('✏️ Manuel')
+      .setStyle(ButtonStyle.Secondary);
+    
+    const searchInfo = searchQuery ? `\n🔍 Recherche: "${searchQuery}"` : '';
+    
+    return interaction.update({
+      content: `🎨 **Sélectionne un emoji pour le jeu Mot-Caché**\n\nEmoji actuel: ${motCache.emoji || '🔍'}${searchInfo}\n\n📊 ${filteredEmojis.length} emojis trouvés`,
+      embeds: [],
+      components: [
+        new ActionRowBuilder().addComponents(select),
+        new ActionRowBuilder().addComponents(prevBtn, searchBtn, nextBtn),
+        new ActionRowBuilder().addComponents(backBtn, customBtn)
+      ]
     });
   }
 
