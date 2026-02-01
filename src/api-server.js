@@ -586,6 +586,23 @@ app.put('/api/configs/:section', requireAuth, async (req, res) => {
     // Merger
     config.guilds[GUILD][section] = { ...config.guilds[GUILD][section], ...updates };
     
+    // Pour la section economy, s'assurer que les items de la boutique ont des IDs valides
+    if (section === 'economy' && config.guilds[GUILD][section].shop?.items) {
+      const items = config.guilds[GUILD][section].shop.items;
+      for (const item of items) {
+        // Générer un ID valide si manquant ou invalide (contient espaces, majuscules, etc.)
+        if (!item.id || !/^[a-z0-9-]+$/.test(item.id)) {
+          const oldId = item.id;
+          item.id = (item.name || 'item-' + Date.now())
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          console.log(`📝 [BOT-API] Generated valid ID for shop item: "${oldId}" -> "${item.id}"`);
+        }
+      }
+    }
+    
     console.log(`📝 [BOT-API] Config APRÈS merge:`, JSON.stringify(config.guilds[GUILD][section], null, 2));
     
     // Sauvegarder
@@ -1564,6 +1581,23 @@ app.post('/api/economy', requireAuth, express.json(), async (req, res) => {
     
     if (!config.guilds[GUILD].economy) config.guilds[GUILD].economy = {};
     config.guilds[GUILD].economy = deepMerge(config.guilds[GUILD].economy, req.body);
+    
+    // S'assurer que les items de la boutique ont des IDs valides
+    if (config.guilds[GUILD].economy.shop?.items) {
+      const items = config.guilds[GUILD].economy.shop.items;
+      for (const item of items) {
+        // Générer un ID valide si manquant ou invalide (contient espaces, majuscules, etc.)
+        if (!item.id || !/^[a-z0-9-]+$/.test(item.id)) {
+          const oldId = item.id;
+          item.id = (item.name || 'item-' + Date.now())
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          console.log(`📝 [BOT-API] POST /api/economy - Generated valid ID for shop item: "${oldId}" -> "${item.id}"`);
+        }
+      }
+    }
     
     await writeConfig(config);
     res.json({ success: true, config: config.guilds[GUILD].economy });
