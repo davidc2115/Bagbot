@@ -2683,6 +2683,19 @@ ${who}${targetMention ? ' → ' + targetMention : ''}`)
     const texts = success ? hairpullMessages.success : hairpullMessages.fail;
     msgText = texts[randInt(0, texts.length - 1)];
   }
+    if (actionKey === 'Bifle') {
+    const hairpullMessages = {
+      success: [
+        'Tu donne une bifle `
+      ],
+      fail: [
+        ' ta bifle nest pas approprié `
+      ]
+    };
+    
+    const texts = success ? hairpullMessages.success : hairpullMessages.fail;
+    msgText = texts[randInt(0, texts.length - 1)];
+        }
   if (actionKey === 'revive') {
     const techniques = ['bouche-à-bouche','massage cardiaque','position latérale de sécurité','défibrillateur (imaginaire)','vérification des voies aériennes'];
     const t = techniques[randInt(0, techniques.length - 1)];
